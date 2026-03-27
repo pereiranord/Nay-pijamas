@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pijamas Nay | Pijamas femininos, masculinos e infantil premium em cetim e seda</title>
+  <meta name="description" content="Pijamas Nay – pijamas premium em cetim e seda para toda a família. Feminino, masculino e infantil. Nova coleção 2026." />
+  <meta property="og:title" content="Pijamas Nay | Pijamas premium em cetim e seda" />
+  <meta property="og:description" content="Nova coleção 2026 – pijamas femininos, masculinos e infantil de altíssima qualidade." />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Pijamas Nay | Pijamas premium" />
+  <meta name="twitter:description" content="Nova coleção 2026 – pijamas em cetim e seda." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --lilac-primary: #D8BFFD;
+      --lilac-secondary: #BDA2FF;
+      --lilac-deep: #9b7fe8;
+      --bg: #FAFAFA;
+      --bg-card: #FFFFFF;
+      --bg-modal: #FFFFFF;
+      --bg-nav: rgba(255,255,255,0.93);
+      --neutral-light: #F5F5F5;
+      --text-primary: #333333;
+      --text-secondary: #666666;
+      --text-muted: #999999;
+      --border: #E8E0F5;
+      --shadow: 0 2px 16px rgba(180,150,255,0.10);
+      --shadow-hover: 0 8px 32px rgba(180,150,255,0.22);
+      --radius: 18px;
+      --radius-sm: 10px;
+      --tr: 0.28s cubic-bezier(.4,0,.2,1);
+      --font-display: 'Cormorant Garamond', Georgia, serif;
+      --font-body: 'DM Sans', system-ui, sans-serif;
+    }
+    [data-theme="dark"] {
+      --bg: #18141f;
+      --bg-card: #221d2e;
+      --bg-modal: #2a2238;
+      --bg-nav: rgba(24,20,31,0.96);
+      --neutral-light: #2a2238;
+      --text-primary: #f0eaff;
+      --text-secondary: #b8a8d8;
+      --text-muted: #7a6a9a;
+      --border: #3a2e55;
+      --shadow: 0 2px 16px rgba(0,0,0,0.35);
+      --shadow-hover: 0 8px 32px rgba(0,0,0,0.55);
+      --lilac-primary: #c4a8fc;
+      --lilac-secondary: #a88af5;
+    }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{font-family:var(--font-body);background:var(--bg);color:var(--text-primary);transition:background var(--tr),color var(--tr);overflow-x:hidden;min-height:100vh}
+    a{color:inherit;text-decoration:none}
+    img{max-width:100%;display:block}
+    button{font-family:var(--font-body);cursor:pointer;border:none;background:none}
+    ul{list-style:none}
+
+    /* Skip link */
+    .skip-link{position:absolute;top:-999px;left:8px;z-index:9999;background:var(--lilac-secondary);color:#fff;padding:8px 16px;border-radius:6px;font-weight:600}
+    .skip-link:focus{top:8px}
+
+    /* NAV */
+    .nav{position:sticky;top:0;z-index:500;background:var(--bg-nav);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);transition:background var(--tr),border-color var(--tr)}
+    .nav-inner{max-width:1280px;margin:0 auto;display:flex;align-items:center;gap:12px;padding:0 20px;height:64px}
+    .nav-logo{font-family:var(--font-display);font-size:1.65rem;font-weight:600;letter-spacing:.02em;color:var(--text-primary);flex-shrink:0}
+    .nav-logo span{color:var(--lilac-deep)}
+    .nav-search{flex:1;max-width:380px;margin-left:auto;position:relative}
+    .nav-search input{width:100%;padding:9px 16px 9px 40px;border:1.5px solid var(--border);border-radius:50px;background:var(--neutral-light);color:var(--text-primary);font-family:var(--font-body);font-size:.9rem;transition:border-color var(--tr),background var(--tr);outline:none}
+    .nav-search input:focus{border-color:var(--lilac-secondary)}
+    .search-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
+    .nav-actions{display:flex;align-items:center;gap:6px;margin-left:8px}
+    .nav-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);transition:background var(--tr),color var(--tr);position:relative}
+    .nav-btn:hover{background:var(--neutral-light);color:var(--lilac-deep)}
+    .nav-btn .badge{position:absolute;top:4px;right:4px;background:var(--lilac-deep);color:#fff;font-size:.6rem;font-weight:700;min-width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+    .theme-btn{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--neutral-light);color:var(--text-secondary);font-size:1rem;transition:all var(--tr)}
+    .theme-btn:hover{background:var(--border)}
+    .mob-search-tog{display:none;width:40px;height:40px;border-radius:50%;align-items:center;justify-content:center;color:var(--text-secondary)}
+    @media(max-width:640px){.nav-search{display:none}.mob-search-tog{display:flex}}
+    .mob-search-bar{display:none;padding:10px 16px;border-top:1px solid var(--border);background:var(--bg-nav)}
+    .mob-search-bar.open{display:block}
+    .mob-search-bar input{width:100%;padding:10px 16px;border:1.5px solid var(--border);border-radius:50px;background:var(--neutral-light);color:var(--text-primary);font-family:var(--font-body);font-size:.9rem;outline:none}
+
+    /* HERO */
+    .hero{background:linear-gradient(135deg,#f3eeff 0%,#ede4ff 50%,#fdf6ff 100%);padding:44px 20px 36px;text-align:center;overflow:hidden}
+    [data-theme="dark"] .hero{background:linear-gradient(135deg,#1e1729 0%,#261c3d 50%,#1e1729 100%)}
+    .hero-tag{display:inline-block;padding:4px 14px;background:var(--lilac-primary);color:#5a3fa8;border-radius:50px;font-size:.75rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;margin-bottom:14px}
+    [data-theme="dark"] .hero-tag{color:#2a1a5e}
+    .hero h1{font-family:var(--font-display);font-size:clamp(2rem,6vw,3.8rem);font-weight:300;line-height:1.15;color:var(--text-primary);margin-bottom:10px}
+    .hero h1 em{font-style:italic;color:var(--lilac-deep)}
+    .hero p{color:var(--text-secondary);font-size:1rem;max-width:460px;margin:0 auto}
+
+    /* SECTION */
+    .section-wrap{max-width:1280px;margin:40px auto 0;padding:0 20px}
+    .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+    .section-title{font-family:var(--font-display);font-size:1.6rem;font-weight:400;color:var(--text-primary)}
+
+    /* CAROUSEL */
+    /* DATA FROM AIRTABLE */
+    .car-nav{display:flex;gap:6px}
+    .car-nav button{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg-card);color:var(--text-secondary);font-size:1rem;display:flex;align-items:center;justify-content:center;transition:all var(--tr)}
+    .car-nav button:hover{border-color:var(--lilac-secondary);color:var(--lilac-deep)}
+    .car-outer{overflow:hidden;border-radius:var(--radius)}
+    .car-track{display:flex;gap:16px;transition:transform .45s cubic-bezier(.4,0,.2,1)}
+    .car-card{flex:0 0 calc(50% - 8px);border-radius:var(--radius);overflow:hidden;background:var(--bg-card);box-shadow:var(--shadow);cursor:pointer;transition:transform var(--tr),box-shadow var(--tr);position:relative}
+    @media(min-width:768px){.car-card{flex:0 0 calc(33.33% - 11px)}}
+    @media(min-width:1024px){.car-card{flex:0 0 calc(25% - 12px)}}
+    .car-card:hover{transform:translateY(-4px);box-shadow:var(--shadow-hover)}
+    .car-card img{width:100%;aspect-ratio:3/4;object-fit:cover}
+    .car-no-img{width:100%;aspect-ratio:3/4;background:var(--neutral-light);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:.8rem}
+    .car-card-info{padding:12px 14px}
+    .car-card-name{font-family:var(--font-display);font-size:.95rem;margin-bottom:5px;color:var(--text-primary)}
+    .promo-badge{position:absolute;top:10px;left:10px;background:var(--lilac-deep);color:#fff;font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:50px;letter-spacing:.06em;text-transform:uppercase}
+
+    /* FILTERS */
+    /* DATA FROM AIRTABLE */
+    .filters-bar{max-width:1280px;margin:30px auto 0;padding:0 20px 20px;display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+    .filter-btn{padding:7px 18px;border-radius:50px;border:1.5px solid var(--border);background:var(--bg-card);color:var(--text-secondary);font-size:.85rem;font-weight:500;transition:all var(--tr);white-space:nowrap}
+    .filter-btn:hover{border-color:var(--lilac-secondary);color:var(--lilac-deep)}
+    .filter-btn.active{background:var(--lilac-primary);border-color:var(--lilac-primary);color:#4a2e9e;font-weight:600}
+    [data-theme="dark"] .filter-btn.active{color:#2a1a5e}
+    .count-badge{display:inline-flex;align-items:center;justify-content:center;background:var(--border);color:var(--text-muted);font-size:.68rem;font-weight:700;padding:1px 7px;border-radius:50px;margin-left:5px}
+    .sort-sel{margin-left:auto;padding:7px 14px;border:1.5px solid var(--border);border-radius:50px;background:var(--bg-card);color:var(--text-secondary);font-family:var(--font-body);font-size:.85rem;outline:none;cursor:pointer;transition:border-color var(--tr)}
+    .sort-sel:focus{border-color:var(--lilac-secondary)}
+
+    /* PRODUCT GRID */
+    /* DATA FROM AIRTABLE */
+    .products-wrap{max-width:1280px;margin:0 auto;padding:0 20px 56px}
+    .products-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px}
+    @media(max-width:480px){.products-grid{grid-template-columns:repeat(2,1fr);gap:12px}}
+
+    /* Skeleton */
+    .skel{border-radius:var(--radius);overflow:hidden;background:var(--bg-card);box-shadow:var(--shadow)}
+    .skel-img{width:100%;aspect-ratio:3/4;background:linear-gradient(90deg,var(--neutral-light) 25%,var(--border) 50%,var(--neutral-light) 75%);background-size:200% 100%;animation:sh 1.4s infinite}
+    .skel-line{height:12px;border-radius:6px;margin:10px 14px;background:linear-gradient(90deg,var(--neutral-light) 25%,var(--border) 50%,var(--neutral-light) 75%);background-size:200% 100%;animation:sh 1.4s infinite}
+    .skel-line.s{width:55%}
+    @keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+    /* Product Card */
+    /* DATA FROM AIRTABLE */
+    .p-card{border-radius:var(--radius);overflow:hidden;background:var(--bg-card);box-shadow:var(--shadow);cursor:pointer;transition:transform var(--tr),box-shadow var(--tr);position:relative;display:flex;flex-direction:column}
+    .p-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-hover)}
+    .p-card-img{position:relative;overflow:hidden;aspect-ratio:3/4}
+    .p-card-img img{width:100%;height:100%;object-fit:cover;transition:transform .4s ease}
+    .p-card:hover .p-card-img img{transform:scale(1.04)}
+    .p-no-img{width:100%;height:100%;background:var(--neutral-light);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:.78rem}
+    .p-badges{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:4px}
+    .badge-promo{background:var(--lilac-deep);color:#fff;font-size:.65rem;font-weight:700;padding:2px 9px;border-radius:50px;text-transform:uppercase;letter-spacing:.06em}
+    .badge-out{background:#c0392b;color:#fff;font-size:.65rem;font-weight:700;padding:2px 9px;border-radius:50px;text-transform:uppercase}
+    .wish-btn{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.88);display:flex;align-items:center;justify-content:center;font-size:1rem;transition:all var(--tr);backdrop-filter:blur(4px);color:var(--text-muted)}
+    .wish-btn.on{color:#e03070}
+    .wish-btn:hover{background:#fff;color:#e03070}
+    [data-theme="dark"] .wish-btn{background:rgba(34,29,46,.88)}
+    .p-body{padding:12px 14px 14px;flex:1;display:flex;flex-direction:column}
+    .p-cat{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--lilac-deep);font-weight:600;margin-bottom:4px}
+    .p-name{font-family:var(--font-display);font-size:1.05rem;font-weight:400;color:var(--text-primary);line-height:1.3;margin-bottom:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .p-price{margin-top:auto}
+    .price-orig{font-size:.78rem;color:var(--text-muted);text-decoration:line-through;display:block}
+    .price-main{font-size:1.1rem;font-weight:600;color:var(--text-primary)}
+    .price-main.promo{color:var(--lilac-deep)}
+    .p-add{width:100%;margin-top:10px;padding:9px;background:var(--lilac-primary);color:#4a2e9e;border-radius:50px;font-weight:600;font-size:.85rem;transition:all var(--tr)}
+    .p-add:hover:not(:disabled){background:var(--lilac-secondary);transform:translateY(-1px)}
+    .p-add:disabled{background:var(--neutral-light);color:var(--text-muted);cursor:not-allowed}
+    [data-theme="dark"] .p-add{color:#2a1a5e}
+
+    /* MODAL */
+    /* DATA FROM AIRTABLE */
+    .modal-ov{position:fixed;inset:0;z-index:800;background:rgba(20,10,40,.58);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .3s}
+    .modal-ov.open{opacity:1;pointer-events:all}
+    .modal-box{background:var(--bg-modal);border-radius:var(--radius);max-width:820px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 24px 80px rgba(0,0,0,.3);transform:translateY(24px);transition:transform .35s cubic-bezier(.4,0,.2,1);position:relative}
+    .modal-ov.open .modal-box{transform:translateY(0)}
+    .m-close{position:absolute;top:14px;right:14px;z-index:10;width:36px;height:36px;border-radius:50%;background:var(--neutral-light);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;font-size:1.1rem;transition:background var(--tr)}
+    .m-close:hover{background:var(--border)}
+    .m-layout{display:grid;grid-template-columns:1fr 1fr}
+    @media(max-width:600px){.m-layout{grid-template-columns:1fr}}
+    .m-img-wrap{border-radius:var(--radius) 0 0 var(--radius);overflow:hidden}
+    @media(max-width:600px){.m-img-wrap{border-radius:var(--radius) var(--radius) 0 0}}
+    .m-img-wrap img{width:100%;height:100%;object-fit:cover;min-height:280px}
+    .m-no-img{width:100%;min-height:280px;background:var(--neutral-light);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:.85rem}
+    .m-details{padding:28px 24px;display:flex;flex-direction:column;gap:14px}
+    .m-cat{font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;color:var(--lilac-deep);font-weight:600}
+    .m-name{font-family:var(--font-display);font-size:1.7rem;font-weight:400;line-height:1.2;color:var(--text-primary)}
+    .m-desc{font-size:.9rem;color:var(--text-secondary);line-height:1.65}
+    .m-prices{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+    .m-orig{font-size:.9rem;color:var(--text-muted);text-decoration:line-through}
+    .m-price{font-size:1.5rem;font-weight:700;color:var(--text-primary)}
+    .m-price.promo{color:var(--lilac-deep)}
+    .field-lbl{font-size:.8rem;font-weight:600;color:var(--text-secondary);margin-bottom:7px}
+    .sizes-wrap{display:flex;flex-wrap:wrap;gap:8px}
+    .sz-btn{padding:6px 14px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--bg);color:var(--text-secondary);font-size:.85rem;font-weight:500;transition:all var(--tr)}
+    .sz-btn:hover{border-color:var(--lilac-secondary);color:var(--lilac-deep)}
+    .sz-btn.sel{background:var(--lilac-primary);border-color:var(--lilac-primary);color:#4a2e9e;font-weight:700}
+    [data-theme="dark"] .sz-btn.sel{color:#2a1a5e}
+    .qty-wrap{display:flex;align-items:center}
+    .qty-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--border);background:var(--bg);color:var(--text-secondary);font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:all var(--tr)}
+    .qty-btn:hover{border-color:var(--lilac-secondary)}
+    .qty-num{width:44px;text-align:center;font-weight:600;font-size:1rem;color:var(--text-primary)}
+    .m-stock{font-size:.78rem;color:var(--text-muted)}
+    .m-stock.low{color:#c0392b;font-weight:600}
+    .m-add{width:100%;padding:13px;background:var(--lilac-secondary);color:#fff;border-radius:50px;font-weight:700;font-size:.95rem;transition:all var(--tr)}
+    .m-add:hover:not(:disabled){background:var(--lilac-deep);transform:translateY(-2px)}
+    .m-add:disabled{background:var(--neutral-light);color:var(--text-muted);cursor:not-allowed}
+    .breadcrumb{font-size:.75rem;color:var(--text-muted);display:flex;align-items:center;gap:4px}
+    .breadcrumb span{color:var(--lilac-deep)}
+
+    /* SIDEBARS */
+    .side-ov{position:fixed;inset:0;z-index:700;background:rgba(20,10,40,.45);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .3s}
+    .side-ov.open{opacity:1;pointer-events:all}
+    .side-bar{position:fixed;right:0;top:0;bottom:0;z-index:701;width:min(400px,100vw);background:var(--bg-modal);box-shadow:-8px 0 40px rgba(0,0,0,.15);display:flex;flex-direction:column;transform:translateX(100%);transition:transform .38s cubic-bezier(.4,0,.2,1)}
+    .side-ov.open .side-bar{transform:translateX(0)}
+    .side-head{padding:20px 20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+    .side-title{font-family:var(--font-display);font-size:1.4rem;font-weight:400;color:var(--text-primary)}
+    .side-close{width:36px;height:36px;border-radius:50%;background:var(--neutral-light);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;transition:background var(--tr)}
+    .side-close:hover{background:var(--border)}
+    .side-body{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+    .side-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--text-muted);text-align:center;padding:40px}
+    .side-empty-icon{font-size:3rem}
+
+    /* Cart items */
+    /* DATA FROM AIRTABLE */
+    .c-item{display:flex;gap:12px;align-items:flex-start;background:var(--neutral-light);border-radius:var(--radius-sm);padding:12px}
+    .c-img{width:68px;height:88px;border-radius:10px;object-fit:cover;flex-shrink:0}
+    .c-no-img{width:68px;height:88px;border-radius:10px;background:var(--border);flex-shrink:0}
+    .c-info{flex:1;min-width:0}
+    .c-name{font-size:.88rem;font-weight:500;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+    .c-size{font-size:.75rem;color:var(--text-muted);margin-bottom:6px}
+    .c-row{display:flex;align-items:center;justify-content:space-between}
+    .c-price{font-weight:700;color:var(--lilac-deep);font-size:.92rem}
+    .c-qty{display:flex;align-items:center;gap:2px}
+    .c-qty-btn{width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);font-size:.9rem;display:flex;align-items:center;justify-content:center;transition:all var(--tr)}
+    .c-qty-btn:hover{border-color:var(--lilac-secondary)}
+    .c-qty-num{width:28px;text-align:center;font-size:.85rem;font-weight:600;color:var(--text-primary)}
+    .c-del{color:var(--text-muted);font-size:1rem;padding:4px;transition:color var(--tr)}
+    .c-del:hover{color:#c0392b}
+    .cart-foot{border-top:1px solid var(--border);padding:16px 20px 20px}
+    .c-total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .c-total-lbl{font-size:.9rem;color:var(--text-secondary)}
+    .c-total-val{font-size:1.3rem;font-weight:700;color:var(--text-primary)}
+    .wa-checkout{width:100%;padding:14px;background:#25d366;color:#fff;border-radius:50px;font-weight:700;font-size:.95rem;display:flex;align-items:center;justify-content:center;gap:8px;transition:all var(--tr)}
+    .wa-checkout:hover{background:#1da851;transform:translateY(-2px)}
+    .c-clear{width:100%;padding:11px;border:1.5px solid var(--border);border-radius:50px;color:var(--text-muted);font-size:.85rem;margin-top:8px;transition:all var(--tr)}
+    .c-clear:hover{border-color:#c0392b;color:#c0392b}
+
+    /* Wishlist items */
+    /* DATA FROM AIRTABLE */
+    .w-item{display:flex;gap:12px;align-items:center;background:var(--neutral-light);border-radius:var(--radius-sm);padding:12px}
+    .w-img{width:60px;height:78px;border-radius:8px;object-fit:cover;flex-shrink:0}
+    .w-no-img{width:60px;height:78px;border-radius:8px;background:var(--border);flex-shrink:0}
+    .w-name{font-size:.88rem;font-weight:500;color:var(--text-primary)}
+    .w-price{font-size:.85rem;color:var(--lilac-deep);font-weight:600;margin-top:3px}
+    .w-acts{display:flex;gap:6px;margin-top:8px}
+    .w-see{font-size:.78rem;padding:4px 12px;background:var(--lilac-primary);border-radius:50px;color:#4a2e9e;font-weight:600;transition:all var(--tr)}
+    [data-theme="dark"] .w-see{color:#2a1a5e}
+    .w-rm{font-size:.78rem;padding:4px 12px;border:1px solid var(--border);border-radius:50px;color:var(--text-muted);transition:all var(--tr)}
+    .w-rm:hover{border-color:#c0392b;color:#c0392b}
+
+    /* Policy modal */
+    .pol-ov{position:fixed;inset:0;z-index:900;background:rgba(20,10,40,.58);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;pointer-events:none;transition:opacity .3s}
+    .pol-ov.open{opacity:1;pointer-events:all}
+    .pol-box{background:var(--bg-modal);border-radius:var(--radius);max-width:520px;width:100%;padding:32px 28px;box-shadow:0 24px 80px rgba(0,0,0,.3);transform:translateY(20px);transition:transform .3s;position:relative;max-height:90vh;overflow-y:auto}
+    .pol-ov.open .pol-box{transform:translateY(0)}
+    .pol-title{font-family:var(--font-display);font-size:1.5rem;font-weight:400;margin-bottom:14px;color:var(--text-primary)}
+    .pol-text{font-size:.9rem;color:var(--text-secondary);line-height:1.75;margin-bottom:22px}
+    .wa-btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;background:#25d366;color:#fff;border-radius:50px;font-weight:600;font-size:.9rem;transition:all var(--tr)}
+    .wa-btn:hover{background:#1da851;transform:translateY(-2px)}
+
+    /* Toast */
+    .toast-wrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+    .toast{background:var(--text-primary);color:var(--bg);padding:11px 22px;border-radius:50px;font-size:.87rem;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.2);animation:tIn .3s ease forwards;pointer-events:none}
+    .toast.ok{background:var(--lilac-deep);color:#fff}
+    .toast.err{background:#c0392b;color:#fff}
+    .toast.out{animation:tOut .3s ease forwards}
+    @keyframes tIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes tOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(12px)}}
+
+    /* Error state */
+    .err-state{max-width:480px;margin:60px auto;text-align:center;padding:20px;grid-column:1/-1}
+    .err-state-icon{font-size:3rem;margin-bottom:14px}
+    .err-state h2{font-family:var(--font-display);font-size:1.5rem;font-weight:400;color:var(--text-primary);margin-bottom:10px}
+    .err-state p{font-size:.9rem;color:var(--text-secondary);line-height:1.65;margin-bottom:20px}
+    .retry-btn{padding:11px 28px;background:var(--lilac-primary);color:#4a2e9e;border-radius:50px;font-weight:700;font-size:.92rem;transition:all var(--tr)}
+    .retry-btn:hover{background:var(--lilac-secondary)}
+    [data-theme="dark"] .retry-btn{color:#2a1a5e}
+
+    /* Empty */
+    .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text-muted)}
+    .empty-icon{font-size:3.5rem;margin-bottom:12px}
+    .empty h3{font-family:var(--font-display);font-size:1.4rem;font-weight:400;color:var(--text-secondary);margin-bottom:8px}
+
+    /* Footer */
+    .footer{background:var(--neutral-light);border-top:1px solid var(--border);padding:44px 20px 24px;transition:background var(--tr),border-color var(--tr)}
+    .footer-inner{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px}
+    @media(max-width:640px){.footer-inner{grid-template-columns:1fr}}
+    .f-logo{font-family:var(--font-display);font-size:1.5rem;font-weight:600;color:var(--text-primary);margin-bottom:10px}
+    .f-logo span{color:var(--lilac-deep)}
+    .f-desc{font-size:.85rem;color:var(--text-secondary);line-height:1.6}
+    .f-col-title{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text-secondary);margin-bottom:14px}
+    .f-links{display:flex;flex-direction:column;gap:9px}
+    .f-link{font-size:.88rem;color:var(--text-secondary);transition:color var(--tr);width:fit-content}
+    button.f-link{cursor:pointer}
+    .f-link:hover,button.f-link:hover{color:var(--lilac-deep)}
+    .f-socials{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+    .soc-btn{display:flex;align-items:center;gap:7px;padding:8px 16px;border-radius:50px;font-size:.85rem;font-weight:500;transition:all var(--tr)}
+    .soc-wa{background:#25d366;color:#fff}
+    .soc-wa:hover{background:#1da851}
+    .soc-ig{background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);color:#fff}
+    .soc-ig:hover{opacity:.88}
+    .f-bottom{max-width:1280px;margin:28px auto 0;border-top:1px solid var(--border);padding-top:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+    .f-copy{font-size:.78rem;color:var(--text-muted)}
+
+    .no-scroll{overflow:hidden}
+    ::-webkit-scrollbar{width:6px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:var(--border);border-radius:6px}
+  </style>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Pular para o conteúdo</a>
+  <div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- NAV -->
+  <nav class="nav" role="navigation" aria-label="Navegação principal">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo" aria-label="Pijamas Nay – página inicial">Pijamas <span>Nay</span></a>
+      <div class="nav-search" role="search">
+        <svg class="search-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="search" id="searchInput" placeholder="Buscar pijamas..." aria-label="Buscar produtos" autocomplete="off" />
+      </div>
+      <div class="nav-actions">
+        <button class="theme-btn" id="themeBtn" aria-label="Alternar tema">☀️</button>
+        <button class="nav-btn" id="wishBtn" aria-label="Lista de desejos">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span class="badge" id="wishBadge" style="display:none">0</span>
+        </button>
+        <button class="nav-btn" id="cartBtn" aria-label="Carrinho de compras">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          <span class="badge" id="cartBadge" style="display:none">0</span>
+        </button>
+        <button class="mob-search-tog" id="mobSearchTog" aria-label="Abrir busca">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="mob-search-bar" id="mobSearchBar">
+      <input type="search" id="mobSearchInput" placeholder="Buscar pijamas..." aria-label="Buscar produtos" autocomplete="off" />
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero" aria-label="Banner principal">
+    <div class="hero-tag">Nova Coleção 2026</div>
+    <h1>O conforto que você<br/><em>merece dormir</em></h1>
+    <p>Pijamas em cetim e seda premium para toda a família. Feminino, masculino e infantil.</p>
+  </section>
+
+  <main id="main-content">
+
+    <!-- PROMO CAROUSEL — DATA FROM AIRTABLE -->
+    <section class="section-wrap" id="promoSection" aria-label="Produtos em promoção" style="display:none">
+      <div class="section-header">
+        <h2 class="section-title">Em Promoção</h2>
+        <div class="car-nav">
+          <button id="carPrev" aria-label="Anterior">&#8249;</button>
+          <button id="carNext" aria-label="Próximo">&#8250;</button>
+        </div>
+      </div>
+      <div class="car-outer">
+        <div class="car-track" id="carTrack" role="list"></div>
+      </div>
+    </section>
+
+    <!-- FILTERS — DATA FROM AIRTABLE -->
+    <div class="filters-bar" id="filtersBar" role="toolbar" aria-label="Filtros de categoria" style="display:none">
+      <button class="filter-btn active" data-cat="all" aria-pressed="true">
+        Todos <span class="count-badge" id="cntAll">0</span>
+      </button>
+      <button class="filter-btn" data-cat="feminino" aria-pressed="false" id="btnFem" style="display:none">
+        Feminino <span class="count-badge" id="cntFem">0</span>
+      </button>
+      <button class="filter-btn" data-cat="masculino" aria-pressed="false" id="btnMasc" style="display:none">
+        Masculino <span class="count-badge" id="cntMasc">0</span>
+      </button>
+      <button class="filter-btn" data-cat="infantil" aria-pressed="false" id="btnInf" style="display:none">
+        Infantil <span class="count-badge" id="cntInf">0</span>
+      </button>
+      <select class="sort-sel" id="sortSel" aria-label="Ordenar por">
+        <option value="relevance">Relevância</option>
+        <option value="price_asc">Menor preço</option>
+        <option value="price_desc">Maior preço</option>
+        <option value="newest">Mais recente</option>
+      </select>
+    </div>
+
+    <!-- PRODUCT GRID — DATA FROM AIRTABLE -->
+    <div class="products-wrap">
+      <div class="products-grid" id="prodGrid" role="list" aria-label="Produtos"></div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="footer" role="contentinfo">
+    <div class="footer-inner">
+      <div>
+        <div class="f-logo">Pijamas <span>Nay</span></div>
+        <p class="f-desc">Pijamas premium em cetim e seda para toda a família. Conforto e estilo para suas noites.</p>
+        <div class="f-socials">
+          <a href="https://wa.me/5511958177096?text=Ol%C3%A1!%20Gostaria%20de%20mais%20informa%C3%A7%C3%B5es%20sobre%20os%20pijamas."
+             class="soc-btn soc-wa" target="_blank" rel="noopener" aria-label="WhatsApp Pijamas Nay">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+            WhatsApp
+          </a>
+          <a href="https://www.instagram.com/pijamadanayy" class="soc-btn soc-ig" target="_blank" rel="noopener" aria-label="Instagram Pijamas Nay">
+            <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+            Instagram
+          </a>
+        </div>
+      </div>
+      <div>
+        <div class="f-col-title">Políticas</div>
+        <div class="f-links">
+          <button class="f-link" onclick="openPol('troca')" aria-haspopup="dialog">Troca Fácil</button>
+          <button class="f-link" onclick="openPol('devolucao')" aria-haspopup="dialog">Devolução</button>
+          <button class="f-link" onclick="openPol('privacidade')" aria-haspopup="dialog">Privacidade</button>
+        </div>
+      </div>
+      <div>
+        <div class="f-col-title">Atendimento</div>
+        <div class="f-links">
+          <span class="f-link" style="cursor:default">Segunda a Domingo</span>
+          <span class="f-link" style="cursor:default">08:00 – 20:00</span>
+          <a href="https://wa.me/5511958177096" class="f-link" target="_blank" rel="noopener">+55 11 95817-7096</a>
+        </div>
+      </div>
+    </div>
+    <div class="f-bottom">
+      <span class="f-copy">© 2026 Pijamas Nay. Todos os direitos reservados.</span>
+      <span class="f-copy">Nova Coleção 2026</span>
+    </div>
+  </footer>
+
+  <!-- PRODUCT MODAL — DATA FROM AIRTABLE -->
+  <div class="modal-ov" id="prodModal" role="dialog" aria-modal="true" aria-label="Detalhes do produto">
+    <div class="modal-box">
+      <button class="m-close" id="modClose" aria-label="Fechar">✕</button>
+      <div class="m-layout">
+        <div class="m-img-wrap" id="modImgWrap"></div>
+        <div class="m-details">
+          <nav class="breadcrumb" aria-label="Localização">
+            Início / <span id="modBreadCat"></span> / <span id="modBreadName"></span>
+          </nav>
+          <div class="m-cat" id="modCat"></div>
+          <h2 class="m-name" id="modName"></h2>
+          <p class="m-desc" id="modDesc"></p>
+          <div class="m-prices">
+            <span class="m-orig" id="modOrig" style="display:none"></span>
+            <span class="m-price" id="modPrice"></span>
+          </div>
+          <div id="modSzBlock">
+            <div class="field-lbl">Tamanho:</div>
+            <div class="sizes-wrap" id="modSizes"></div>
+          </div>
+          <div>
+            <div class="field-lbl">Quantidade:</div>
+            <div class="qty-wrap">
+              <button class="qty-btn" id="qtyMin" aria-label="Diminuir quantidade">−</button>
+              <span class="qty-num" id="qtyNum" aria-live="polite">1</span>
+              <button class="qty-btn" id="qtyPlus" aria-label="Aumentar quantidade">+</button>
+            </div>
+          </div>
+          <div class="m-stock" id="modStock" aria-live="polite"></div>
+          <button class="m-add" id="modAdd" aria-label="Adicionar ao carrinho">Adicionar ao Carrinho</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CART SIDEBAR -->
+  <div class="side-ov" id="cartOv" role="dialog" aria-modal="true" aria-label="Carrinho de compras">
+    <div class="side-bar" id="cartSide">
+      <div class="side-head">
+        <h2 class="side-title">Carrinho</h2>
+        <button class="side-close" id="cartClose" aria-label="Fechar carrinho">✕</button>
+      </div>
+      <div class="side-body" id="cartBody"></div>
+      <div class="cart-foot" id="cartFoot" style="display:none">
+        <div class="c-total-row">
+          <span class="c-total-lbl">Total:</span>
+          <!-- DATA FROM AIRTABLE -->
+          <span class="c-total-val" id="cartTotal">R$ 0,00</span>
+        </div>
+        <a id="waCheckout" href="#" class="wa-checkout" target="_blank" rel="noopener" aria-label="Finalizar pedido via WhatsApp">
+          <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+          Finalizar via WhatsApp
+        </a>
+        <button class="c-clear" id="cartClear" aria-label="Limpar carrinho">Limpar carrinho</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- WISHLIST SIDEBAR -->
+  <div class="side-ov" id="wishOv" role="dialog" aria-modal="true" aria-label="Lista de desejos">
+    <div class="side-bar" id="wishSide">
+      <div class="side-head">
+        <h2 class="side-title">Lista de Desejos</h2>
+        <button class="side-close" id="wishClose" aria-label="Fechar lista de desejos">✕</button>
+      </div>
+      <div class="side-body" id="wishBody"></div>
+    </div>
+  </div>
+
+  <!-- POLICY MODAL -->
+  <div class="pol-ov" id="polOv" role="dialog" aria-modal="true" aria-label="Política">
+    <div class="pol-box">
+      <button class="m-close" onclick="closePol()" aria-label="Fechar">✕</button>
+      <h2 class="pol-title" id="polTitle"></h2>
+      <p class="pol-text" id="polText"></p>
+      <div id="polActions"></div>
+    </div>
+  </div>
+
+  <script>
+  // =============================================
+  //  AIRTABLE — DATA FROM AIRTABLE
+  // =============================================
+  const AT_KEY   = 'patb49Vd1sRUNWNwS.757eac3bda6635d9bc7ce54c3fb0f50422fd6fc2d79492a1dfab6421e2ee415b';
+  const AT_BASE  = 'appXACi5oFC0iku2u';
+  const AT_TABLE = 'Produtos';
+  const WA_NUM   = '5511958177096';
+
+  // =============================================
+  //  STATE
+  // =============================================
+  let products  = [];   // Ativo=true only, straight from API
+  let filtered  = [];
+  let cart      = JSON.parse(localStorage.getItem('nay_cart') || '[]');
+  let wishlist  = JSON.parse(localStorage.getItem('nay_wish') || '[]');
+  let cat       = 'all';
+  let sort      = 'relevance';
+  let query     = '';
+  let modProd   = null;
+  let modQty    = 1;
+  let modSize   = '';
+  let promos    = [];
+  let carIdx    = 0;
+  let carTimer  = null;
+  let searchT   = null;
+
+  // =============================================
+  //  THEME
+  // =============================================
+  const savedTheme = localStorage.getItem('nay_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  const themeBtn = document.getElementById('themeBtn');
+  function syncTheme() {
+    const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    themeBtn.textContent = dark ? '☀️' : '🌙';
+    themeBtn.setAttribute('aria-label', dark ? 'Ativar tema claro' : 'Ativar tema escuro');
+  }
+  syncTheme();
+  themeBtn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('nay_theme', next);
+    syncTheme();
+  });
+
+  // =============================================
+  //  HELPERS — DATA FROM AIRTABLE
+  // =============================================
+  function activePrice(p) {
+    const f = p.fields;
+    if (f['Promoção ativa'] === true && Number(f['Preço promocional']) > 0)
+      return Number(f['Preço promocional']);
+    return Number(f['Preço']) || 0;
+  }
+
+  function fmt(n) {
+    return 'R$ ' + (Number(n)||0).toFixed(2).replace('.', ',');
+  }
+
+  function getImg(p) {
+    const foto = p.fields['Foto'];
+    if (Array.isArray(foto) && foto.length > 0)
+      return foto[0].thumbnails?.large?.url || foto[0].url || null;
+    if (typeof foto === 'string' && foto.startsWith('http')) return foto;
+    return null;
+  }
+
+  function getSizes(p) {
+    const sz = p.fields['Tamanho'];
+    if (!sz) return [];
+    return String(sz).split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  function discPct(p) {
+    const o = Number(p.fields['Preço']);
+    const pr = Number(p.fields['Preço promocional']);
+    if (!o || !pr || pr >= o) return 0;
+    return Math.round((1 - pr / o) * 100);
+  }
+
+  function imgEl(src, alt, cls) {
+    if (src) {
+      const img = document.createElement('img');
+      img.src = src; img.alt = alt; img.className = cls; img.loading = 'lazy';
+      return img;
+    }
+    const d = document.createElement('div');
+    d.className = cls.replace('img','no-img').replace('c-img','c-no-img').replace('w-img','w-no-img').replace('m-img','m-no-img');
+    d.textContent = 'Sem imagem';
+    return d;
+  }
+
+  // =============================================
+  //  FETCH — DATA FROM AIRTABLE
+  // =============================================
+  async function fetchProducts() {
+    showSkeletons();
+    try {
+      let recs = [], offset = null;
+      do {
+        const url = new URL(`https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}`);
+        url.searchParams.set('pageSize', '100');
+        if (offset) url.searchParams.set('offset', offset);
+        const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${AT_KEY}` } });
+        if (!res.ok) throw new Error(`Erro ${res.status}: ${res.statusText}`);
+        const data = await res.json();
+        recs = recs.concat(data.records || []);
+        offset = data.offset || null;
+      } while (offset);
+      // Only show Ativo = true — DATA FROM AIRTABLE
+      products = recs.filter(r => r.fields && r.fields['Ativo'] === true);
+      initUI();
+    } catch (err) {
+      console.error(err);
+      showAPIError(err.message);
+    }
+  }
+
+  function showAPIError(msg) {
+    document.getElementById('prodGrid').innerHTML = `
+      <div class="err-state">
+        <div class="err-state-icon">⚠️</div>
+        <h2>Não foi possível carregar os produtos</h2>
+        <p>Erro ao conectar com o Airtable: <em>${msg}</em><br/>Verifique sua conexão e tente novamente.</p>
+        <button class="retry-btn" onclick="fetchProducts()">Tentar novamente</button>
+      </div>`;
+  }
+
+  function showSkeletons() {
+    const g = document.getElementById('prodGrid');
+    g.innerHTML = '';
+    for (let i = 0; i < 8; i++) {
+      const d = document.createElement('div');
+      d.className = 'skel';
+      d.innerHTML = '<div class="skel-img"></div><div class="skel-line"></div><div class="skel-line s"></div>';
+      g.appendChild(d);
+    }
+  }
+
+  // =============================================
+  //  INIT UI
+  // =============================================
+  function initUI() {
+    buildFilters();
+    buildCarousel();
+    applyFilters();
+    syncCartBadge();
+    syncWishBadge();
+  }
+
+  // =============================================
+  //  FILTERS — DATA FROM AIRTABLE
+  // =============================================
+  function buildFilters() {
+    const counts = { feminino:0, masculino:0, infantil:0 };
+    products.forEach(p => {
+      const c = (p.fields['Categoria']||'').toLowerCase();
+      if (counts[c] !== undefined) counts[c]++;
+    });
+    document.getElementById('cntAll').textContent = products.length;
+    const map = { feminino:'Fem', masculino:'Masc', infantil:'Inf' };
+    Object.entries(map).forEach(([c, suffix]) => {
+      document.getElementById('cnt' + suffix).textContent = counts[c];
+      document.getElementById('btn' + suffix).style.display = counts[c] > 0 ? '' : 'none';
+    });
+    document.getElementById('filtersBar').style.display = '';
+  }
+
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(x => {
+        x.classList.remove('active'); x.setAttribute('aria-pressed','false');
+      });
+      b.classList.add('active'); b.setAttribute('aria-pressed','true');
+      cat = b.dataset.cat; applyFilters();
+    });
+  });
+
+  document.getElementById('sortSel').addEventListener('change', e => { sort = e.target.value; applyFilters(); });
+
+  // =============================================
+  //  SEARCH
+  // =============================================
+  function onSearch(q) {
+    clearTimeout(searchT);
+    searchT = setTimeout(() => { query = q.trim(); applyFilters(); }, 320);
+  }
+  document.getElementById('searchInput').addEventListener('input', e => onSearch(e.target.value));
+  document.getElementById('mobSearchInput').addEventListener('input', e => {
+    document.getElementById('searchInput').value = e.target.value;
+    onSearch(e.target.value);
+  });
+  document.getElementById('mobSearchTog').addEventListener('click', () => {
+    const bar = document.getElementById('mobSearchBar');
+    bar.classList.toggle('open');
+    if (bar.classList.contains('open')) document.getElementById('mobSearchInput').focus();
+  });
+
+  // =============================================
+  //  APPLY FILTERS + SORT — DATA FROM AIRTABLE
+  // =============================================
+  function applyFilters() {
+    let list = [...products];
+    if (cat !== 'all')
+      list = list.filter(p => (p.fields['Categoria']||'').toLowerCase() === cat);
+    if (query) {
+      const q = query.toLowerCase();
+      list = list.filter(p =>
+        (p.fields['Nome']||'').toLowerCase().includes(q) ||
+        (p.fields['Categoria']||'').toLowerCase().includes(q) ||
+        (p.fields['Descrição']||'').toLowerCase().includes(q)
+      );
+    }
+    if (sort === 'price_asc')  list.sort((a,b) => activePrice(a) - activePrice(b));
+    if (sort === 'price_desc') list.sort((a,b) => activePrice(b) - activePrice(a));
+    if (sort === 'newest')     list.sort((a,b) => (b.createdTime||'').localeCompare(a.createdTime||''));
+    filtered = list;
+    renderProducts();
+  }
+
+  // =============================================
+  //  RENDER PRODUCTS — DATA FROM AIRTABLE
+  // =============================================
+  function renderProducts() {
+    const grid = document.getElementById('prodGrid');
+    grid.innerHTML = '';
+    if (filtered.length === 0) {
+      grid.innerHTML = `<div class="empty" role="status">
+        <div class="empty-icon">🔍</div>
+        <h3>Nenhum produto encontrado</h3>
+        <p>Tente uma busca diferente ou outra categoria.</p>
+      </div>`;
+      return;
+    }
+    filtered.forEach(p => {
+      const f       = p.fields;
+      const price   = activePrice(p);
+      const orig    = Number(f['Preço']);
+      const isPromo = f['Promoção ativa'] === true;
+      const stock   = Number(f['Estoque']) || 0;
+      const inStock = stock > 0;
+      const src     = getImg(p);
+      const name    = f['Nome'] || '';
+      const catStr  = (f['Categoria']||'').toLowerCase();
+      const wished  = wishlist.includes(p.id);
+      const pct     = discPct(p);
+
+      const card = document.createElement('div');
+      card.className = 'p-card';
+      card.setAttribute('role','listitem');
+      card.setAttribute('tabindex','0');
+      card.setAttribute('aria-label', `${name} – ${fmt(price)}`);
+
+      // Image area
+      const imgWrap = document.createElement('div');
+      imgWrap.className = 'p-card-img';
+
+      if (src) {
+        const img = document.createElement('img');
+        img.src = src; img.alt = name; img.loading = 'lazy';
+        imgWrap.appendChild(img);
+      } else {
+        const nd = document.createElement('div');
+        nd.className = 'p-no-img'; nd.textContent = 'Sem imagem';
+        imgWrap.appendChild(nd);
+      }
+
+      // Badges
+      const badges = document.createElement('div');
+      badges.className = 'p-badges';
+      if (isPromo) {
+        const bp = document.createElement('span');
+        bp.className = 'badge-promo';
+        bp.textContent = pct > 0 ? `${pct}% OFF` : 'Promoção';
+        badges.appendChild(bp);
+      }
+      if (!inStock) {
+        const bo = document.createElement('span');
+        bo.className = 'badge-out'; bo.textContent = 'Esgotado';
+        badges.appendChild(bo);
+      }
+      imgWrap.appendChild(badges);
+
+      // Wishlist button
+      const wb = document.createElement('button');
+      wb.className = 'wish-btn' + (wished ? ' on' : '');
+      wb.dataset.id = p.id;
+      wb.setAttribute('aria-label', wished ? 'Remover dos favoritos' : 'Adicionar aos favoritos');
+      wb.setAttribute('aria-pressed', wished);
+      wb.textContent = wished ? '❤️' : '🤍';
+      wb.addEventListener('click', e => { e.stopPropagation(); toggleWish(p.id, wb); });
+      imgWrap.appendChild(wb);
+
+      card.appendChild(imgWrap);
+
+      // Body
+      const body = document.createElement('div');
+      body.className = 'p-body';
+      if (catStr) {
+        const pc = document.createElement('div'); pc.className = 'p-cat'; pc.textContent = catStr;
+        body.appendChild(pc);
+      }
+      const pn = document.createElement('div'); pn.className = 'p-name'; pn.textContent = name;
+      body.appendChild(pn);
+
+      const pp = document.createElement('div'); pp.className = 'p-price';
+      if (isPromo && orig && orig !== price) {
+        const po = document.createElement('span'); po.className = 'price-orig'; po.textContent = fmt(orig);
+        pp.appendChild(po);
+      }
+      const pm = document.createElement('span');
+      pm.className = 'price-main' + (isPromo ? ' promo' : '');
+      pm.textContent = fmt(price);
+      pp.appendChild(pm);
+      body.appendChild(pp);
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'p-add';
+      addBtn.textContent = inStock ? 'Adicionar' : 'Esgotado';
+      addBtn.disabled = !inStock;
+      if (!inStock) addBtn.setAttribute('aria-disabled','true');
+      addBtn.setAttribute('aria-label', `Adicionar ${name} ao carrinho`);
+      addBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        const sizes = getSizes(p);
+        if (sizes.length > 0) { openModal(p); toast('Selecione um tamanho para continuar','info'); }
+        else addToCart(p, '', 1);
+      });
+      body.appendChild(addBtn);
+      card.appendChild(body);
+
+      card.addEventListener('click', () => openModal(p));
+      card.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' '){e.preventDefault();openModal(p);} });
+      grid.appendChild(card);
+    });
+  }
+
+  // =============================================
+  //  CAROUSEL — DATA FROM AIRTABLE
+  // =============================================
+  function buildCarousel() {
+    promos = products.filter(p => p.fields['Promoção ativa'] === true);
+    const sec = document.getElementById('promoSection');
+    if (promos.length === 0) { sec.style.display = 'none'; return; }
+    sec.style.display = '';
+    const track = document.getElementById('carTrack');
+    track.innerHTML = '';
+    carIdx = 0;
+    promos.forEach(p => {
+      const src   = getImg(p);
+      const price = activePrice(p);
+      const orig  = Number(p.fields['Preço']);
+      const pct   = discPct(p);
+      const name  = p.fields['Nome'] || '';
+
+      const card = document.createElement('div');
+      card.className = 'car-card';
+      card.setAttribute('role','listitem');
+
+      const badge = document.createElement('span');
+      badge.className = 'promo-badge';
+      badge.textContent = pct > 0 ? `${pct}% OFF` : 'Promoção';
+      card.appendChild(badge);
+
+      if (src) {
+        const img = document.createElement('img');
+        img.src = src; img.alt = name; img.loading = 'lazy';
+        card.appendChild(img);
+      } else {
+        const nd = document.createElement('div'); nd.className = 'car-no-img'; nd.textContent = 'Sem imagem';
+        card.appendChild(nd);
+      }
+
+      const info = document.createElement('div'); info.className = 'car-card-info';
+      const nm = document.createElement('div'); nm.className = 'car-card-name'; nm.textContent = name;
+      info.appendChild(nm);
+      if (orig && orig !== price) {
+        const po = document.createElement('span'); po.className = 'price-orig'; po.textContent = fmt(orig);
+        info.appendChild(po);
+      }
+      const pm = document.createElement('span'); pm.className = 'price-main promo'; pm.textContent = fmt(price);
+      info.appendChild(pm);
+      card.appendChild(info);
+
+      card.addEventListener('click', () => openModal(p));
+      track.appendChild(card);
+    });
+    updateCar();
+    startCarAuto();
+  }
+
+  function carVisible() {
+    if (window.innerWidth >= 1024) return 4;
+    if (window.innerWidth >= 768) return 3;
+    return 2;
+  }
+  function updateCar() {
+    const track = document.getElementById('carTrack');
+    const cards = track.querySelectorAll('.car-card');
+    if (!cards.length) return;
+    const w = cards[0].offsetWidth + 16;
+    track.style.transform = `translateX(-${carIdx * w}px)`;
+  }
+  function startCarAuto() {
+    if (carTimer) clearInterval(carTimer);
+    carTimer = setInterval(() => {
+      const max = Math.max(0, promos.length - carVisible());
+      carIdx = carIdx >= max ? 0 : carIdx + 1;
+      updateCar();
+    }, 3500);
+  }
+  document.getElementById('carPrev').addEventListener('click', () => { carIdx=Math.max(0,carIdx-1); updateCar(); startCarAuto(); });
+  document.getElementById('carNext').addEventListener('click', () => { const max=Math.max(0,promos.length-carVisible()); carIdx=Math.min(max,carIdx+1); updateCar(); startCarAuto(); });
+  window.addEventListener('resize', updateCar);
+
+  // =============================================
+  //  PRODUCT MODAL — DATA FROM AIRTABLE
+  // =============================================
+  function openModal(p) {
+    modProd = p; modQty = 1; modSize = '';
+    const f     = p.fields;
+    const price = activePrice(p);
+    const orig  = Number(f['Preço']);
+    const isPromo = f['Promoção ativa'] === true;
+    const src   = getImg(p);
+    const sizes = getSizes(p);
+    const stock = Number(f['Estoque']) || 0;
+    const name  = f['Nome'] || '';
+    const catStr = (f['Categoria']||'').toLowerCase();
+
+    // Image
+    const wrap = document.getElementById('modImgWrap');
+    wrap.innerHTML = '';
+    if (src) {
+      const img = document.createElement('img');
+      img.src = src; img.alt = name; img.className = 'm-img-wrap img';
+      img.style.cssText = 'width:100%;height:100%;object-fit:cover;min-height:280px';
+      wrap.appendChild(img);
+    } else {
+      const nd = document.createElement('div');
+      nd.className = 'm-no-img'; nd.textContent = 'Sem imagem';
+      wrap.appendChild(nd);
+    }
+
+    // Text
+    document.getElementById('modBreadCat').textContent  = catStr;
+    document.getElementById('modBreadName').textContent = name;
+    document.getElementById('modCat').textContent       = catStr;
+    document.getElementById('modName').textContent      = name;
+    document.getElementById('modDesc').textContent      = f['Descrição'] || '';
+
+    // Prices — DATA FROM AIRTABLE
+    const priceEl = document.getElementById('modPrice');
+    const origEl  = document.getElementById('modOrig');
+    priceEl.textContent = fmt(price);
+    priceEl.className   = 'm-price' + (isPromo ? ' promo' : '');
+    if (isPromo && orig && orig !== price) {
+      origEl.textContent = fmt(orig); origEl.style.display = '';
+    } else {
+      origEl.style.display = 'none';
+    }
+
+    // Sizes — DATA FROM AIRTABLE
+    const szWrap  = document.getElementById('modSizes');
+    const szBlock = document.getElementById('modSzBlock');
+    szWrap.innerHTML = '';
+    if (sizes.length === 0) {
+      szBlock.style.display = 'none'; modSize = '';
+    } else {
+      szBlock.style.display = '';
+      sizes.forEach(sz => {
+        const btn = document.createElement('button');
+        btn.className = 'sz-btn'; btn.textContent = sz;
+        btn.setAttribute('aria-label', 'Tamanho ' + sz);
+        btn.addEventListener('click', () => {
+          szWrap.querySelectorAll('.sz-btn').forEach(b => { b.classList.remove('sel'); b.setAttribute('aria-pressed','false'); });
+          btn.classList.add('sel'); btn.setAttribute('aria-pressed','true'); modSize = sz;
+        });
+        szWrap.appendChild(btn);
+      });
+    }
+
+    // Stock — DATA FROM AIRTABLE
+    document.getElementById('qtyNum').textContent = '1';
+    const stockEl = document.getElementById('modStock');
+    if (stock === 0) {
+      stockEl.textContent = 'Produto esgotado'; stockEl.className = 'm-stock low';
+    } else if (stock <= 3) {
+      stockEl.textContent = `Últimas ${stock} unidade${stock>1?'s':''}!`; stockEl.className = 'm-stock low';
+    } else {
+      stockEl.textContent = `${stock} unidades disponíveis`; stockEl.className = 'm-stock';
+    }
+    document.getElementById('modAdd').disabled = stock === 0;
+
+    document.getElementById('prodModal').classList.add('open');
+    document.body.classList.add('no-scroll');
+  }
+
+  function closeModal() {
+    document.getElementById('prodModal').classList.remove('open');
+    document.body.classList.remove('no-scroll');
+    modProd = null;
+  }
+  document.getElementById('modClose').addEventListener('click', closeModal);
+  document.getElementById('prodModal').addEventListener('click', e => { if(e.target===document.getElementById('prodModal')) closeModal(); });
+
+  document.getElementById('qtyMin').addEventListener('click', () => {
+    if (modQty > 1) { modQty--; document.getElementById('qtyNum').textContent = modQty; }
+  });
+  document.getElementById('qtyPlus').addEventListener('click', () => {
+    if (!modProd) return;
+    const stock = Number(modProd.fields['Estoque']) || 0;
+    if (modQty < stock) { modQty++; document.getElementById('qtyNum').textContent = modQty; }
+    else toast(`Estoque máximo disponível: ${stock}`, 'error');
+  });
+
+  document.getElementById('modAdd').addEventListener('click', () => {
+    if (!modProd) return;
+    const sizes = getSizes(modProd);
+    if (sizes.length > 0 && !modSize) { toast('Selecione um tamanho', 'error'); return; }
+    addToCart(modProd, modSize, modQty);
+    closeModal();
+  });
+
+  // =============================================
+  //  CART — DATA FROM AIRTABLE
+  // =============================================
+  function addToCart(p, size, qty) {
+    const stock = Number(p.fields['Estoque']) || 0;
+    if (stock === 0) { toast('Produto esgotado', 'error'); return; }
+    const key  = p.id + '|' + size;
+    const ex   = cart.find(i => i.key === key);
+    const nQty = (ex ? ex.qty : 0) + qty;
+    if (nQty > stock) { toast(`Estoque insuficiente. Máx: ${stock}`, 'error'); return; }
+    if (ex) { ex.qty = nQty; }
+    else {
+      cart.push({
+        key, id: p.id,
+        name:  p.fields['Nome'] || '',
+        img:   getImg(p),
+        price: activePrice(p),   // DATA FROM AIRTABLE
+        size, qty, stock
+      });
+    }
+    saveCart(); renderCart();
+    toast(`"${p.fields['Nome']}" adicionado ✓`, 'ok');
+  }
+
+  function saveCart() {
+    localStorage.setItem('nay_cart', JSON.stringify(cart));
+    syncCartBadge();
+  }
+  function syncCartBadge() {
+    const t = cart.reduce((s,i) => s+i.qty, 0);
+    const b = document.getElementById('cartBadge');
+    b.textContent = t; b.style.display = t > 0 ? 'flex' : 'none';
+  }
+
+  /* DATA FROM AIRTABLE */
+  function renderCart() {
+    const body = document.getElementById('cartBody');
+    const foot = document.getElementById('cartFoot');
+    body.innerHTML = '';
+    if (cart.length === 0) {
+      body.innerHTML = `<div class="side-empty"><div class="side-empty-icon">🛍️</div><p>Seu carrinho está vazio</p></div>`;
+      foot.style.display = 'none'; syncCartBadge(); return;
+    }
+    cart.forEach(item => {
+      const el = document.createElement('div'); el.className = 'c-item';
+      if (item.img) {
+        const img = document.createElement('img');
+        img.src = item.img; img.alt = item.name; img.className = 'c-img';
+        el.appendChild(img);
+      } else {
+        const nd = document.createElement('div'); nd.className = 'c-no-img'; el.appendChild(nd);
+      }
+      const info = document.createElement('div'); info.className = 'c-info';
+      const nm = document.createElement('div'); nm.className = 'c-name'; nm.textContent = item.name; info.appendChild(nm);
+      if (item.size) { const sz = document.createElement('div'); sz.className = 'c-size'; sz.textContent = 'Tam: '+item.size; info.appendChild(sz); }
+      const row = document.createElement('div'); row.className = 'c-row';
+      const qw = document.createElement('div'); qw.className = 'c-qty';
+      const bm = document.createElement('button'); bm.className = 'c-qty-btn'; bm.dataset.key = item.key; bm.dataset.act = 'minus'; bm.setAttribute('aria-label','Diminuir'); bm.textContent = '−';
+      const qn = document.createElement('span'); qn.className = 'c-qty-num'; qn.setAttribute('aria-live','polite'); qn.textContent = item.qty;
+      const bp = document.createElement('button'); bp.className = 'c-qty-btn'; bp.dataset.key = item.key; bp.dataset.act = 'plus'; bp.setAttribute('aria-label','Aumentar'); bp.textContent = '+';
+      qw.appendChild(bm); qw.appendChild(qn); qw.appendChild(bp);
+      const pr = document.createElement('span'); pr.className = 'c-price'; pr.textContent = fmt(item.price * item.qty);
+      const dl = document.createElement('button'); dl.className = 'c-del'; dl.dataset.key = item.key; dl.setAttribute('aria-label','Remover'); dl.textContent = '🗑️';
+      row.appendChild(qw); row.appendChild(pr); row.appendChild(dl);
+      info.appendChild(row); el.appendChild(info);
+      body.appendChild(el);
+    });
+
+    // Total — DATA FROM AIRTABLE
+    const total = cart.reduce((s,i) => s + i.price * i.qty, 0);
+    document.getElementById('cartTotal').textContent = fmt(total);
+    foot.style.display = 'block';
+    document.getElementById('waCheckout').href = buildWAMsg();
+    syncCartBadge();
+
+    body.querySelectorAll('.c-qty-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const item = cart.find(i => i.key === btn.dataset.key);
+        if (!item) return;
+        if (btn.dataset.act === 'minus') { item.qty > 1 ? item.qty-- : (cart = cart.filter(i => i.key !== btn.dataset.key)); }
+        else { if (item.qty < item.stock) item.qty++; else { toast('Quantidade máxima em estoque','error'); return; } }
+        saveCart(); renderCart();
+      });
+    });
+    body.querySelectorAll('.c-del').forEach(btn => {
+      btn.addEventListener('click', () => { cart = cart.filter(i => i.key !== btn.dataset.key); saveCart(); renderCart(); toast('Item removido','info'); });
+    });
+  }
+
+  /* DATA FROM AIRTABLE */
+  function buildWAMsg() {
+    let msg = 'Olá! Gostaria de fazer um pedido:\n\n';
+    cart.forEach(i => { msg += `• ${i.name}${i.size?' - Tam: '+i.size:''} x${i.qty} = ${fmt(i.price*i.qty)}\n`; });
+    msg += `\nTotal: ${fmt(cart.reduce((s,i)=>s+i.price*i.qty,0))}`;
+    return `https://wa.me/${WA_NUM}?text=${encodeURIComponent(msg)}`;
+  }
+
+  const cartOv = document.getElementById('cartOv');
+  document.getElementById('cartBtn').addEventListener('click', () => { renderCart(); cartOv.classList.add('open'); document.body.classList.add('no-scroll'); });
+  document.getElementById('cartClose').addEventListener('click', () => { cartOv.classList.remove('open'); document.body.classList.remove('no-scroll'); });
+  cartOv.addEventListener('click', e => { if(e.target===cartOv){cartOv.classList.remove('open');document.body.classList.remove('no-scroll');} });
+  document.getElementById('cartClear').addEventListener('click', () => { cart=[]; saveCart(); renderCart(); toast('Carrinho esvaziado','info'); });
+
+  // =============================================
+  //  WISHLIST
+  // =============================================
+  function toggleWish(id, btnEl) {
+    if (wishlist.includes(id)) {
+      wishlist = wishlist.filter(w => w !== id);
+      toast('Removido dos favoritos','info');
+      if (btnEl) { btnEl.classList.remove('on'); btnEl.setAttribute('aria-pressed','false'); btnEl.textContent='🤍'; }
+    } else {
+      wishlist.push(id);
+      toast('Adicionado aos favoritos ❤️','ok');
+      if (btnEl) { btnEl.classList.add('on'); btnEl.setAttribute('aria-pressed','true'); btnEl.textContent='❤️'; }
+    }
+    localStorage.setItem('nay_wish', JSON.stringify(wishlist));
+    syncWishBadge();
+    renderWish();
+  }
+  function syncWishBadge() {
+    const b = document.getElementById('wishBadge');
+    b.textContent = wishlist.length; b.style.display = wishlist.length > 0 ? 'flex' : 'none';
+  }
+
+  /* DATA FROM AIRTABLE */
+  function renderWish() {
+    const body = document.getElementById('wishBody');
+    body.innerHTML = '';
+    if (wishlist.length === 0) {
+      body.innerHTML = `<div class="side-empty"><div class="side-empty-icon">🤍</div><p>Sua lista de desejos está vazia</p></div>`;
+      return;
+    }
+    wishlist.forEach(id => {
+      const p = products.find(x => x.id === id);
+      if (!p) return;
+      const src   = getImg(p);
+      const price = activePrice(p);
+      const name  = p.fields['Nome'] || '';
+      const el    = document.createElement('div'); el.className = 'w-item';
+      if (src) { const img = document.createElement('img'); img.src=src; img.alt=name; img.className='w-img'; el.appendChild(img); }
+      else { const nd = document.createElement('div'); nd.className='w-no-img'; el.appendChild(nd); }
+      const info = document.createElement('div'); info.style.flex='1';
+      const nm = document.createElement('div'); nm.className='w-name'; nm.textContent=name; info.appendChild(nm);
+      const pr = document.createElement('div'); pr.className='w-price'; pr.textContent=fmt(price); info.appendChild(pr);
+      const acts = document.createElement('div'); acts.className='w-acts';
+      const sb = document.createElement('button'); sb.className='w-see'; sb.dataset.id=id; sb.setAttribute('aria-label','Ver '+name); sb.textContent='Ver produto';
+      const rb = document.createElement('button'); rb.className='w-rm'; rb.dataset.id=id; rb.setAttribute('aria-label','Remover dos favoritos'); rb.textContent='Remover';
+      acts.appendChild(sb); acts.appendChild(rb); info.appendChild(acts); el.appendChild(info);
+      body.appendChild(el);
+    });
+    body.querySelectorAll('.w-see').forEach(btn => {
+      btn.addEventListener('click', () => { const p=products.find(x=>x.id===btn.dataset.id); if(p){closeWish();openModal(p);} });
+    });
+    body.querySelectorAll('.w-rm').forEach(btn => {
+      btn.addEventListener('click', () => {
+        wishlist=wishlist.filter(w=>w!==btn.dataset.id);
+        localStorage.setItem('nay_wish',JSON.stringify(wishlist));
+        syncWishBadge(); renderWish(); toast('Removido dos favoritos','info');
+        // sync card heart
+        const wb = document.querySelector(`.wish-btn[data-id="${btn.dataset.id}"]`);
+        if (wb) { wb.classList.remove('on'); wb.setAttribute('aria-pressed','false'); wb.textContent='🤍'; }
+      });
+    });
+  }
+
+  const wishOv = document.getElementById('wishOv');
+  document.getElementById('wishBtn').addEventListener('click', () => { renderWish(); wishOv.classList.add('open'); document.body.classList.add('no-scroll'); });
+  document.getElementById('wishClose').addEventListener('click', closeWish);
+  wishOv.addEventListener('click', e => { if(e.target===wishOv) closeWish(); });
+  function closeWish() { wishOv.classList.remove('open'); document.body.classList.remove('no-scroll'); }
+
+  // =============================================
+  //  POLICY MODALS
+  // =============================================
+  const POLS = {
+    troca: {
+      title: 'Troca Fácil',
+      text:  'Troque até 2 dias após o recebimento. Produtos com defeito ou problemas de envio podem ser trocados. Para solicitar uma troca, entre em contato via WhatsApp informando seu pedido e o motivo. Nossa equipe enviará as instruções completas.',
+      wa:    'Olá! Gostaria de solicitar uma troca do meu pedido.'
+    },
+    devolucao: {
+      title: 'Política de Devolução',
+      text:  'Você pode solicitar devolução em até 7 dias corridos após o recebimento. O produto deve estar sem uso, em perfeitas condições e com etiquetas originais. Após análise, o valor será estornado conforme a forma de pagamento utilizada.',
+      wa:    'Olá! Gostaria de solicitar uma devolução do meu pedido.'
+    },
+    privacidade: {
+      title: 'Privacidade e Dados',
+      text:  'A Pijamas Nay respeita sua privacidade. Coletamos apenas as informações necessárias para processar pedidos via WhatsApp. Seus dados não são compartilhados com terceiros sem consentimento. As conversas via WhatsApp são protegidas por criptografia de ponta a ponta.',
+      wa: null
+    }
+  };
+
+  function openPol(type) {
+    const pol = POLS[type]; if (!pol) return;
+    document.getElementById('polTitle').textContent = pol.title;
+    document.getElementById('polText').textContent  = pol.text;
+    const acts = document.getElementById('polActions');
+    acts.innerHTML = pol.wa
+      ? `<a href="https://wa.me/${WA_NUM}?text=${encodeURIComponent(pol.wa)}" class="wa-btn" target="_blank" rel="noopener" aria-label="Falar via WhatsApp">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+          Falar via WhatsApp</a>`
+      : '';
+    document.getElementById('polOv').classList.add('open');
+  }
+  function closePol() { document.getElementById('polOv').classList.remove('open'); }
+  document.getElementById('polOv').addEventListener('click', e => { if(e.target===document.getElementById('polOv')) closePol(); });
+
+  // =============================================
+  //  ESCAPE
+  // =============================================
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    closeModal(); closeWish();
+    cartOv.classList.remove('open'); document.body.classList.remove('no-scroll');
+    closePol();
+  });
+
+  // =============================================
+  //  TOAST
+  // =============================================
+  function toast(msg, type='info') {
+    const wrap = document.getElementById('toastWrap');
+    const el   = document.createElement('div');
+    el.className = `toast${type==='ok'?' ok':type==='error'?' err':''}`;
+    el.textContent = msg;
+    wrap.appendChild(el);
+    setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 320); }, 2800);
+  }
+
+  // =============================================
+  //  BOOT
+  // =============================================
+  syncCartBadge();
+  syncWishBadge();
+  renderCart();
+  showSkeletons();
+  fetchProducts();
+  </script>
+</body>
+</html>
