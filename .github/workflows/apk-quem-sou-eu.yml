@@ -1,0 +1,56 @@
+name: Gerar APK - Quem Sou Eu
+
+on:
+  push:
+    paths:
+      - "quem-sou-eu/**"
+      - ".github/workflows/apk-quem-sou-eu.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: quem-sou-eu
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compilar APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          mkdir -p out
+          cp app/build/outputs/apk/release/app-release.apk out/QuemSouEu.apk
+
+      - name: Guardar APK nos artefatos
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuemSouEu-apk
+          path: quem-sou-eu/out/QuemSouEu.apk
+
+      - name: Publicar na página de Releases
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: quem-sou-eu-v1.0.${{ github.run_number }}
+          name: "Quem Sou Eu? v1.0.${{ github.run_number }}"
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: |
+            📱 **Para instalar:** baixe o arquivo **QuemSouEu.apk** abaixo, abra no celular Android
+            e permita "instalar apps de fontes desconhecidas" quando o Android pedir.
+
+            Gerado automaticamente a partir do commit ${{ github.sha }}.
+          files: quem-sou-eu/out/QuemSouEu.apk

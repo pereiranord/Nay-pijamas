@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Quem Sou Eu?</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ INÍCIO ============ -->
+<section id="scr-home" class="screen active">
+  <header class="topbar">
+    <div class="brand"><span class="logo">?</span><div><h1>Quem Sou Eu?</h1><small id="home-sub">Escolha uma categoria</small></div></div>
+    <div class="top-actions">
+      <button class="icon-btn" data-go="players" title="Jogadores">👥<span id="players-badge" class="badge hidden">0</span></button>
+      <button class="icon-btn" data-go="settings" title="Configurações">⚙️</button>
+    </div>
+  </header>
+
+  <div class="search-row">
+    <input id="search" type="search" placeholder="🔎  Buscar categoria..." autocomplete="off">
+  </div>
+  <div id="chips" class="chips"></div>
+
+  <div id="cat-list" class="cat-list"></div>
+  <div class="home-footer">
+    <button class="btn ghost small" data-go="howto">❓ Como jogar</button>
+    <button class="btn ghost small" id="btn-new-cat">➕ Criar categoria</button>
+  </div>
+</section>
+
+<!-- ============ PREPARAR RODADA ============ -->
+<section id="scr-ready" class="screen">
+  <header class="topbar plain">
+    <button class="icon-btn" data-back>←</button>
+    <h2>Preparar rodada</h2>
+    <span></span>
+  </header>
+  <div class="ready-body">
+    <div id="ready-cat" class="ready-cat"></div>
+    <div id="ready-turn" class="ready-turn"></div>
+    <div class="ready-info" id="ready-info"></div>
+    <button class="btn primary big" id="btn-start">▶ COMEÇAR</button>
+    <div class="row gap">
+      <button class="btn ghost" id="btn-change-cat">🔄 Trocar categoria</button>
+      <button class="btn ghost" data-go="players">👥 Jogadores</button>
+    </div>
+    <div class="tip">
+      Segure o celular <b>deitado na testa</b>, com a tela virada para os amigos.<br>
+      <span id="tip-dirs"></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ JOGO ============ -->
+<section id="scr-game" class="screen game">
+  <div class="game-top">
+    <span id="g-player"></span>
+    <span id="g-timer" class="timer">60</span>
+    <span id="g-score">0 ✓</span>
+  </div>
+  <div id="g-stage" class="g-stage">
+    <div id="g-word" class="g-word"></div>
+    <div id="g-sub" class="g-sub"></div>
+  </div>
+  <div id="g-tap" class="g-tap">
+    <div class="tap-zone left" id="tap-left"><span>PASSAR</span></div>
+    <div class="tap-zone right" id="tap-right"><span>ACERTEI</span></div>
+  </div>
+  <button id="g-pause" class="pause-btn">❚❚</button>
+  <div id="g-flash" class="g-flash"></div>
+</section>
+
+<!-- ============ RESULTADO ============ -->
+<section id="scr-result" class="screen">
+  <div class="result-body">
+    <div id="r-player" class="r-player"></div>
+    <div class="r-score"><span id="r-points">0</span><small>pontos</small></div>
+    <div id="r-stats" class="r-stats"></div>
+    <p class="hint">Toque numa palavra para corrigir ✓ / ✗</p>
+    <ul id="r-words" class="r-words"></ul>
+  </div>
+  <div class="result-actions">
+    <button class="btn ghost" id="btn-r-home">🏠 Início</button>
+    <button class="btn primary" id="btn-r-next">Próxima ▶</button>
+  </div>
+</section>
+
+<!-- ============ JOGADORES ============ -->
+<section id="scr-players" class="screen">
+  <header class="topbar plain">
+    <button class="icon-btn" data-back>←</button>
+    <h2>Jogadores & Placar</h2>
+    <span></span>
+  </header>
+  <div class="panel-body">
+    <form id="add-player" class="add-row">
+      <input id="player-name" maxlength="20" placeholder="Nome do jogador ou time" autocomplete="off">
+      <button class="btn primary" type="submit">Adicionar</button>
+    </form>
+    <p class="hint" id="players-hint">Sem jogadores, você joga no modo livre. Adicione nomes para revezar a vez e somar pontos.</p>
+    <ol id="player-list" class="player-list"></ol>
+    <div class="row gap wrap">
+      <button class="btn ghost small" id="btn-shuffle">🔀 Embaralhar ordem</button>
+      <button class="btn ghost small" id="btn-reset-score">🔁 Zerar placar</button>
+      <button class="btn ghost small danger" id="btn-clear-players">🗑️ Remover todos</button>
+    </div>
+    <div class="group-box">
+      <h3>Grupos salvos</h3>
+      <p class="hint">Salve a turma (família, amigos, trabalho…) para carregar depois.</p>
+      <div class="add-row">
+        <input id="group-name" maxlength="24" placeholder="Nome do grupo" autocomplete="off">
+        <button class="btn ghost" id="btn-save-group">💾 Salvar</button>
+      </div>
+      <ul id="group-list" class="group-list"></ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PÓDIO ============ -->
+<section id="scr-podium" class="screen">
+  <div class="podium-body">
+    <h2>🏆 Fim de jogo!</h2>
+    <div id="podium" class="podium"></div>
+    <ol id="final-list" class="final-list"></ol>
+  </div>
+  <div class="result-actions">
+    <button class="btn ghost" id="btn-p-home">🏠 Início</button>
+    <button class="btn primary" id="btn-p-again">🔁 Jogar de novo</button>
+  </div>
+</section>
+
+<!-- ============ CONFIGURAÇÕES ============ -->
+<section id="scr-settings" class="screen">
+  <header class="topbar plain">
+    <button class="icon-btn" data-back>←</button>
+    <h2>Configurações</h2>
+    <span></span>
+  </header>
+  <div class="panel-body settings">
+    <label class="set">
+      <span>⏱️ Tempo da rodada</span>
+      <select id="set-time">
+        <option value="30">30 s</option><option value="45">45 s</option><option value="60">60 s</option>
+        <option value="90">90 s</option><option value="120">2 min</option><option value="180">3 min</option>
+      </select>
+    </label>
+    <label class="set">
+      <span>🔁 Rodadas por jogador<small>O jogo termina com pódio</small></span>
+      <select id="set-rounds">
+        <option value="0">Sem limite</option><option value="1">1</option><option value="2">2</option><option value="3">3</option>
+        <option value="4">4</option><option value="5">5</option><option value="10">10</option>
+      </select>
+    </label>
+    <label class="set">
+      <span>📐 Direção dos movimentos</span>
+      <select id="set-dir">
+        <option value="normal">Tela p/ cima = ACERTO · p/ baixo = ERRO</option>
+        <option value="invert">Tela p/ baixo = ACERTO · p/ cima = ERRO</option>
+      </select>
+    </label>
+    <label class="set">
+      <span>🎯 Sensibilidade do sensor</span>
+      <select id="set-sens">
+        <option value="high">Alta (inclinação leve)</option>
+        <option value="medium">Média</option>
+        <option value="low">Baixa (inclinação forte)</option>
+      </select>
+    </label>
+    <label class="set">
+      <span>➖ Errar/passar tira ponto</span>
+      <input type="checkbox" id="set-penalty" class="switch">
+    </label>
+    <label class="set">
+      <span>🔊 Sons</span>
+      <input type="checkbox" id="set-sound" class="switch">
+    </label>
+    <label class="set">
+      <span>📳 Vibração</span>
+      <input type="checkbox" id="set-vibrate" class="switch">
+    </label>
+    <label class="set">
+      <span>👆 Tocar na tela também vale<small>Esquerda = passar · Direita = acertei</small></span>
+      <input type="checkbox" id="set-tap" class="switch">
+    </label>
+    <label class="set">
+      <span>🔀 Não repetir palavras<small>Até acabar a categoria</small></span>
+      <input type="checkbox" id="set-norepeat" class="switch">
+    </label>
+    <div class="set col">
+      <span>🧪 Testar sensor</span>
+      <div id="sensor-test" class="sensor-test"><div id="sensor-bar"></div></div>
+      <small id="sensor-text" class="hint">Incline o celular</small>
+    </div>
+    <button class="btn ghost small" id="btn-reset-used">♻️ Liberar palavras já usadas</button>
+    <p class="hint center">Quem Sou Eu? · sem anúncios · tudo funciona offline</p>
+  </div>
+</section>
+
+<!-- ============ CRIAR CATEGORIA ============ -->
+<section id="scr-editor" class="screen">
+  <header class="topbar plain">
+    <button class="icon-btn" data-back>←</button>
+    <h2 id="ed-title">Nova categoria</h2>
+    <span></span>
+  </header>
+  <div class="panel-body">
+    <div class="add-row">
+      <input id="ed-emoji" maxlength="4" class="emoji-in" value="⭐">
+      <input id="ed-name" maxlength="30" placeholder="Nome da categoria">
+    </div>
+    <p class="hint">Uma palavra por linha (ou separadas por vírgula). Mínimo 5.</p>
+    <textarea id="ed-words" rows="12" placeholder="Ex.:&#10;Tia Cleide&#10;Churrasco do vô&#10;Cachorro da vizinha"></textarea>
+    <div class="row gap">
+      <button class="btn ghost danger hidden" id="ed-delete">🗑️ Excluir</button>
+      <button class="btn primary" id="ed-save">💾 Salvar</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMO JOGAR ============ -->
+<section id="scr-howto" class="screen">
+  <header class="topbar plain">
+    <button class="icon-btn" data-back>←</button>
+    <h2>Como jogar</h2>
+    <span></span>
+  </header>
+  <div class="panel-body howto">
+    <ol>
+      <li>Escolha uma categoria (ou toque em <b>🎲 Mix</b> para misturar tudo).</li>
+      <li>Em <b>👥 Jogadores</b>, adicione os nomes para revezar a vez e somar pontos. Dá para salvar o grupo.</li>
+      <li>Quem está na vez coloca o celular <b>deitado na testa</b>, com a tela virada para os amigos.</li>
+      <li>Os amigos dão dicas, imitam ou fazem mímica, sem falar a palavra!</li>
+      <li><b>Acertou?</b> Vire a tela para <b>cima</b> (para o teto). ✅</li>
+      <li><b>Quer passar?</b> Vire a tela para <b>baixo</b> (para o chão). ❌</li>
+      <li>Volte o celular para a testa para a próxima palavra.</li>
+      <li>No fim do tempo aparece o resultado. Toque numa palavra para corrigir, se o sensor errar.</li>
+    </ol>
+    <p>Dá para inverter as direções, mudar o tempo, a sensibilidade e o número de rodadas em <b>⚙️ Configurações</b>.</p>
+  </div>
+</section>
+
+<!-- ============ PAUSA ============ -->
+<div id="modal-pause" class="modal hidden">
+  <div class="modal-card">
+    <h2>⏸ Pausado</h2>
+    <button class="btn primary" id="btn-resume">▶ Continuar</button>
+    <button class="btn ghost" id="btn-end-round">⏹ Encerrar rodada</button>
+    <button class="btn ghost danger" id="btn-quit">✖ Sair sem pontuar</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="categories.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

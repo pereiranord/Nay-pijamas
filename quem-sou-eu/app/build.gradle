@@ -1,0 +1,42 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.nay.quemsoueu'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.nay.quemsoueu'
+        minSdk 26
+        targetSdk 35
+        versionCode Integer.parseInt(System.getenv('GITHUB_RUN_NUMBER') ?: '1')
+        versionName "1.0." + (System.getenv('GITHUB_RUN_NUMBER') ?: '0')
+    }
+
+    signingConfigs {
+        // Chave fixa (pública, só para uso pessoal) para que as atualizações
+        // instalem por cima da versão anterior sem precisar desinstalar.
+        app {
+            storeFile file('quemsoueu.keystore')
+            storePassword 'quemsoueu'
+            keyAlias 'quemsoueu'
+            keyPassword 'quemsoueu'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.app
+        }
+        debug {
+            signingConfig signingConfigs.app
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
