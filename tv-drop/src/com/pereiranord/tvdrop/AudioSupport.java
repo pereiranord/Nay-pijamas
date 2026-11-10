@@ -4,17 +4,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
-import android.media.MediaExtractor;
-import android.media.MediaFormat;
 import android.net.Uri;
 
 import java.util.Locale;
 
 /**
- * Many MKV files carry DTS / TrueHD / AC3 audio that the TV's built-in
- * Android decoders can't play, so the video plays with no sound. This finds
- * out which audio tracks the TV can decode and, when none can, hands the
- * video to a player that decodes them in software (VLC, mpv, MX Player).
+ * Audio format names and helpers. The player decodes DTS / TrueHD / AC3 itself
+ * (FFmpeg); handing a video to an external player (VLC, mpv, MX Player) is
+ * kept as a manual option.
  */
 public final class AudioSupport {
     /** In order of preference. These players decode DTS, TrueHD and AC3 in software. */
@@ -23,44 +20,6 @@ public final class AudioSupport {
     };
 
     private AudioSupport() {}
-
-    /** Result of looking at a file's tracks. */
-    public static final class Probe {
-        public int audioTracks;
-        public int playableTracks;
-        public String firstUnplayable; // e.g. "DTS"
-        public String summary = "";    // e.g. "DTS (sem suporte), AAC"
-    }
-
-    /** Reads the track list (network call for URLs: run off the main thread). Null on failure. */
-    public static Probe probe(String src) {
-        MediaExtractor ex = new MediaExtractor();
-        try {
-            ex.setDataSource(src);
-            Probe p = new Probe();
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < ex.getTrackCount(); i++) {
-                MediaFormat f = ex.getTrackFormat(i);
-                String mime = f.getString(MediaFormat.KEY_MIME);
-                if (mime == null || !mime.startsWith("audio/")) continue;
-                p.audioTracks++;
-                boolean ok = canDecode(mime);
-                if (ok) p.playableTracks++;
-                else if (p.firstUnplayable == null) p.firstUnplayable = name(mime);
-                String lang = f.containsKey(MediaFormat.KEY_LANGUAGE) ? f.getString(MediaFormat.KEY_LANGUAGE) : null;
-                if (sb.length() > 0) sb.append(", ");
-                sb.append(name(mime));
-                if (lang != null && !lang.isEmpty() && !"und".equals(lang)) sb.append(" ").append(lang);
-                if (!ok) sb.append(" (sem suporte)");
-            }
-            p.summary = sb.toString();
-            return p;
-        } catch (Exception e) {
-            return null;
-        } finally {
-            ex.release();
-        }
-    }
 
     public static boolean canDecode(String mime) {
         if (mime == null) return false;

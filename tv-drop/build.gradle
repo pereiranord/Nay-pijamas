@@ -1,0 +1,65 @@
+plugins {
+    id 'com.android.application' version '8.13.2'
+}
+
+def media3 = '1.9.0'
+
+android {
+    namespace 'com.pereiranord.tvdrop'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.pereiranord.tvdrop'
+        minSdk 26
+        targetSdk 34
+        versionCode((System.getenv('VERSION_CODE') ?: '1') as int)
+        versionName System.getenv('VERSION_NAME') ?: '1.0'
+        // TVs often run 32-bit Android even on 64-bit chips, so ship both.
+        ndk { abiFilters 'armeabi-v7a', 'arm64-v8a' }
+    }
+
+    // Keep the simple folder layout: AndroidManifest.xml, src/, res/, assets/.
+    sourceSets {
+        main {
+            manifest.srcFile 'AndroidManifest.xml'
+            java.srcDirs = ['src']
+            res.srcDirs = ['res']
+            assets.srcDirs = ['assets']
+        }
+    }
+
+    signingConfigs {
+        release {
+            storeFile file(System.getenv('KEYSTORE') ?: 'keystore/tvdrop.jks')
+            storePassword System.getenv('KS_PASS') ?: 'tvdrop123'
+            keyAlias 'tvdrop'
+            keyPassword System.getenv('KS_PASS') ?: 'tvdrop123'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    lint {
+        checkReleaseBuilds false
+        abortOnError false
+    }
+}
+
+dependencies {
+    // ExoPlayer: hardware video decoding (full quality, HDR), HLS, Range-based HTTP streaming.
+    implementation "androidx.media3:media3-exoplayer:$media3"
+    implementation "androidx.media3:media3-exoplayer-hls:$media3"
+    implementation "androidx.media3:media3-ui:$media3"
+    // FFmpeg audio decoders (DTS, DTS-HD core, Dolby TrueHD, AC3, E-AC3...) for audio the TV can't decode.
+    implementation "org.jellyfin.media3:media3-ffmpeg-decoder:$media3+1"
+}

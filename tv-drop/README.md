@@ -60,17 +60,19 @@ O código guarda o endereço da TV na rede. Ele resolve quando a busca automáti
 
 - Links do YouTube, Netflix e afins **não** funcionam: eles não entregam o arquivo de vídeo direto. Use links diretos (`.mp4`, `.mkv`, `.webm`, `.m3u8`).
 - Não é espelhamento de tela: transmite arquivos de vídeo e áudio. Para espelhar a tela, use o Chromecast embutido da TV.
-- Os formatos são os que a TV consegue tocar (MP4/H.264/H.265, MKV, WebM etc.).
+- Vídeo: os formatos que o chip da TV decodifica (H.264, H.265/HEVC, VP9, AV1 em TVs novas). Áudio: praticamente todos, porque o app decodifica DTS, TrueHD e AC3 sozinho.
 - Qualquer pessoa no seu Wi-Fi consegue abrir a página. Instalar um APK ainda exige confirmação na TV.
 - Os arquivos ficam no armazenamento do app. Apague os que não usar mais, pela página ou desinstalando o app.
 
 ## Compilar
 
-Sem Gradle: só o JDK 17+ e o Android SDK (`build-tools;35.0.0` e `platforms;android-34`).
+Com JDK 17+, Gradle 8.13+ e o Android SDK (`platforms;android-35`, `build-tools;35.0.0`):
 
 ```bash
 ANDROID_HOME=~/Android/Sdk ./tv-drop/build.sh   # gera tv-drop/build/TV-Drop.apk
 ```
+
+O player usa o **ExoPlayer (Media3)**. O vídeo vai pelo decodificador de hardware da TV, em qualidade total e com HDR. O áudio que a TV não decodifica (DTS, DTS-HD, Dolby TrueHD, AC3/E-AC3) é decodificado no próprio app pela extensão FFmpeg do Jellyfin (`org.jellyfin.media3:media3-ffmpeg-decoder`).
 
 Cada push em `tv-drop/` dispara o workflow `.github/workflows/tv-drop.yml`, que compila e publica o APK em **Releases**.
 
