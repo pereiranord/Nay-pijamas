@@ -60,6 +60,7 @@
   <section class="card">
     <h2>Controle</h2>
     <div class="playing" id="playing"></div>
+    <div class="sub" id="audio" style="margin:0 0 6px"></div>
     <div class="row">
       <button data-c="back">⏪ 10s</button>
       <button data-c="toggle" class="primary">⏯ Pausar</button>
@@ -71,6 +72,7 @@
       <button data-c="mute">🔇 Mudo</button>
       <button data-c="volup">🔊 Vol +</button>
     </div>
+    <div class="row"><button data-c="external" id="extbtn">Sem som? Abrir no VLC da TV</button></div>
     <div class="msg" id="ctlmsg"></div>
   </section>
 
@@ -182,6 +184,8 @@ async function refresh() {
     let now = s.playing ? s.playing.split('/').pop() : '';
     try { now = decodeURIComponent(now); } catch (e) {}
     $('playing').textContent = s.playing ? 'Tocando: ' + now : 'Nada tocando agora';
+    $('audio').textContent = s.audio ? 'Áudio: ' + s.audio : '';
+    $('extbtn').textContent = s.externalPlayer ? 'Sem som? Abrir no ' + s.externalPlayer + ' da TV' : 'Sem som? Instale o VLC na TV';
     const key = JSON.stringify(s.files);
     if (key !== lastFiles) {
       lastFiles = key;

@@ -53,7 +53,8 @@ public class PhoneActivity extends Activity {
     private boolean userSeeking;
     private boolean pollQueued;
 
-    private TextView status, msg, nowPlaying, time;
+    private TextView status, msg, nowPlaying, audioView, time;
+    private Button external;
     private LinearLayout tvList, controls;
     private EditText code, link;
     private SeekBar seek;
@@ -326,6 +327,7 @@ public class PhoneActivity extends Activity {
         long pos = Net.num(s, "position", 0), dur = Net.num(s, "duration", 0);
         if (p == null) {
             nowPlaying.setText("Nada tocando na TV");
+            audioView.setText("");
             time.setText("");
             seek.setEnabled(false);
             seek.setProgress(0);
@@ -337,6 +339,10 @@ public class PhoneActivity extends Activity {
         } catch (Exception ignored) {
         }
         nowPlaying.setText((Net.bool(s, "paused") ? "⏸ " : "▶ ") + n);
+        String a = Net.str(s, "audio");
+        audioView.setText(a == null || a.isEmpty() ? "" : "Áudio: " + a);
+        String ext = Net.str(s, "externalPlayer");
+        external.setText(ext == null || ext.isEmpty() ? "Sem som? Instale o VLC na TV" : "Sem som? Abrir no " + ext + " da TV");
         seek.setEnabled(dur > 0);
         if (!userSeeking && dur > 0) {
             seek.setMax((int) (dur / 1000));
@@ -432,6 +438,8 @@ public class PhoneActivity extends Activity {
         LinearLayout c3 = card(controls, "Controle");
         nowPlaying = text("Nada tocando na TV", 15, ACCENT);
         c3.addView(nowPlaying);
+        audioView = text("", 13, MUTED);
+        c3.addView(audioView);
         seek = new SeekBar(this);
         seek.setEnabled(false);
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
@@ -448,6 +456,9 @@ public class PhoneActivity extends Activity {
         c3.addView(time);
         c3.addView(controlRow(new String[]{"⏪ 10s", "⏯", "30s ⏩", "⏹"}, new String[]{"back", "toggle", "fwd", "stop"}));
         c3.addView(controlRow(new String[]{"🔉", "🔇", "🔊"}, new String[]{"voldown", "mute", "volup"}));
+        external = button("Sem som? Abrir no VLC da TV", false);
+        external.setOnClickListener(v -> control("external"));
+        c3.addView(external);
 
         msg = text("", 14, MUTED);
         msg.setPadding(0, dp(8), 0, 0);

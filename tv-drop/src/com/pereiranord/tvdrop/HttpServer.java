@@ -29,7 +29,7 @@ import java.util.Map;
  *   POST /api/play            body = URL, or ?file=name for a received file
  *   POST /api/install?file=   install a received APK
  *   POST /api/delete?file=    delete a received file
- *   POST /api/control?cmd=    toggle | stop | fwd | back | seek&ms= | volup | voldown | mute
+ *   POST /api/control?cmd=    toggle | stop | fwd | back | seek&ms= | external | volup | voldown | mute
  */
 public class HttpServer extends Thread {
     private static final int FIRST_PORT = 8080;
@@ -232,6 +232,8 @@ public class HttpServer extends Thread {
         sb.append("\"position\":").append(PlayerActivity.position()).append(',');
         sb.append("\"duration\":").append(PlayerActivity.duration()).append(',');
         sb.append("\"paused\":").append(PlayerActivity.paused()).append(',');
+        sb.append("\"audio\":").append(js(PlayerActivity.audioInfo())).append(',');
+        sb.append("\"externalPlayer\":").append(js(AudioSupport.playerName(AudioSupport.externalPlayer(ctx)))).append(',');
         sb.append("\"files\":[");
         File[] files = Actions.inbox(ctx).listFiles();
         if (files != null) {

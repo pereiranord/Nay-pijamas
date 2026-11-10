@@ -3,6 +3,8 @@ package com.pereiranord.tvdrop;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
+import android.media.MediaFormat;
+import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -21,6 +23,8 @@ public class PlayerActivity extends Activity {
     private static volatile String playing;
     private static volatile int pos, dur;
     private static volatile boolean isPaused;
+    private static volatile String audio = "";
+    private int generation;
     private final android.os.Handler ticker = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable tick = this::tick;
 
@@ -35,6 +39,7 @@ public class PlayerActivity extends Activity {
     public static int position() { return current == null ? 0 : pos; }
     public static int duration() { return current == null ? 0 : dur; }
     public static boolean paused() { return current != null && isPaused; }
+    public static String audioInfo() { return current == null ? "" : audio; }
 
     /** Called from the web server thread. Returns false when nothing is playing. */
     public static boolean control(String cmd, long arg) {
@@ -42,6 +47,7 @@ public class PlayerActivity extends Activity {
         if (p == null) return false;
         p.runOnUiThread(() -> {
             if ("seek".equals(cmd)) p.seekTo((int) arg);
+            else if ("external".equals(cmd)) p.openExternal();
             else p.handle(cmd);
         });
         return true;
@@ -82,6 +88,7 @@ public class PlayerActivity extends Activity {
         video.setMediaController(controller);
         video.setOnPreparedListener(mp -> {
             label.setText("");
+            pickAudioTrack(mp);
             video.start();
         });
         video.setOnCompletionListener(mp -> {
@@ -113,9 +120,76 @@ public class PlayerActivity extends Activity {
         playing = src;
         pos = 0;
         dur = 0;
+        audio = "";
         label.setText("Carregando " + Actions.shortName(src) + "...");
+        video.stopPlayback();
+
+        // Look at the audio tracks first (a few seconds at most), then decide who plays it.
+        final String s = src;
+        final int gen = ++generation;
+        new Thread(() -> {
+            AudioSupport.Probe probe = AudioSupport.probe(s);
+            runOnUiThread(() -> start(s, gen, probe));
+        }, "tvdrop-probe").start();
+        label.postDelayed(() -> start(s, gen, null), 8000);
+    }
+
+    private void start(String src, int gen, AudioSupport.Probe probe) {
+        if (gen != generation || isFinishing()) return;
+        generation++; // first caller wins: probe result or timeout
+        if (probe != null) audio = probe.summary;
+        if (probe != null && probe.audioTracks > 0 && probe.playableTracks == 0) {
+            String fmt = probe.firstUnplayable;
+            Events.add("A TV não decodifica o áudio " + fmt + " de " + Actions.shortName(src));
+            if (AudioSupport.openExternal(this, src, Actions.shortName(src))) {
+                finish();
+                return;
+            }
+            label.setText("Esta TV não toca o áudio " + fmt + " deste vídeo, então ele vai ficar sem som.\n"
+                    + "Instale o VLC na TV (dá para enviar o APK pelo TV Drop) e o vídeo abre nele com som.");
+            Events.add("Instale o VLC na TV para tocar " + fmt + " com som.");
+        }
         if (src.startsWith("/")) video.setVideoPath(src);
         else video.setVideoURI(Uri.parse(src));
+    }
+
+    /** MKVs often have several audio tracks (e.g. DTS + AC3): use one the TV can decode, Portuguese first. */
+    private void pickAudioTrack(MediaPlayer mp) {
+        try {
+            MediaPlayer.TrackInfo[] tracks = mp.getTrackInfo();
+            int selected = mp.getSelectedTrack(MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_AUDIO);
+            int best = -1, bestScore = -1;
+            boolean selectedOk = false;
+            for (int i = 0; i < tracks.length; i++) {
+                if (tracks[i].getTrackType() != MediaPlayer.TrackInfo.MEDIA_TRACK_TYPE_AUDIO) continue;
+                MediaFormat f = tracks[i].getFormat();
+                String mime = f == null ? null : f.getString(MediaFormat.KEY_MIME);
+                boolean ok = mime == null || AudioSupport.canDecode(mime);
+                if (i == selected) selectedOk = ok;
+                if (!ok) continue;
+                String lang = String.valueOf(tracks[i].getLanguage()).toLowerCase(java.util.Locale.ROOT);
+                int score = (lang.startsWith("por") || lang.startsWith("pt")) ? 2 : 1;
+                if (score > bestScore) { best = i; bestScore = score; }
+            }
+            if (best >= 0 && (!selectedOk || (bestScore == 2 && best != selected))) {
+                mp.selectTrack(best);
+                MediaFormat f = tracks[best].getFormat();
+                String name = f == null ? "?" : AudioSupport.name(f.getString(MediaFormat.KEY_MIME));
+                Events.add("Áudio escolhido: " + name + " " + tracks[best].getLanguage());
+            }
+        } catch (Exception e) {
+            Events.add("Não consegui trocar a faixa de áudio: " + e.getMessage());
+        }
+    }
+
+    private void openExternal() {
+        String src = playing;
+        if (src != null && AudioSupport.openExternal(this, src, Actions.shortName(src))) {
+            finish();
+        } else {
+            label.setText("Nenhum player externo (VLC, mpv, MX Player) instalado na TV.");
+            Events.add("Nenhum player externo instalado. Instale o VLC na TV.");
+        }
     }
 
     private void handle(String cmd) {
