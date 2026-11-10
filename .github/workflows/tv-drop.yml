@@ -1,0 +1,55 @@
+name: TV Drop APK
+
+on:
+  push:
+    paths:
+      - "tv-drop/**"
+      - ".github/workflows/tv-drop.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;34.0.0" "platforms;android-34" > /dev/null
+
+      - name: Build
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+        run: ./tv-drop/build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TV-Drop
+          path: tv-drop/build/TV-Drop.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tv-drop-v1.0.${{ github.run_number }}
+          name: TV Drop 1.0.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          files: tv-drop/build/TV-Drop.apk
+          body: |
+            App para Android TV / Google TV: receba vídeos, links de vídeo e APKs pelo navegador do celular.
+
+            Instalar na TV:
+            ```
+            adb connect IP_DA_TV:PORTA
+            adb install -r TV-Drop.apk
+            ```
+            Veja o passo a passo completo em tv-drop/README.md.

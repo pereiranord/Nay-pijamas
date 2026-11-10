@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TV Drop</title>
+<style>
+  :root { --bg:#0f1316; --card:#192026; --line:#2a333b; --text:#e6edf2; --muted:#93a1ad; --accent:#4fc3f7; --ok:#81c784; --err:#ef9a9a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:720px; margin:0 auto; padding:20px 16px 48px; }
+  h1 { font-size:26px; margin:4px 0 2px; }
+  h2 { font-size:17px; margin:0 0 12px; }
+  .sub { color:var(--muted); margin:0 0 18px; font-size:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px; }
+  .drop { border:2px dashed var(--line); border-radius:12px; padding:26px 12px; text-align:center; color:var(--muted); cursor:pointer; }
+  .drop.over { border-color:var(--accent); color:var(--text); }
+  input[type=url] { width:100%; padding:12px; border-radius:10px; border:1px solid var(--line); background:#0c1013; color:var(--text); font-size:16px; }
+  button { font:inherit; border:0; border-radius:10px; padding:11px 14px; background:#2a353e; color:var(--text); cursor:pointer; }
+  button.primary { background:var(--accent); color:#05212e; font-weight:600; }
+  button:active { transform:scale(.98); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .row button { flex:1 1 auto; min-width:64px; }
+  label.check { display:flex; gap:8px; align-items:center; margin-top:10px; color:var(--muted); font-size:14px; }
+  progress { width:100%; height:10px; margin-top:12px; display:none; }
+  .msg { margin-top:10px; font-size:14px; min-height:1em; }
+  .msg.ok { color:var(--ok); } .msg.err { color:var(--err); }
+  .file { display:flex; align-items:center; gap:8px; padding:10px 0; border-top:1px solid var(--line); }
+  .file:first-child { border-top:0; }
+  .file .name { flex:1; min-width:0; overflow-wrap:anywhere; font-size:15px; }
+  .file .size { color:var(--muted); font-size:13px; white-space:nowrap; }
+  .file button { padding:8px 10px; font-size:14px; }
+  .warn { color:#ffcc80; font-size:14px; }
+  pre { margin:0; white-space:pre-wrap; color:var(--muted); font-size:12.5px; }
+  .playing { color:var(--accent); font-size:14px; margin-bottom:6px; overflow-wrap:anywhere; }
+</style>
+</head>
+<body>
+<main>
+  <h1>TV Drop</h1>
+  <p class="sub" id="addr">Conectando à TV…</p>
+  <div id="warn" class="warn"></div>
+
+  <section class="card">
+    <h2>Enviar vídeo ou APK</h2>
+    <div class="drop" id="drop">Toque aqui para escolher arquivos<br><small>ou arraste para cá</small></div>
+    <input type="file" id="pick" multiple hidden>
+    <label class="check"><input type="checkbox" id="auto" checked> Tocar vídeo / instalar APK assim que chegar</label>
+    <progress id="prog" max="100" value="0"></progress>
+    <div class="msg" id="upmsg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Tocar link de vídeo</h2>
+    <input type="url" id="url" placeholder="https://…/video.mp4 ou .m3u8" autocomplete="off">
+    <div class="row"><button class="primary" id="playurl">Tocar na TV</button></div>
+    <div class="msg" id="urlmsg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Controle</h2>
+    <div class="playing" id="playing"></div>
+    <div class="row">
+      <button data-c="back">⏪ 10s</button>
+      <button data-c="toggle" class="primary">⏯ Pausar</button>
+      <button data-c="fwd">30s ⏩</button>
+      <button data-c="stop">⏹ Parar</button>
+    </div>
+    <div class="row">
+      <button data-c="voldown">🔉 Vol −</button>
+      <button data-c="mute">🔇 Mudo</button>
+      <button data-c="volup">🔊 Vol +</button>
+    </div>
+    <div class="msg" id="ctlmsg"></div>
+  </section>
+
+  <section class="card">
+    <h2>Arquivos na TV</h2>
+    <div id="files"><span class="sub">Carregando…</span></div>
+  </section>
+
+  <section class="card">
+    <h2>Atividade</h2>
+    <pre id="log"></pre>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+function say(el, text, ok) { el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
+function mb(n) { return (n / 1048576).toFixed(1) + ' MB'; }
+
+async function post(path, body) {
+  const r = await fetch(path, { method: 'POST', body: body || '' });
+  let j; try { j = await r.json(); } catch (e) { j = { ok: false, message: 'Resposta inválida da TV' }; }
+  return j;
+}
+
+// ---- upload ----
+const drop = $('drop'), pick = $('pick');
+drop.onclick = () => pick.click();
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add('over'); };
+drop.ondragleave = () => drop.classList.remove('over');
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove('over'); sendFiles([...e.dataTransfer.files]); };
+pick.onchange = () => { sendFiles([...pick.files]); pick.value = ''; };
+
+async function sendFiles(files) {
+  for (const f of files) { await sendOne(f); }
+  refresh();
+}
+
+function sendOne(file) {
+  return new Promise((resolve) => {
+    const prog = $('prog'), msg = $('upmsg');
+    const xhr = new XMLHttpRequest();
+    const auto = $('auto').checked ? '&auto=1' : '';
+    xhr.open('POST', '/api/upload?name=' + encodeURIComponent(file.name) + auto);
+    prog.style.display = 'block'; prog.value = 0;
+    msg.className = 'msg'; msg.textContent = 'Enviando ' + file.name + '…';
+    const t0 = Date.now();
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      prog.value = (e.loaded / e.total) * 100;
+      const s = (Date.now() - t0) / 1000, speed = s > 0 ? e.loaded / s : 0;
+      msg.textContent = 'Enviando ' + file.name + ' — ' + mb(e.loaded) + ' de ' + mb(e.total) + (speed ? ' (' + mb(speed) + '/s)' : '');
+    };
+    xhr.onload = () => {
+      let j = {}; try { j = JSON.parse(xhr.responseText); } catch (e) {}
+      say(msg, (j.message || 'Pronto') + ' — ' + file.name, xhr.status === 200);
+      prog.style.display = 'none'; resolve();
+    };
+    xhr.onerror = () => { say(msg, 'A conexão com a TV caiu durante o envio de ' + file.name, false); prog.style.display = 'none'; resolve(); };
+    xhr.send(file);
+  });
+}
+
+// ---- link ----
+$('playurl').onclick = async () => {
+  const u = $('url').value.trim();
+  if (!u) return say($('urlmsg'), 'Cole um link primeiro', false);
+  const j = await post('/api/play', u);
+  say($('urlmsg'), j.message, j.ok);
+};
+
+// ---- control ----
+document.querySelectorAll('[data-c]').forEach((b) => {
+  b.onclick = async () => { const j = await post('/api/control?cmd=' + b.dataset.c); say($('ctlmsg'), j.message, j.ok); };
+});
+
+// ---- files + status ----
+function fileRow(f) {
+  const row = document.createElement('div'); row.className = 'file';
+  const name = document.createElement('div'); name.className = 'name'; name.textContent = f.name;
+  const size = document.createElement('div'); size.className = 'size'; size.textContent = mb(f.size);
+  row.append(name, size);
+  if (f.kind === 'video' || f.kind === 'apk') {
+    const act = document.createElement('button'); act.className = 'primary';
+    act.textContent = f.kind === 'apk' ? 'Instalar' : 'Tocar';
+    act.onclick = async () => {
+      const path = f.kind === 'apk' ? '/api/install?file=' : '/api/play?file=';
+      const j = await post(path + encodeURIComponent(f.name)); say($('upmsg'), j.message, j.ok);
+    };
+    row.append(act);
+  }
+  const del = document.createElement('button'); del.textContent = 'Apagar';
+  del.onclick = async () => {
+    if (!confirm('Apagar ' + f.name + ' da TV?')) return;
+    await post('/api/delete?file=' + encodeURIComponent(f.name)); refresh();
+  };
+  row.append(del);
+  return row;
+}
+
+let lastFiles = '';
+async function refresh() {
+  try {
+    const s = await (await fetch('/api/status')).json();
+    $('addr').textContent = 'Conectado à TV em ' + s.ip + ':' + s.port;
+    const w = [];
+    if (!s.canInstall) w.push('Para instalar APKs, permita "Instalar apps desconhecidos" para o TV Drop na TV.');
+    if (!s.canOverlay) w.push('Deixe o TV Drop aberto na TV (ou libere "Sobrepor a outros apps") para os vídeos abrirem sozinhos.');
+    $('warn').textContent = w.join(' ');
+    let now = s.playing ? s.playing.split('/').pop() : '';
+    try { now = decodeURIComponent(now); } catch (e) {}
+    $('playing').textContent = s.playing ? 'Tocando: ' + now : 'Nada tocando agora';
+    const key = JSON.stringify(s.files);
+    if (key !== lastFiles) {
+      lastFiles = key;
+      const box = $('files'); box.textContent = '';
+      if (!s.files.length) { const e = document.createElement('span'); e.className = 'sub'; e.textContent = 'Nenhum arquivo ainda.'; box.append(e); }
+      s.files.forEach((f) => box.append(fileRow(f)));
+    }
+    $('log').textContent = s.log.join('\n') || 'Nada ainda.';
+  } catch (e) {
+    $('addr').textContent = 'Sem conexão com a TV. O TV Drop está aberto?';
+  }
+}
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>
