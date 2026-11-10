@@ -28,7 +28,7 @@ public class MainActivity extends Activity {
     private static final int ACCENT = 0xFF4FC3F7;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private TextView address, perms, log;
+    private TextView address, codeView, perms, log;
     private LinearLayout filesBox, permButtons;
     private String lastFiles = "";
 
@@ -49,12 +49,16 @@ public class MainActivity extends Activity {
         TextView title = text("TV Drop", 40, Color.WHITE);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         left.addView(title);
-        left.addView(text("No celular ou computador, no mesmo Wi-Fi, abra:", 18, 0xFFB0BEC5));
-        address = text("...", 34, ACCENT);
+        left.addView(text("No celular, abra o app TV Drop: ele acha a TV sozinho. Se não achar, digite o código:", 18, 0xFFB0BEC5));
+        codeView = text("...", 44, ACCENT);
+        codeView.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        codeView.setPadding(0, 8, 0, 16);
+        left.addView(codeView);
+        left.addView(text("Sem o app, pelo navegador do celular ou computador:", 16, 0xFFB0BEC5));
+        address = text("...", 24, Color.WHITE);
         address.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        address.setPadding(0, 8, 0, 24);
+        address.setPadding(0, 4, 0, 8);
         left.addView(address);
-        left.addView(text("Lá você envia vídeos e APKs, cola links de vídeo e controla o player.", 18, 0xFFCFD8DC));
         perms = text("", 16, 0xFFFFCC80);
         perms.setPadding(0, 24, 0, 8);
         left.addView(perms);
@@ -99,6 +103,8 @@ public class MainActivity extends Activity {
     private void refresh() {
         int port = ServerService.port();
         address.setText(port == 0 ? "iniciando..." : "http://" + Actions.ip() + ":" + port);
+        String code = port == 0 ? null : Codes.encode(Actions.ip(), port);
+        codeView.setText(code == null ? "sem rede" : code);
 
         boolean inst = Actions.canInstall(this), over = Actions.canOverlay(this);
         StringBuilder p = new StringBuilder();

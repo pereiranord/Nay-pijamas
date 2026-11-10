@@ -23,12 +23,13 @@ import java.util.Map;
 /**
  * Tiny HTTP server, no libraries. Routes:
  *   GET  /                    web page (assets/index.html)
- *   GET  /api/status          JSON with address, files, permissions and log
+ *   GET  /api/hello           {"app":"tvdrop","name":..,"code":..} used by the phone app to find the TV
+ *   GET  /api/status          JSON with address, files, permissions, player state and log
  *   POST /api/upload?name=&auto=1   raw file body; auto plays videos / installs APKs
  *   POST /api/play            body = URL, or ?file=name for a received file
  *   POST /api/install?file=   install a received APK
  *   POST /api/delete?file=    delete a received file
- *   POST /api/control?cmd=    toggle | stop | fwd | back | volup | voldown | mute
+ *   POST /api/control?cmd=    toggle | stop | fwd | back | seek&ms= | volup | voldown | mute
  */
 public class HttpServer extends Thread {
     private static final int FIRST_PORT = 8080;
@@ -134,6 +135,10 @@ public class HttpServer extends Thread {
             send(out, 200, "text/html; charset=utf-8", readAsset("index.html"));
             return;
         }
+        if ("GET".equals(method) && "/api/hello".equals(path)) {
+            json(out, 200, "{\"app\":\"tvdrop\",\"name\":" + js(tvName()) + ",\"code\":" + js(code()) + "}");
+            return;
+        }
         if ("GET".equals(method) && "/api/status".equals(path)) {
             json(out, 200, status());
             return;
@@ -201,7 +206,9 @@ public class HttpServer extends Thread {
                     case "voldown": am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI); break;
                     case "mute": am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI); break;
                     default:
-                        if (!PlayerActivity.control(cmd)) { fail(out, "Nada tocando agora"); return; }
+                        long arg = 0;
+                        try { arg = Long.parseLong(q.getOrDefault("ms", "0")); } catch (NumberFormatException ignored) {}
+                        if (!PlayerActivity.control(cmd, arg)) { fail(out, "Nada tocando agora"); return; }
                 }
                 ok(out, "OK");
                 return;
@@ -219,7 +226,12 @@ public class HttpServer extends Thread {
         sb.append("\"port\":").append(port()).append(',');
         sb.append("\"canInstall\":").append(Actions.canInstall(ctx)).append(',');
         sb.append("\"canOverlay\":").append(Actions.canOverlay(ctx)).append(',');
+        sb.append("\"name\":").append(js(tvName())).append(',');
+        sb.append("\"code\":").append(js(code())).append(',');
         sb.append("\"playing\":").append(js(PlayerActivity.nowPlaying())).append(',');
+        sb.append("\"position\":").append(PlayerActivity.position()).append(',');
+        sb.append("\"duration\":").append(PlayerActivity.duration()).append(',');
+        sb.append("\"paused\":").append(PlayerActivity.paused()).append(',');
         sb.append("\"files\":[");
         File[] files = Actions.inbox(ctx).listFiles();
         if (files != null) {
@@ -241,6 +253,15 @@ public class HttpServer extends Thread {
         }
         sb.append("]}");
         return sb.toString();
+    }
+
+    private String code() {
+        return Codes.encode(Actions.ip(), port());
+    }
+
+    static String tvName() {
+        String m = android.os.Build.MODEL;
+        return "TV Drop" + (m == null || m.isEmpty() ? "" : " (" + m + ")");
     }
 
     private File existing(String name) {

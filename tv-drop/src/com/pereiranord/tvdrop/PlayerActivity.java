@@ -19,6 +19,10 @@ public class PlayerActivity extends Activity {
     public static final String EXTRA_SOURCE = "source";
     private static volatile PlayerActivity current;
     private static volatile String playing;
+    private static volatile int pos, dur;
+    private static volatile boolean isPaused;
+    private final android.os.Handler ticker = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable tick = this::tick;
 
     private VideoView video;
     private MediaController controller;
@@ -28,12 +32,31 @@ public class PlayerActivity extends Activity {
         return current == null ? null : playing;
     }
 
+    public static int position() { return current == null ? 0 : pos; }
+    public static int duration() { return current == null ? 0 : dur; }
+    public static boolean paused() { return current != null && isPaused; }
+
     /** Called from the web server thread. Returns false when nothing is playing. */
-    public static boolean control(String cmd) {
+    public static boolean control(String cmd, long arg) {
         final PlayerActivity p = current;
         if (p == null) return false;
-        p.runOnUiThread(() -> p.handle(cmd));
+        p.runOnUiThread(() -> {
+            if ("seek".equals(cmd)) p.seekTo((int) arg);
+            else p.handle(cmd);
+        });
         return true;
+    }
+
+    /** Caches the player state for /api/status (MediaPlayer must be read on this thread). */
+    private void tick() {
+        try {
+            pos = video.getCurrentPosition();
+            int d = video.getDuration();
+            dur = d > 0 ? d : 0;
+            isPaused = !video.isPlaying();
+        } catch (Exception ignored) {
+        }
+        ticker.postDelayed(tick, 500);
     }
 
     @Override
@@ -88,6 +111,8 @@ public class PlayerActivity extends Activity {
             return;
         }
         playing = src;
+        pos = 0;
+        dur = 0;
         label.setText("Carregando " + Actions.shortName(src) + "...");
         if (src.startsWith("/")) video.setVideoPath(src);
         else video.setVideoURI(Uri.parse(src));
@@ -109,7 +134,11 @@ public class PlayerActivity extends Activity {
     }
 
     private void seek(int ms) {
-        int to = Math.max(0, video.getCurrentPosition() + ms);
+        seekTo(video.getCurrentPosition() + ms);
+    }
+
+    private void seekTo(int to) {
+        to = Math.max(0, to);
         int d = video.getDuration();
         if (d > 0) to = Math.min(to, d - 1000);
         video.seekTo(to);
@@ -143,8 +172,15 @@ public class PlayerActivity extends Activity {
     protected void onResume() {
         super.onResume();
         current = this;
+        ticker.post(tick);
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+    }
+
+    @Override
+    protected void onPause() {
+        ticker.removeCallbacks(tick);
+        super.onPause();
     }
 
     @Override
