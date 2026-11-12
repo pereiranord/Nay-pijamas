@@ -210,6 +210,16 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .pdf-page, .peek { display: block; width: 100%; border-radius: 12px; background: #000; margin-top: 10px; min-height: 120px; object-fit: contain; }
 .big-next { flex: 2 !important; }
 .subs { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.games-hero { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 16px; margin-bottom: 14px; border-radius: var(--radius); background: linear-gradient(120deg, #3b1d7a, #a12a6b 60%, #ff7a3d); color: #fff; }
+.games-hero svg { width: 34px; height: 34px; flex: none; }
+.games-hero span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.games-hero b { font-size: 18px; } .games-hero small { opacity: .85; font-size: 13px; line-height: 1.25; }
+.games-hero em { font-style: normal; font-weight: 800; background: #fff; color: #2a1458; padding: 8px 14px; border-radius: 999px; font-size: 14px; flex: none; }
+.gamepad { position: fixed; inset: 0; z-index: 100; background: #0d0b1e; display: flex; flex-direction: column; }
+.gamepad-bar { display: flex; align-items: center; justify-content: space-between; padding: calc(4px + env(safe-area-inset-top, 0px)) 12px 4px; color: #a9a3c9; font-size: 13px; font-weight: 700; }
+.gamepad-bar span { display: flex; align-items: center; gap: 6px; } .gamepad-bar svg { width: 18px; height: 18px; }
+.gamepad-bar button { color: #fff; font-weight: 800; padding: 6px 12px; border-radius: 999px; background: rgba(255, 255, 255, .12); font-size: 13px; }
+.gamepad iframe { flex: 1; width: 100%; border: 0; display: block; }
 .modal { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .7); display: grid; place-items: center; padding: 16px; }
 .modal-box { width: min(720px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border-radius: 22px; padding: 18px; }
 pre.log { margin: 0; white-space: pre-wrap; color: var(--muted); font-size: 12.5px; max-height: 220px; overflow: auto; }
@@ -645,6 +655,7 @@ const ICONS = {
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   shuffle: '<path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>',
   slides: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4"/><path d="M8 20h8"/>',
+  game: '<rect x="2" y="7" width="20" height="11" rx="5.5"/><path d="M7 10.5v4M5 12.5h4"/><circle cx="16" cy="11" r="1"/><circle cx="18.5" cy="14" r="1"/>',
   repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
   drag: '<path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01"/>',
   star: '<path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
@@ -901,6 +912,7 @@ function renderHome() {
       <button id="findTv">${icon('bell')}Encontrar TV</button>
     </div>
     ${spaceNotice()}
+    <button class="games-hero" id="gamesBtn">${icon('game')}<span><b>Jogos na TV</b><small id="gamesSub">De 2 a 6 jogadores. Cada celular vira o controle.</small></span><em>Jogar</em></button>
     <div class="card" id="npCard"></div>
     <div class="card" id="extCard" hidden></div>
     <div class="card" id="presentCard" hidden></div>
@@ -913,6 +925,8 @@ function renderHome() {
   renderConn();
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
   $('#findTv').onclick = findTv;
+  $('#gamesBtn').onclick = openGames;
+  api('/api/v2/games').then((g) => { if (g.open && $('#gamesSub')) $('#gamesSub').textContent = `Sala ${g.code} aberta · ${g.players} no jogo. Toque para entrar.`; }, () => { const b = $('#gamesBtn'); if (b) b.hidden = true; });
   updateNowPlaying();
   drawTimer();
   drawContinue();
@@ -926,6 +940,22 @@ function spaceNotice() {
   if (!st || !st.low) return '';
   return `<div class="notice">${icon('info')}<div>Pouco espaço na TV: <b>${fmtSize(Math.max(0, st.free))}</b> livres. Arquivos grandes podem não caber. <button class="btn small" data-go="devices" style="margin-top:8px">Ver armazenamento</button></div></div>`;
 }
+
+/* ---------------------------------------------------------------- Party games */
+/** Opens the games on the TV and turns this phone into a controller (the TV's own page, on top of this one). */
+async function openGames() {
+  let g;
+  try { g = await api('/api/v2/games/open', { method: 'POST', timeout: 15000 }); } catch (e) { toast(e.message, false); return; }
+  const url = (BASE || location.origin) + '/jogar?sala=' + encodeURIComponent(g.code);
+  if (location.protocol === 'https:') { window.open(url, '_blank'); toast('Os jogos abriram em outra aba'); return; } // an https page can't embed the TV's http page
+  closeGames();
+  const box = document.createElement('div');
+  box.className = 'gamepad'; box.id = 'gamepad';
+  box.innerHTML = `<div class="gamepad-bar"><span>${icon('game')} Jogos · sala ${esc(g.code)}</span><button id="gamepadX">Sair</button></div><iframe title="Controle do jogo" allow="accelerometer; gyroscope; fullscreen" src="${esc(url)}"></iframe>`;
+  document.body.appendChild(box);
+  $('#gamepadX').onclick = closeGames;
+}
+function closeGames() { const b = $('#gamepad'); if (b) b.remove(); }
 
 /* ---------------------------------------------------------------- Other apps (Netflix, YouTube, Spotify…) */
 let extTick = 0;
@@ -2592,6 +2622,7 @@ window.tvdropShareLink = (url) => {
 };
 /* Android app: the phone's Back button. Returns true when handled here. */
 window.tvdropBack = () => {
+  if ($('#gamepad')) { closeGames(); return true; }
   const open = ['#numPanel', '#morePanel', '#kbd', '#voice'].map((s) => $(s)).find((el) => el && !el.hidden);
   if (open) { open.hidden = true; return true; }
   if (!$('#appView').hidden && S.view !== 'home') { go('home'); return true; }
