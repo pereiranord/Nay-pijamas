@@ -1,6 +1,16 @@
-# TV Drop 2.5
+# TV Drop 2.6
 
 Central multimídia e controle remoto para **Android TV / Google TV** (feito pensando na Philips 4K Google TV), com app para **celular Android** e versão **web**. O mesmo APK funciona nos dois aparelhos: na TV ele é o receptor; no celular, o controle e o transmissor.
+
+**Jogos (2 a 6 jogadores)**
+O jogo roda na TV e cada celular vira o controle e uma segunda tela, com efeitos do que acontece com aquele jogador (mancha vermelha ao levar dano, tela rachada ao ser eliminado, confete ao vencer, vibração).
+- **Arena Neon**: batalha de naves com joystick, tiro e impulso. Quem sobrar leva a rodada.
+- **Batata-Bomba**: resolva o desafio rápido no celular e escolha para quem jogar a bomba antes que ela exploda.
+- **Quem Mente?**: invente uma mentira convincente para a pergunta e descubra qual resposta é a verdadeira.
+- **Rabisco Relâmpago**: um desenha no celular, o desenho aparece ao vivo na TV e os outros adivinham. No fim, a galeria da partida.
+- **Corrida de Sofá**: três voltas pela sala, com volante e pedal no celular.
+
+Como entrar: na TV, abra **Jogos** (botão na tela do TV Drop, ou "Jogos na TV" no app do celular). Os convidados apontam a câmera para o QR Code da sala ou abrem `IP_DA_TV:8080/jogar` e digitam o código de 4 letras. **Convidados não precisam parear** e não ganham acesso ao controle da TV: a sala só troca mensagens do jogo. O primeiro a entrar é o líder e escolhe o jogo; o controle da TV também funciona (setas, OK, Voltar).
 
 **Transmitir**
 - **Do celular sem copiar**: a TV toca o vídeo direto do celular, em **qualidade original**, com avançar e voltar. O próprio app decodifica áudio DTS, TrueHD e AC3.

@@ -97,6 +97,13 @@ public interface TvHost {
     /** Free bytes where received files are stored (-1 when unknown). */
     long freeSpace();
 
+    // ---- party games ----
+    /** Shows the games screen (a page served by this app). Returns null on success or the reason it failed. */
+    String openGames(String url);
+    void closeGames();
+    /** PNG of a QR code, or null when it can't be drawn. */
+    byte[] qrPng(String text, int size);
+
     /** Plays a short sound so the TV can be found. */
     void beep();
 

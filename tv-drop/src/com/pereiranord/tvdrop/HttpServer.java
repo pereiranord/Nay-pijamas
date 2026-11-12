@@ -36,7 +36,8 @@ public class HttpServer extends Thread {
     public static final int FIRST_PORT = 8080;
     static final Set<String> LEGACY = new HashSet<>(Arrays.asList(
             "/api/status", "/api/upload", "/api/play", "/api/install", "/api/delete", "/api/control"));
-    static final Set<String> OPEN = new HashSet<>(Arrays.asList("/api/hello", "/api/v2/info", "/api/v2/pair"));
+    static final Set<String> OPEN = new HashSet<>(Arrays.asList("/api/hello", "/api/v2/info", "/api/v2/pair",
+            "/api/v2/games/ws", "/api/v2/games/qr")); // game guests join with the room code, not with pairing
 
     private final TvHost host;
     private final Pairing pairing;
@@ -44,6 +45,7 @@ public class HttpServer extends Thread {
     final Library library;
     final SleepTimer timer;
     final KeyRepeater repeater;
+    final GameHub games = new GameHub();
     private ServerSocket socket;
     private volatile boolean running = true;
 
@@ -184,6 +186,7 @@ public class HttpServer extends Thread {
     private void serveWeb(Http.Request r) throws IOException {
         String p = r.path;
         if ("/".equals(p) || "/index.html".equals(p)) p = "/index.html";
+        if ("/jogar".equals(p) || "/jogos".equals(p)) p = "/jogos.html"; // the phones' game controller
         String name = p.substring(1);
         if (!name.matches("[A-Za-z0-9_-]+(\\.[A-Za-z0-9]+)+") ) {
             Http.send(r.out, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
@@ -195,7 +198,8 @@ public class HttpServer extends Thread {
             return;
         }
         Http.send(r.out, 200, Http.contentType(name), data,
-                name.endsWith(".html") ? "Content-Security-Policy: frame-ancestors 'self'\r\n" : null);
+                // the game controller may be embedded by the TV Drop app (it controls nothing but the game)
+                name.endsWith(".html") && !name.startsWith("jogos") ? "Content-Security-Policy: frame-ancestors 'self'\r\n" : null);
     }
 
     // ---- TV Drop 1.0 routes (unchanged behaviour) ----

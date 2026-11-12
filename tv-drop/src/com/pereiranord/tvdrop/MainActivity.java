@@ -96,6 +96,17 @@ public class MainActivity extends Activity {
         connect.addView(codeView);
         left.addView(connect);
 
+        LinearLayout gamesCard = card();
+        gamesCard.addView(text("Jogos", 20, TEXT));
+        gamesCard.addView(text("De 2 a 6 jogadores. Cada celular vira o controle: é só apontar a câmera para o QR Code da sala.", 15, MUTED));
+        gamesCard.addView(button("Abrir jogos", v -> {
+            HttpServer s = ServerService.server();
+            if (s == null) return;
+            s.games.open();
+            GameActivity.launch(this, "http://127.0.0.1:" + s.port() + "/jogos-tv.html?key=" + s.games.hostKey());
+        }));
+        left.addView(gamesCard);
+
         LinearLayout statusCard = card();
         statusCard.addView(text("Controle remoto", 20, TEXT));
         status = text("", 15, MUTED);

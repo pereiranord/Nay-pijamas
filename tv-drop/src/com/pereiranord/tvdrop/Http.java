@@ -333,6 +333,13 @@ final class Http {
             out.flush();
         }
 
+        /** Says goodbye and drops the connection (also unblocks a thread waiting in receive()). */
+        void close() {
+            try { frame(0x8, new byte[0]); } catch (IOException ignored) { }
+            try { in.close(); } catch (IOException ignored) { }
+            try { out.close(); } catch (IOException ignored) { }
+        }
+
         private int readByte() throws IOException {
             int b = in.read();
             if (b < 0) throw new EOFException();

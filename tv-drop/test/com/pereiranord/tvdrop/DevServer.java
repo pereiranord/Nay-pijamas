@@ -64,7 +64,7 @@ public class DevServer {
         long end = System.currentTimeMillis() + Long.parseLong(secs) * 1000;
         while (System.currentTimeMillis() < end) {
             // the PIN changes after each pairing and every 2 minutes: keep the file current
-            if (info != null) Files.write(new File(info).toPath(), (server.port() + " " + pairing.pin()).getBytes(StandardCharsets.UTF_8));
+            if (info != null) Files.write(new File(info).toPath(), (server.port() + " " + pairing.pin() + " " + server.games.open() + " " + server.games.hostKey()).getBytes(StandardCharsets.UTF_8));
             Thread.sleep(500);
         }
         server.shutdown();

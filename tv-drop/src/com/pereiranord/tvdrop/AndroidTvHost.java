@@ -485,6 +485,29 @@ final class AndroidTvHost implements TvHost {
         }
     }
 
+    // ---- party games ----
+
+    @Override
+    public String openGames(String url) {
+        try {
+            GameActivity.launch(ctx, url);
+            return null;
+        } catch (Exception e) {
+            return "A TV não abriu os jogos (deixe o TV Drop aberto ou libere \"Sobrepor a outros apps\").";
+        }
+    }
+
+    @Override public void closeGames() { GameActivity.stop(); }
+
+    @Override
+    public byte[] qrPng(String text, int size) {
+        Bitmap b = MainActivity.qrBitmap(text, size);
+        if (b == null) return null;
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        b.compress(Bitmap.CompressFormat.PNG, 100, out);
+        return out.toByteArray();
+    }
+
     @Override public boolean mirrorActive() { return MirrorServer.isActive(); }
     @Override public boolean mirrorStop() { return MirrorServer.stopActive(); }
 

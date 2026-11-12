@@ -97,6 +97,7 @@ const ICONS = {
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   shuffle: '<path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>',
   slides: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4"/><path d="M8 20h8"/>',
+  game: '<rect x="2" y="7" width="20" height="11" rx="5.5"/><path d="M7 10.5v4M5 12.5h4"/><circle cx="16" cy="11" r="1"/><circle cx="18.5" cy="14" r="1"/>',
   repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
   drag: '<path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01"/>',
   star: '<path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
@@ -353,6 +354,7 @@ function renderHome() {
       <button id="findTv">${icon('bell')}Encontrar TV</button>
     </div>
     ${spaceNotice()}
+    <button class="games-hero" id="gamesBtn">${icon('game')}<span><b>Jogos na TV</b><small id="gamesSub">De 2 a 6 jogadores. Cada celular vira o controle.</small></span><em>Jogar</em></button>
     <div class="card" id="npCard"></div>
     <div class="card" id="extCard" hidden></div>
     <div class="card" id="presentCard" hidden></div>
@@ -365,6 +367,8 @@ function renderHome() {
   renderConn();
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
   $('#findTv').onclick = findTv;
+  $('#gamesBtn').onclick = openGames;
+  api('/api/v2/games').then((g) => { if (g.open && $('#gamesSub')) $('#gamesSub').textContent = `Sala ${g.code} aberta · ${g.players} no jogo. Toque para entrar.`; }, () => { const b = $('#gamesBtn'); if (b) b.hidden = true; });
   updateNowPlaying();
   drawTimer();
   drawContinue();
@@ -378,6 +382,22 @@ function spaceNotice() {
   if (!st || !st.low) return '';
   return `<div class="notice">${icon('info')}<div>Pouco espaço na TV: <b>${fmtSize(Math.max(0, st.free))}</b> livres. Arquivos grandes podem não caber. <button class="btn small" data-go="devices" style="margin-top:8px">Ver armazenamento</button></div></div>`;
 }
+
+/* ---------------------------------------------------------------- Party games */
+/** Opens the games on the TV and turns this phone into a controller (the TV's own page, on top of this one). */
+async function openGames() {
+  let g;
+  try { g = await api('/api/v2/games/open', { method: 'POST', timeout: 15000 }); } catch (e) { toast(e.message, false); return; }
+  const url = (BASE || location.origin) + '/jogar?sala=' + encodeURIComponent(g.code);
+  if (location.protocol === 'https:') { window.open(url, '_blank'); toast('Os jogos abriram em outra aba'); return; } // an https page can't embed the TV's http page
+  closeGames();
+  const box = document.createElement('div');
+  box.className = 'gamepad'; box.id = 'gamepad';
+  box.innerHTML = `<div class="gamepad-bar"><span>${icon('game')} Jogos · sala ${esc(g.code)}</span><button id="gamepadX">Sair</button></div><iframe title="Controle do jogo" allow="accelerometer; gyroscope; fullscreen" src="${esc(url)}"></iframe>`;
+  document.body.appendChild(box);
+  $('#gamepadX').onclick = closeGames;
+}
+function closeGames() { const b = $('#gamepad'); if (b) b.remove(); }
 
 /* ---------------------------------------------------------------- Other apps (Netflix, YouTube, Spotify…) */
 let extTick = 0;
@@ -2044,6 +2064,7 @@ window.tvdropShareLink = (url) => {
 };
 /* Android app: the phone's Back button. Returns true when handled here. */
 window.tvdropBack = () => {
+  if ($('#gamepad')) { closeGames(); return true; }
   const open = ['#numPanel', '#morePanel', '#kbd', '#voice'].map((s) => $(s)).find((el) => el && !el.hidden);
   if (open) { open.hidden = true; return true; }
   if (!$('#appView').hidden && S.view !== 'home') { go('home'); return true; }

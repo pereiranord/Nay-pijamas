@@ -128,6 +128,16 @@
                 android:value="Local network receiver for videos and APK files" />
         </service>
 
+        <!-- TV: party games (the game page runs in a WebView; phones are the controllers) -->
+        <activity
+            android:name=".GameActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize"
+            android:hardwareAccelerated="true"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
+
         <!-- TV: photo slideshow and PDF presentation -->
         <activity
             android:name=".SlideshowActivity"

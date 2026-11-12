@@ -37,6 +37,7 @@ class FakeHost implements TvHost {
     public byte[] webAsset(String name) {
         if (name.equals("index.html")) return "<!doctype html><title>TV Drop</title>".getBytes(StandardCharsets.UTF_8);
         if (name.equals("app.js")) return "console.log(1)".getBytes(StandardCharsets.UTF_8);
+        if (name.equals("jogos.html")) return "<!doctype html><title>Jogos</title>".getBytes(StandardCharsets.UTF_8);
         return null;
     }
 
@@ -125,6 +126,10 @@ class FakeHost implements TvHost {
     @Override public byte[] presentPage(int p) { return page < 0 ? null : new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) p}; }
     @Override public boolean playerSubtitle(String path) { if (playing == null) return false; media.add("sub:" + new File(path).getName()); return true; }
     @Override public long freeSpace() { return free; }
+    String gamesUrl;
+    @Override public String openGames(String url) { gamesUrl = url; return null; }
+    @Override public void closeGames() { gamesUrl = null; }
+    @Override public byte[] qrPng(String text, int size) { return null; }
     long cacheBytes = 5_000_000;
     @Override public org.json.JSONArray storageVolumes() {
         try {

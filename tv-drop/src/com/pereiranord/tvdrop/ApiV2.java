@@ -60,6 +60,8 @@ import java.util.Map;
  *   POST /api/v2/present {"file"}     GET /api/v2/present   POST /api/v2/present/control {action,page}   GET /api/v2/present/page?page=
  *   POST /api/v2/player/subtitle {"file"}   POST /api/v2/subtitles/search {query,key,lang}   POST /api/v2/subtitles/download {fileId,key,name}
  *   POST /api/v2/queue/shuffle
+ *   GET  /api/v2/games                {open, code, players, url}   POST /api/v2/games/open   POST /api/v2/games/close
+ *   GET  /api/v2/games/ws?room=&id=   WebSocket for a guest's phone (no pairing; the room code is the key). See GameHub.
  *   POST /api/v2/mirror/stop          ends screen mirroring (stream itself: TCP 8100, see MirrorProtocol)
  *   GET  /api/v2/ws?token=            WebSocket: {"t":"key","k":..} {"t":"move","dx","dy"} {"t":"tap"} {"t":"scroll","dy"} ...
  */
@@ -84,6 +86,7 @@ final class ApiV2 {
             if (get && "/info".equals(p)) { Http.json(out, 200, info()); return; }
             if (post && "/pair".equals(p)) { pair(r); return; }
             if (get && "/ws".equals(p)) { webSocket(r, s); return; }
+            if (p.startsWith("/games")) { games(r, s, p); return; }
             if (get && "/session".equals(p)) {
                 Pairing.Device d = pairing.check(r.token());
                 Http.json(out, 200, new JSONObject().put("ok", true).put("device", d == null ? null : d.toJson()));
@@ -505,6 +508,59 @@ final class ApiV2 {
     private static void done(OutputStream out, String err, String okMessage) throws IOException {
         if (err == null) Http.ok(out, okMessage);
         else Http.error(out, 409, "unavailable", err);
+    }
+
+    // ---- party games ----
+
+    private String gamesUrl() {
+        return "http://" + host.ip() + ":" + server.port() + "/jogar";
+    }
+
+    private JSONObject gamesState() throws JSONException {
+        GameHub hub = server.games;
+        return new JSONObject().put("ok", true).put("open", hub.isOpen()).put("code", hub.code() == null ? JSONObject.NULL : hub.code())
+                .put("players", hub.playerCount()).put("url", gamesUrl());
+    }
+
+    private void games(Http.Request r, Socket s, String p) throws IOException, JSONException {
+        GameHub hub = server.games;
+        boolean get = "GET".equals(r.method), post = "POST".equals(r.method);
+        if (get && "/games/ws".equals(p)) { // open route: the room code (or the host key) is the credential
+            if (!Http.WebSocket.isUpgrade(r)) { Http.fail(r.out, "Esperava uma conexão WebSocket"); return; }
+            boolean asHost = "host".equals(r.query.get("role"));
+            if (asHost && !hub.isHostKey(r.query.get("key"))) { Http.error(r.out, 403, "forbidden", "Chave da sala inválida"); return; }
+            String id = r.query.get("id");
+            if (!asHost && (id == null || !id.matches("[A-Za-z0-9]{6,24}"))) { Http.fail(r.out, "Identificação inválida"); return; }
+            s.setSoTimeout(60_000); // both sides send a keep-alive every 15 s
+            Http.WebSocket ws = Http.WebSocket.accept(r);
+            try {
+                if (asHost) hub.serveHost(ws, gamesUrl());
+                else hub.servePlayer(ws, r.query.get("room"), id);
+            } catch (IOException ignored) {
+                // connection dropped
+            }
+            return;
+        }
+        if (get && "/games/qr".equals(p)) {
+            if (!hub.isHostKey(r.query.get("key"))) { Http.error(r.out, 403, "forbidden", "Chave da sala inválida"); return; }
+            image(r.out, host.qrPng(gamesUrl() + "?sala=" + hub.code(), 480), "image/png", "Sem QR Code");
+            return;
+        }
+        if (get && "/games".equals(p)) { Http.json(r.out, 200, gamesState()); return; }
+        if (post && "/games/open".equals(p)) {
+            hub.open();
+            String err = host.openGames("http://127.0.0.1:" + server.port() + "/jogos-tv.html?key=" + hub.hostKey());
+            if (err != null) { Http.error(r.out, 409, "unavailable", err); return; }
+            Http.json(r.out, 200, gamesState().put("message", "Jogos abertos na TV"));
+            return;
+        }
+        if (post && "/games/close".equals(p)) {
+            hub.close();
+            host.closeGames();
+            Http.ok(r.out, "Jogos encerrados");
+            return;
+        }
+        Http.error(r.out, 404, "not_found", "Rota não encontrada");
     }
 
     // ---- info, pairing ----

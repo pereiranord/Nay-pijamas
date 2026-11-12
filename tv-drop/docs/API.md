@@ -57,6 +57,9 @@ O 2.0 trouxe dois acréscimos compatíveis: o campo `modified` em `files` e o ti
 | `GET /api/v2/timer` · `POST /api/v2/timer` · `/timer/cancel` | `{minutes, action: pause\|mute\|stop\|power}` | roda na TV; `power` sem o controle pareado vira `stop` |
 | `POST /api/v2/mirror/stop` | — | encerra o espelhamento |
 | `POST /api/v2/queue/shuffle` | — | embaralha o que vem depois do item atual |
+| `GET /api/v2/games` · `POST /api/v2/games/open` · `/games/close` | — | sala de jogos: `{open, code, players, url}`; `open` mostra os jogos na TV |
+| `GET /jogar?sala=CODE` | sem pareamento | controle do jogo para o celular (página servida pela TV) |
+| `GET /api/v2/games/ws?room=CODE&id=ID` | sem pareamento | WebSocket do jogador; a credencial é o código da sala. O que o celular envia chega à página da TV como `{"t":"m","id","d"}`; a TV responde com `ID|json` ou `*|json`. Avisos da sala: `host`, `closed`, `full`, `noroom`. Não dá acesso a nenhuma outra rota |
 | `GET /api/v2/thumb?src=` | `src`: `inbox:<arquivo>` ou URL | JPEG ~320 px (aceita `?token=`); 404 sem miniatura |
 | `GET /api/v2/media/info?src=` | — | `{duration}` em ms (`-1` se desconhecida) |
 | `GET /api/v2/media/now` · `GET /api/v2/media/art` · `POST /api/v2/media/control` | `{action: play\|pause\|toggle\|next\|prev\|seek, ms?}` | mídia de outros apps; sem acesso às notificações: `{available:false, reason:"permission", enableCommand}` |
