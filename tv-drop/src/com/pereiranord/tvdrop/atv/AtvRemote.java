@@ -80,6 +80,9 @@ public class AtvRemote {
     private volatile boolean muted;
     private volatile int serverFeatures = -1;
     private volatile String lastError;
+    /** True while we close the session on purpose (no automatic reconnect then). */
+    private volatile boolean closingByUs;
+    private volatile int reconnects;
 
     public AtvRemote(File certFile, KeyValueStore store, String clientName, List<String> hosts) {
         this.certFile = certFile;
@@ -355,8 +358,10 @@ public class AtvRemote {
             lastError = e.getMessage();
         } finally {
             closeQuietly(s);
+            boolean wasCurrent;
             synchronized (writeLock) {
-                if (session == s) {
+                wasCurrent = session == s;
+                if (wasCurrent) {
                     session = null;
                     sessionOut = null;
                     configured = false;
@@ -365,6 +370,7 @@ public class AtvRemote {
             synchronized (ready) {
                 ready.notifyAll();
             }
+            if (wasCurrent && !closingByUs && isPaired()) reconnectSoon();
         }
     }
 
@@ -418,6 +424,28 @@ public class AtvRemote {
         return null;
     }
 
+    /**
+     * The TV dropped the session (standby, Wi-Fi blip): reconnect in the background so the next
+     * key responds right away. Up to 3 tries with growing pauses; a key press also reconnects.
+     */
+    private void reconnectSoon() {
+        if (reconnects >= 3) return;
+        final int attempt = ++reconnects;
+        Thread t = new Thread(() -> {
+            try {
+                Thread.sleep(1500L * attempt);
+                if (!closingByUs && isPaired() && !isConnected()) {
+                    ensureSession();
+                    reconnects = 0;
+                }
+            } catch (Exception ignored) {
+                // the next try (or the next key press) will try again
+            }
+        }, "atv-reconnect");
+        t.setDaemon(true);
+        t.start();
+    }
+
     private void markConfigured() {
         configured = true;
         synchronized (ready) {
@@ -462,6 +490,15 @@ public class AtvRemote {
     }
 
     public void closeSession() {
+        closingByUs = true;
+        try {
+            closeSessionNow();
+        } finally {
+            closingByUs = false;
+        }
+    }
+
+    private void closeSessionNow() {
         synchronized (writeLock) {
             closeQuietly(session);
             session = null;

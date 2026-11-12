@@ -71,6 +71,8 @@ dependencies {
     implementation "org.jellyfin.media3:media3-ffmpeg-decoder:$media3+1"
     // QR code shown on the TV for pairing.
     implementation "com.google.zxing:core:3.5.3"
+    // QR code scanner in the phone app (Google Play services; TV Drop needs no camera permission).
+    implementation "com.google.android.gms:play-services-code-scanner:16.1.0"
 
     testImplementation "junit:junit:4.13.2"
     // Real org.json for JVM tests (Android's copy is a stub off-device).

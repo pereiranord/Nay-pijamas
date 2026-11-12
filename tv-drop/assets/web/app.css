@@ -224,6 +224,39 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
 .item .t { flex: 1 1 140px; }
 .qrow .t { flex: 1 1 120px; }
 
+/* ---------- 2.4 settings, light theme, big buttons ---------- */
+.gear { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); flex: none; }
+.gear svg { width: 22px; height: 22px; }
+.setting { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.setting:first-of-type { border-top: 0; }
+.setting .t { flex: 1; }
+.setting b { display: block; font-weight: 600; }
+.setting small { color: var(--muted); font-size: 13px; }
+.switch { appearance: none; width: 50px; height: 30px; border-radius: 30px; background: var(--key-hi); position: relative; flex: none; cursor: pointer; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch:checked { background: var(--green); }
+.switch:checked::after { transform: translateX(20px); }
+.seg.mini { margin: 0; }
+.seg.mini button { min-height: 38px; font-size: 14px; }
+:root[data-theme="light"] {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #eceff3; --key: #e6e9ee; --key-hi: #d5dae1; --line: #e1e5ea;
+  --text: #15181c; --muted: #5d6873; --dim: #8a949e; --green: #12a150; --green-ink: #ffffff; --red: #d64545; --amber: #b87400;
+  color-scheme: light;
+}
+:root[data-theme="light"] body { background: var(--bg); }
+:root[data-theme="light"] .nav { background: rgba(243, 245, 247, .94); }
+:root[data-theme="light"] .dpad { background: radial-gradient(circle at 50% 40%, #ffffff, #e4e8ed 70%); box-shadow: inset 0 0 0 1px #d6dbe1, 0 14px 30px rgba(0,0,0,.12); }
+:root[data-theme="light"] .dpad .ok, :root[data-theme="light"] .key.play-big { background: #ffffff; box-shadow: 0 6px 16px rgba(0,0,0,.12), inset 0 0 0 1px #dfe3e8; }
+:root[data-theme="light"] .toast { background: #2b3036; color: #fff; }
+:root[data-theme="light"] .pad, :root[data-theme="light"] .rocker { box-shadow: inset 0 0 0 1px #d6dbe1; }
+:root[data-size="large"] .key { width: 70px; height: 70px; }
+:root[data-size="large"] .key svg { width: 30px; height: 30px; }
+:root[data-size="large"] .key.big { width: 88px; height: 76px; }
+:root[data-size="large"] .dpad { width: min(88vw, 360px); }
+:root[data-size="large"] .rocker { height: 220px; }
+:root[data-size="large"] .nkey { min-height: 70px; font-size: 26px; }
+:root[data-size="large"] body { font-size: 17px; }
+
 /* ---------- 2.3 app home: TVs found ---------- */
 .found { display: grid; gap: 10px; margin: 6px 0 18px; text-align: left; }
 .tv-found { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; background: var(--surface); }
@@ -303,3 +336,10 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
 .pad small { color: var(--dim); }
 .kb-hint { display: none; }
 @media (hover: hover) and (pointer: fine) { .kb-hint { display: block; } }
+/* big buttons: keep everything inside a phone screen */
+:root[data-size="large"] .key.small { width: 54px; height: 54px; }
+:root[data-size="large"] .key.small svg { width: 24px; height: 24px; }
+:root[data-size="large"] .top4 .key { width: 64px; height: 64px; }
+:root[data-size="large"] .key.play-big { width: 96px; height: 96px; }
+:root[data-size="large"] .rockers { grid-template-columns: 72px 1fr 72px; gap: 10px; }
+.qa, .app-tile { color: #fff; }

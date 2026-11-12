@@ -39,6 +39,9 @@ public class RemoteActivity extends Activity {
     private java.util.List<Uri> pendingShare;
     private String pendingLink;
     static final String HOME = "file:///android_asset/web/index.html";
+    /** tvdrop://go/remote, tvdrop://shortcut/Modo%20filme, tvdrop://mirror — from launcher shortcuts. */
+    private Uri pendingOpen;
+    private boolean pageReady;
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -55,6 +58,12 @@ public class RemoteActivity extends Activity {
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
         web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView v, String url) {
+                pageReady = true;
+                deliverOpen();
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 // Stay on the bundled interface or the TV's own pages; anything else opens outside the app.
@@ -76,6 +85,9 @@ public class RemoteActivity extends Activity {
             web.loadUrl(HOME);
         }
         handleShare(getIntent());
+        takeOpen(getIntent());
+        publishShortcuts(null);
+        if (prefs().getBoolean("quickNotif", false)) QuickControls.show(this);
         if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 0);
     }
 
@@ -83,6 +95,73 @@ public class RemoteActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         handleShare(intent);
+        takeOpen(intent);
+    }
+
+    private android.content.SharedPreferences prefs() {
+        return getSharedPreferences("tvdrop_ui", MODE_PRIVATE);
+    }
+
+    // ---------- launcher shortcuts / deep links ----------
+
+    private void takeOpen(Intent i) {
+        if (i != null && i.getData() != null && "tvdrop".equals(i.getData().getScheme())) {
+            pendingOpen = i.getData();
+            deliverOpen();
+        }
+    }
+
+    private void deliverOpen() {
+        if (pendingOpen == null || !pageReady) return;
+        Uri u = pendingOpen;
+        pendingOpen = null;
+        String kind = u.getHost() == null ? "" : u.getHost();
+        String value = u.getPathSegments().isEmpty() ? "" : u.getPathSegments().get(0);
+        web.evaluateJavascript("window.tvdropOpen && tvdropOpen(" + JSONObject.quote(kind) + "," + JSONObject.quote(value) + ")", null);
+    }
+
+    /** Fixed shortcuts plus the user's own "Meus atalhos" (long-press the app icon). */
+    private void publishShortcuts(org.json.JSONArray userShortcuts) {
+        try {
+            android.content.pm.ShortcutManager sm = getSystemService(android.content.pm.ShortcutManager.class);
+            if (sm == null) return;
+            java.util.List<android.content.pm.ShortcutInfo> list = new ArrayList<>();
+            list.add(shortcut("remote", "Controle", "tvdrop://go/remote", android.R.drawable.ic_menu_compass));
+            list.add(shortcut("cast", "Transmitir", "tvdrop://go/cast", android.R.drawable.ic_menu_upload));
+            list.add(shortcut("mirror", "Espelhar a tela", "tvdrop://mirror/now", android.R.drawable.ic_menu_slideshow));
+            if (userShortcuts != null) {
+                for (int k = 0; k < userShortcuts.length() && list.size() < sm.getMaxShortcutCountPerActivity(); k++) {
+                    String name = userShortcuts.getString(k);
+                    list.add(shortcut("sc" + k, name, "tvdrop://shortcut/" + Uri.encode(name), android.R.drawable.ic_media_play));
+                }
+            }
+            sm.setDynamicShortcuts(list);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private android.content.pm.ShortcutInfo shortcut(String id, String label, String uri, int icon) {
+        return new android.content.pm.ShortcutInfo.Builder(this, id)
+                .setShortLabel(label)
+                .setIcon(android.graphics.drawable.Icon.createWithResource(this, icon))
+                .setIntent(new Intent(Intent.ACTION_VIEW, Uri.parse(uri), this, RemoteActivity.class))
+                .build();
+    }
+
+    // ---------- phone volume keys control the TV ----------
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent e) {
+        int code = e.getKeyCode();
+        boolean vol = code == android.view.KeyEvent.KEYCODE_VOLUME_UP || code == android.view.KeyEvent.KEYCODE_VOLUME_DOWN;
+        if (vol && token != null && tv != null && prefs().getBoolean("volKeys", true)) {
+            if (e.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                // Android repeats the event while held, so holding works too
+                web.evaluateJavascript("window.sendKey && sendKey('" + (code == android.view.KeyEvent.KEYCODE_VOLUME_UP ? "volup" : "voldown") + "')", null);
+            }
+            return true;
+        }
+        return super.dispatchKeyEvent(e);
     }
 
     // ---------- Android "Share" -> TV Drop ----------
@@ -168,6 +247,11 @@ public class RemoteActivity extends Activity {
                 getSharedPreferences("tvdrop", MODE_PRIVATE).edit().putString("last", hostPort).putString("token:" + hostPort, tok).apply();
                 if (pendingShare != null) deliverShare();
                 deliverLink();
+                // home-screen widget and notification show the connected TV
+                android.appwidget.AppWidgetManager wm = android.appwidget.AppWidgetManager.getInstance(RemoteActivity.this);
+                int[] ids = wm.getAppWidgetIds(new android.content.ComponentName(RemoteActivity.this, TvDropWidget.class));
+                if (ids.length > 0) new TvDropWidget().onUpdate(RemoteActivity.this, wm, ids);
+                if (prefs().getBoolean("quickNotif", false)) QuickControls.show(RemoteActivity.this);
             });
         }
 
@@ -185,6 +269,50 @@ public class RemoteActivity extends Activity {
                 }));
                 discovery.start();
                 web.postDelayed(() -> web.evaluateJavascript("window.tvdropDiscoveryDone && tvdropDiscoveryDone()", null), 9000);
+            });
+        }
+
+        /** Settings that the native side also needs (volume keys, quick-controls notification). */
+        @JavascriptInterface
+        public void setPref(String key, String value) {
+            boolean on = "true".equals(value);
+            prefs().edit().putBoolean(key, on).apply();
+            if ("quickNotif".equals(key)) runOnUiThread(() -> {
+                if (on) QuickControls.show(RemoteActivity.this); else QuickControls.hide(RemoteActivity.this);
+            });
+        }
+
+        @JavascriptInterface
+        public String appVersion() {
+            try {
+                return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            } catch (Exception e) {
+                return "?";
+            }
+        }
+
+        /** Google's code scanner (no camera permission needed by TV Drop): reads the QR code on the TV. */
+        @JavascriptInterface
+        public void scanQr() {
+            runOnUiThread(() -> {
+                try {
+                    com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(RemoteActivity.this).startScan()
+                            .addOnSuccessListener(code -> js("tvdropQr", code.getRawValue() == null ? "" : code.getRawValue()))
+                            .addOnFailureListener(e -> js("toast", "Não consegui ler o QR Code: " + e.getMessage()));
+                } catch (Throwable t) {
+                    js("toast", "Leitor de QR Code indisponível neste celular (precisa do Google Play Services).");
+                }
+            });
+        }
+
+        /** The page's "Meus atalhos" become launcher shortcuts. */
+        @JavascriptInterface
+        public void setShortcuts(String jsonNames) {
+            runOnUiThread(() -> {
+                try {
+                    publishShortcuts(new org.json.JSONArray(jsonNames));
+                } catch (Exception ignored) {
+                }
             });
         }
 

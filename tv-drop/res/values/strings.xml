@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">TV Drop</string>
     <string name="accessibility_description">Permite que o TV Drop no seu celular controle esta TV: cursor (touchpad), Voltar, Início, setas e digitação no campo de texto selecionado. Nada da tela é guardado.</string>
+    <string name="widget_description">Play/pausa e volume da TV na tela inicial</string>
 </resources>

@@ -1,4 +1,4 @@
-# TV Drop 2.3
+# TV Drop 2.4
 
 Central multimídia e controle remoto para **Android TV / Google TV** (feito pensando na Philips 4K Google TV), com app para **celular Android** e versão **web**. O mesmo APK funciona nos dois aparelhos: na TV ele é o receptor; no celular, o controle e o transmissor.
 
@@ -55,6 +55,8 @@ adb shell am start -n com.pereiranord.tvdrop/.MainActivity
 ## 2. Instalar no celular
 
 Baixe o mesmo `TV-Drop.apk` no celular e abra. O Android vai pedir para permitir a instalação de apps dessa origem.
+
+No celular também: **widget** na tela inicial (play/pausa, volume, mudo), **controle rápido na notificação** e na tela de bloqueio, **botões de volume do celular** controlando a TV, **leitor de QR Code** para parear sem digitar e **atalhos** no ícone do app (Controle, Transmitir, Espelhar e os seus "Meus atalhos"). Em **Ajustes** (engrenagem no topo): tema escuro, claro ou automático, botões grandes, vibração e som.
 
 O app do celular abre direto na interface nova (a mesma do `index.html`, embutida no APK): ele procura as TVs na rede, conecta na última usada e pede o PIN só na primeira vez. A tela antiga continua em **Dispositivos → Modo clássico do app**.
 

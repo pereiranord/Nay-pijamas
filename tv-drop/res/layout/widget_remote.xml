@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phone home-screen widget: TV Drop quick controls -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <TextView
+        android:id="@+id/w_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingBottom="8dp"
+        android:text="TV Drop"
+        android:textColor="#FF3DDC84"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <Button android:id="@+id/w_voldown" style="@style/WidgetButton" android:text="−" />
+        <Button android:id="@+id/w_playpause" style="@style/WidgetButton" android:text="⏯" />
+        <Button android:id="@+id/w_volup" style="@style/WidgetButton" android:text="+" />
+        <Button android:id="@+id/w_mute" style="@style/WidgetButton" android:text="🔇" />
+    </LinearLayout>
+</LinearLayout>

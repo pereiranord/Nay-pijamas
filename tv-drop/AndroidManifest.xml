@@ -84,6 +84,12 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="tvdrop" />
+            </intent-filter>
             <intent-filter android:label="Enviar para a TV">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -160,6 +166,15 @@
         </service>
 
         <receiver android:name=".InstallReceiver" android:exported="false" />
+
+        <!-- Phone: widget and quick-controls notification buttons -->
+        <receiver android:name=".RemoteKeyReceiver" android:exported="false" />
+        <receiver android:name=".TvDropWidget" android:exported="true" android:label="TV Drop">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_info" />
+        </receiver>
 
         <receiver android:name=".BootReceiver" android:exported="true">
             <intent-filter>
