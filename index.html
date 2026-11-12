@@ -234,6 +234,32 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
 .item .t { flex: 1 1 140px; }
 .qrow .t { flex: 1 1 120px; }
 
+/* ---------- 2.3 app home: TVs found ---------- */
+.found { display: grid; gap: 10px; margin: 6px 0 18px; text-align: left; }
+.tv-found { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; background: var(--surface); }
+.tv-found svg { color: var(--green); width: 28px; height: 28px; }
+.tv-found b { display: block; }
+.tv-found small { color: var(--muted); }
+.searching { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); padding: 14px; }
+.dot.pulse { background: var(--green); animation: pulse 1s infinite; }
+
+/* ---------- 2.3 storage ---------- */
+.vol { margin: 10px 0 14px; }
+.bar { height: 6px; border-radius: 6px; background: var(--key); overflow: hidden; display: flex; }
+.bar i { display: block; height: 100%; background: var(--green); }
+.bar.big { height: 12px; margin-top: 8px; }
+.bar.big.warn i { background: var(--red); }
+.bar.stack { height: 14px; margin: 8px 0 10px; }
+.bar.stack i { border-right: 2px solid var(--surface); }
+.bar.thin { height: 4px; margin-top: 6px; }
+.legends { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+.legend { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; }
+.h3 { font-size: 15px; margin: 18px 0 6px; font-weight: 700; }
+.check-row { cursor: pointer; }
+.check-row input { width: 20px; height: 20px; accent-color: var(--green); flex: none; }
+.appicon { width: 52px; height: 32px; object-fit: contain; border-radius: 8px; background: var(--surface-2); flex: none; }
+
 /* ---------- 2.2 remote ---------- */
 .rstatus { margin: -6px 0 14px; }
 .chips-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
@@ -296,6 +322,7 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
   <div class="box">
     <div class="logo" data-icon="tv"></div>
     <h1 style="margin:0 0 6px;font-size:26px">TV Drop</h1>
+    <div id="foundTvs" class="found" hidden></div>
     <p class="sub">Abra o TV Drop na TV e digite o <b>código de 8 letras</b> ou o <b>endereço</b> que aparecem na tela dela.</p>
     <form id="connectForm" autocomplete="off">
       <input class="field" id="tvAddr" placeholder="1G58-28FG ou 192.168.18.31" autocapitalize="characters" aria-label="Código ou endereço da TV" style="text-align:center;font-size:20px;min-height:60px" required>
@@ -476,7 +503,8 @@ const store = {
 
 /* Standalone index.html (opened from a file, the repository or another address): every call goes
  * to the TV chosen on the connection screen. Served by the TV itself, BASE stays '' (same origin). */
-const STANDALONE = !!window.TVDROP_STANDALONE;
+// file: = the page bundled in the Android app (or a downloaded index.html)
+const STANDALONE = !!window.TVDROP_STANDALONE || location.protocol === 'file:';
 let BASE = STANDALONE ? store.get('base', '') : '';
 const u = (path) => BASE + path;
 
@@ -1023,12 +1051,31 @@ function keyHint(key) {
   return 'Esta TV não aceita esta tecla agora.';
 }
 
-/** Press = one key; hold = repeats (arrows, volume, channel...). Unavailable keys explain why. */
+/**
+ * Holding a key = continuous action. When the TV can (WebSocket + key handled by the receiver),
+ * it repeats the key itself until released: smooth even on a jittery Wi-Fi. Otherwise the phone repeats.
+ * Returns a function that releases the key.
+ */
+function holdKey(key) {
+  buzz();
+  if (S.wsOk && receiverHas(key)) {
+    const p = wsSend({ t: 'hold', k: key, on: true }, true);
+    if (p) p.then((r) => { if (!r.ok) toast(r.message || 'A TV recusou o comando', false); });
+    return () => wsSend({ t: 'hold', k: key, on: false }, false);
+  }
+  sendKey(key);
+  let rep = 0;
+  const timer = setTimeout(() => { rep = setInterval(() => { buzz(); sendKey(key); }, 120); }, 400);
+  return () => { clearTimeout(timer); clearInterval(rep); };
+}
+
+/** Press = one key; hold = continuous (arrows, volume, channel...). Unavailable keys explain why. */
 function bindKey(el, key) {
-  let timer = 0, repeat = 0, pressed = false;
+  let release = null, pressed = false;
   const stop = () => {
     if (pressed && /^(volup|voldown|mute)$/.test(key)) setTimeout(() => loadCaps().then(drawRemoteStatus), 700);
-    pressed = false; clearTimeout(timer); clearInterval(repeat); el.classList.remove('hit');
+    if (release) { release(); release = null; }
+    pressed = false; el.classList.remove('hit');
   };
   el.addEventListener('pointerdown', (e) => {
     if (e.button > 0) return;
@@ -1036,8 +1083,8 @@ function bindKey(el, key) {
     pressed = true;
     el.setPointerCapture && el.setPointerCapture(e.pointerId);
     el.classList.add('hit');
-    sendKey(key);
-    if (REPEAT_KEYS.has(key)) timer = setTimeout(() => { repeat = setInterval(() => { if (pressed) { buzz(); sendKey(key); } }, 120); }, 420);
+    if (REPEAT_KEYS.has(key)) release = holdKey(key);
+    else sendKey(key);
   });
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => el.addEventListener(t, stop));
   // keyboard activation (Enter/Space on a focused button)
@@ -1205,10 +1252,23 @@ document.addEventListener('keydown', (e) => {
   if (!key && /^[0-9]$/.test(e.key)) key = 'num' + e.key;
   if (!key) return;
   e.preventDefault();
+  if (e.repeat) return; // the hold below already repeats
   if (!has(key)) { toast(keyHint(key), false); return; }
-  const el = $(`[data-rk="${key}"], .dpad [data-key="${key}"]`);
-  sendKey(key, el);
+  const el = $(`[data-rk="${key}"]`);
+  if (REPEAT_KEYS.has(key)) {
+    if (el) el.classList.add('hit');
+    heldByKeyboard[e.key] = { release: holdKey(key), el };
+  } else sendKey(key, el);
 });
+const heldByKeyboard = {};
+document.addEventListener('keyup', (e) => {
+  const h = heldByKeyboard[e.key];
+  if (!h) return;
+  delete heldByKeyboard[e.key];
+  h.release();
+  if (h.el) h.el.classList.remove('hit');
+});
+window.addEventListener('blur', () => { for (const k of Object.keys(heldByKeyboard)) { heldByKeyboard[k].release(); delete heldByKeyboard[k]; } });
 
 function renderSurface() {
   const box = $('#surface');
@@ -1252,9 +1312,9 @@ function ripple(pad, x, y) {
 
 /** Swipe mode: every ~55 px sends one arrow; holding still after a swipe keeps repeating it; a tap is OK. */
 function setupSwipe(pad) {
-  let sx, sy, moved, start, lastKey = null, holdTimer = 0, holdRepeat = 0;
-  const stopHold = () => { clearTimeout(holdTimer); clearInterval(holdRepeat); };
-  const armHold = () => { stopHold(); holdTimer = setTimeout(() => { holdRepeat = setInterval(() => { if (lastKey) { buzz(); sendKey(lastKey); } }, 170); }, 450); };
+  let sx, sy, moved, start, lastKey = null, holdTimer = 0, release = null;
+  const stopHold = () => { clearTimeout(holdTimer); if (release) { release(); release = null; } };
+  const armHold = () => { stopHold(); holdTimer = setTimeout(() => { if (lastKey) release = holdKey(lastKey); }, 450); };
   pad.onpointerdown = (e) => { pad.setPointerCapture(e.pointerId); sx = e.clientX; sy = e.clientY; moved = false; start = Date.now(); lastKey = null; };
   pad.onpointermove = (e) => {
     if (sx == null) return;
@@ -1262,6 +1322,7 @@ function setupSwipe(pad) {
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 55) return;
     moved = true;
     const key = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
+    if (release) { release(); release = null; }
     lastKey = key;
     buzz(); sendKey(key); ripple(pad, e.clientX, e.clientY);
     sx = e.clientX; sy = e.clientY;
@@ -1918,6 +1979,8 @@ async function renderDevices() {
       <p>${acc.enabled ? '<span class="pill ok">Ativado</span>' : '<span class="pill warn">Desativado</span>'}</p>
       ${acc.enabled ? '' : `<p class="sub">Ative uma vez pelo Termux / computador:</p><code class="code-box">${esc(acc.enableCommand || '')}</code>`}</div>
 
+    <div class="card" id="storageCard"><h2>Armazenamento da TV</h2><div class="empty">Analisando…</div></div>
+
     <div class="card"><h2>Aparelhos autorizados</h2><div class="list" id="devList"><div class="empty">Carregando…</div></div>
       <label class="slider-row" style="margin-top:12px"><input type="checkbox" id="legacy" style="flex:none;width:20px;height:20px"> Permitir apps antigos (TV Drop 1.0) sem pareamento</label></div>
 
@@ -1927,7 +1990,7 @@ async function renderDevices() {
       <button class="btn" id="diagBtn">${icon('pulse')}Testar conexão</button><div class="msg" id="diagMsg"></div></div>
 
     <div class="card"><h2>Este aparelho</h2><p class="sub">${esc(deviceName())}${STANDALONE ? ' · conectado a ' + esc(BASE.replace('http://', '')) : ''}</p>
-      <div class="row">${STANDALONE ? '<button class="btn small" id="switchTv">Trocar de TV</button>' : ''}<button class="btn small" id="classic">Página clássica</button><button class="btn small danger" id="logout">Desconectar este aparelho</button></div></div>`;
+      <div class="row">${STANDALONE ? '<button class="btn small" id="switchTv">Trocar de TV</button>' : ''}${NATIVE && NATIVE.classic ? '<button class="btn small" id="classicApp">Modo clássico do app</button>' : ''}<button class="btn small" id="classic">Página clássica</button><button class="btn small danger" id="logout">Desconectar este aparelho</button></div></div>`;
   renderConn();
   $('#beep').onclick = findTv;
   if ($('#atvStart')) $('#atvStart').onclick = atvPairStart;
@@ -1949,12 +2012,79 @@ async function renderDevices() {
   if ($('#natUnpair')) $('#natUnpair').onclick = async () => { await nativeAtv('unpair'); await loadNativeAtv(); renderDevices(); };
   $('#classic').onclick = () => { location.href = u('/classic.html'); };
   if ($('#switchTv')) $('#switchTv').onclick = showConnect;
+  if ($('#classicApp')) $('#classicApp').onclick = () => NATIVE.classic();
   $('#logout').onclick = async () => {
     if (!confirm('Desconectar este aparelho da TV? Você vai precisar do código de novo.')) return;
     try { const s = await api('/api/v2/session'); if (s.device) await api('/api/v2/devices/revoke', { method: 'POST', json: { id: s.device.id } }); } catch (e) { /* ignore */ }
     showPairing('Desconectado.');
   };
   loadDevices();
+  drawStorage();
+}
+
+/* ---------------------------------------------------------------- STORAGE */
+const KIND_INFO = { video: ['Vídeos', '#4fc3f7'], audio: ['Músicas', '#ba68c8'], image: ['Fotos', '#ffb74d'], document: ['Documentos', '#81c784'], apk: ['APKs', '#e57373'], other: ['Outros', '#90a4ae'] };
+
+async function drawStorage() {
+  const box = $('#storageCard');
+  if (!box) return;
+  let s;
+  try { s = await api('/api/v2/storage'); } catch (e) { box.innerHTML = `<h2>Armazenamento da TV</h2><div class="empty">${esc(e.message)}</div>`; return; }
+  const vols = s.volumes.map((v) => {
+    const used = v.total - v.free, pct = v.total ? Math.round((used / v.total) * 100) : 0;
+    return `<div class="vol"><div class="row"><b class="grow">${esc(v.name)}</b><small class="sub" style="margin:0">${fmtSize(v.free)} livres de ${fmtSize(v.total)}</small></div>
+      <div class="bar big ${pct > 90 ? 'warn' : ''}"><i style="width:${pct}%"></i></div></div>`;
+  }).join('');
+  const kinds = Object.entries(s.inbox.byKind).sort((a, b) => b[1].bytes - a[1].bytes);
+  const total = s.inbox.bytes || 1;
+  const seg = kinds.map(([k, v]) => `<i style="width:${Math.max(1, (v.bytes / total) * 100)}%;background:${(KIND_INFO[k] || KIND_INFO.other)[1]}" title="${esc((KIND_INFO[k] || KIND_INFO.other)[0])}"></i>`).join('');
+  const legend = kinds.map(([k, v]) => `<span class="legend"><span class="sw" style="background:${(KIND_INFO[k] || KIND_INFO.other)[1]}"></span>${esc((KIND_INFO[k] || KIND_INFO.other)[0])} · ${fmtSize(v.bytes)} (${v.count})</span>`).join('');
+  box.innerHTML = `<h2>Armazenamento da TV</h2>
+    ${vols || '<p class="sub">Sem informação dos discos.</p>'}
+    <h3 class="h3">Arquivos recebidos · ${fmtSize(s.inbox.bytes)} em ${s.inbox.count} arquivo(s)</h3>
+    ${s.inbox.count ? `<div class="bar stack">${seg}</div><div class="legends">${legend}</div>` : '<p class="sub">Nenhum arquivo recebido.</p>'}
+    ${s.inbox.largest.length ? `<h3 class="h3">Maiores arquivos</h3><div class="list" id="bigFiles">${s.inbox.largest.map((f) => `<label class="item check-row">
+        <input type="checkbox" value="${esc(f.name)}"><div class="t"><b>${esc(f.name)}</b><small>${fmtSize(f.size)} · ${esc((KIND_INFO[f.kind] || KIND_INFO.other)[0])}${f.modified ? ' · ' + fmtDate(f.modified) : ''}</small></div></label>`).join('')}</div>
+      <div class="row" style="margin-top:10px"><button class="btn small danger" id="delSel" disabled>Apagar selecionados</button></div>` : ''}
+    <div class="row" style="margin-top:14px"><button class="btn small" id="clearCache">Limpar cache do TV Drop</button><button class="btn small" id="appSizes">Ver tamanho dos apps</button></div>
+    <div id="appSizesBox"></div><div class="msg" id="storageMsg"></div>`;
+  const checks = $$('#bigFiles input');
+  const delBtn = $('#delSel');
+  const sync = () => {
+    const sel = checks.filter((c) => c.checked);
+    if (!delBtn) return;
+    delBtn.disabled = !sel.length;
+    const bytes = sel.reduce((a, c) => a + (s.inbox.largest.find((f) => f.name === c.value) || {}).size, 0);
+    delBtn.textContent = sel.length ? `Apagar ${sel.length} (${fmtSize(bytes)})` : 'Apagar selecionados';
+  };
+  checks.forEach((c) => c.onchange = sync);
+  if (delBtn) delBtn.onclick = async () => {
+    const files = checks.filter((c) => c.checked).map((c) => c.value);
+    if (!confirm('Apagar ' + files.length + ' arquivo(s) da TV? Não dá para desfazer.')) return;
+    try { const r = await api('/api/v2/storage/delete', { method: 'POST', json: { files } }); toast(r.message + ' · ' + fmtSize(r.freed) + ' liberados'); drawStorage(); refreshStatus(); }
+    catch (e) { toast(e.message, false); }
+  };
+  $('#clearCache').onclick = async () => { try { const r = await api('/api/v2/storage/cache', { method: 'POST' }); toast(r.message + ' · ' + fmtSize(r.freed)); drawStorage(); } catch (e) { toast(e.message, false); } };
+  $('#appSizes').onclick = drawAppSizes;
+}
+
+async function drawAppSizes() {
+  const box = $('#appSizesBox');
+  box.innerHTML = '<div class="empty">Calculando o tamanho dos apps…</div>';
+  try {
+    const r = await api('/api/v2/storage/apps', { timeout: 30000 });
+    if (!r.permission) {
+      box.innerHTML = `<p class="sub" style="margin-top:12px">Para ver quanto cada app ocupa, libere o "acesso ao uso" do TV Drop uma vez pelo Termux:</p><code class="code-box">${esc(r.enableCommand || 'adb shell appops set com.pereiranord.tvdrop GET_USAGE_STATS allow')}</code>`;
+      return;
+    }
+    const max = Math.max(1, ...r.apps.map((a) => a.app + a.data));
+    box.innerHTML = `<h3 class="h3">Apps (do maior para o menor)</h3><div class="list">${r.apps.slice(0, 25).map((a) => `<div class="item">
+      <img class="appicon" src="${iconUrl(a.pkg)}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="t"><b>${esc(a.label)}</b><small>${fmtSize(a.app + a.data)} · cache ${fmtSize(a.cache)}</small><div class="bar thin"><i style="width:${Math.round(((a.app + a.data) / max) * 100)}%"></i></div></div>
+      <button class="btn small" data-aset="${esc(a.pkg)}">Ajustes</button></div>`).join('')}</div>
+      <p class="sub" style="margin-top:8px">"Ajustes" abre a tela do app na TV, onde dá para limpar o cache ou os dados dele.</p>`;
+    $$('[data-aset]', box).forEach((b) => b.onclick = () => api('/api/v2/apps/settings', { method: 'POST', json: { pkg: b.dataset.aset } }).then((x) => toast(x.message), (e) => toast(e.message, false)));
+  } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 async function loadDevices() {
@@ -2019,16 +2149,42 @@ async function runDiagnostics() {
 }
 
 /* ---------------------------------------------------------------- boot */
+/** The Android app needs the TV address and token for its native extras (casting, mirroring, shares). */
+function tellNative() {
+  if (NATIVE && NATIVE.setTv && S.token) NATIVE.setTv((BASE || location.origin).replace(/^https?:\/\//, ''), S.token);
+}
+
 async function start() {
   $('#appView').hidden = false;
+  tellNative();
   fillIcons();
-  try { S.info = await api('/api/v2/info'); } catch (e) { /* offline banner */ }
+  try { S.info = await api('/api/v2/info'); }
+  catch (e) {
+    // the saved TV doesn't answer (off, or a new IP address): look for it again
+    if (STANDALONE && e.code === 'network') { showConnect('A TV salva (' + BASE.replace('http://', '') + ') não respondeu. Escolha a TV de novo.'); return; }
+  }
   await loadCaps();
   await loadNativeAtv();
   loadApps();
   go(store.get('view', 'home'));
   refreshStatus();
 }
+
+/* Android app: a link shared from another app ("Compartilhar → TV Drop"). */
+window.tvdropShareLink = (url) => {
+  go('cast');
+  const input = $('#linkIn');
+  if (!input) return;
+  input.value = url;
+  sendLink();
+};
+/* Android app: the phone's Back button. Returns true when handled here. */
+window.tvdropBack = () => {
+  const open = ['#numPanel', '#morePanel', '#kbd', '#voice'].map((s) => $(s)).find((el) => el && !el.hidden);
+  if (open) { open.hidden = true; return true; }
+  if (!$('#appView').hidden && S.view !== 'home') { go('home'); return true; }
+  return false;
+};
 
 /* ---------------------------------------------------------------- CONNECT (standalone only) */
 function showConnect(message) {
@@ -2042,8 +2198,44 @@ function showConnect(message) {
   const last = store.get('base', '');
   if (last && !$('#tvAddr').value) $('#tvAddr').value = last.replace('http://', '');
   if (location.protocol === 'https:') $('#connectNote').textContent = 'Esta página está em https, e o navegador não deixa uma página https falar com a TV (http). Ao conectar, você vai para a página da própria TV.';
-  setTimeout(() => $('#tvAddr').focus(), 50);
+  if (NATIVE && NATIVE.discover) startDiscovery();
+  else setTimeout(() => $('#tvAddr').focus(), 50);
 }
+
+/* Android app: TVs found on the network appear here; one tap connects. */
+const foundTvs = {};
+function startDiscovery() {
+  const box = $('#foundTvs');
+  box.hidden = false;
+  box.innerHTML = '<div class="searching"><span class="dot pulse"></span>Procurando TVs na rede…</div>';
+  for (const k of Object.keys(foundTvs)) delete foundTvs[k];
+  NATIVE.discover();
+}
+window.tvdropFound = (tv) => {
+  const key = tv.host + ':' + tv.port;
+  if (foundTvs[key]) return;
+  foundTvs[key] = tv;
+  const box = $('#foundTvs');
+  if (!box) return;
+  const search = $('.searching', box);
+  if (search) search.remove();
+  const b = document.createElement('button');
+  b.className = 'tv-found';
+  b.innerHTML = `${icon('tv')}<span><b>${esc(tv.name)}</b><small>${esc(key)}</small></span>`;
+  b.onclick = () => doConnect(key);
+  box.appendChild(b);
+  // the TV used last time connects by itself
+  if (store.get('base', '') === 'http://' + key && !S.connecting) { S.connecting = true; doConnect(key); }
+};
+window.tvdropDiscoveryDone = () => {
+  const box = $('#foundTvs');
+  if (!box) return;
+  if (!Object.keys(foundTvs).length) box.innerHTML = '<div class="sub" style="margin:8px 0">Nenhuma TV encontrada automaticamente. Abra o TV Drop na TV ou digite o código abaixo.</div>';
+  const again = document.createElement('button');
+  again.className = 'btn small'; again.textContent = 'Procurar de novo'; again.style.marginTop = '8px';
+  again.onclick = startDiscovery;
+  box.appendChild(again);
+};
 
 async function doConnect(input) {
   const hp = parseTvAddress(input);
@@ -2063,8 +2255,10 @@ async function doConnect(input) {
     BASE = newBase;
     store.set('base', BASE);
     $('#connectView').hidden = true;
+    S.connecting = false;
     if (S.token) start(); else showPairing();
   } catch (e) {
+    S.connecting = false;
     msg.textContent = 'Não encontrei o TV Drop em ' + hp + '. Confira se a TV está ligada, com o TV Drop aberto, e no mesmo Wi-Fi.';
     msg.className = 'msg err';
   }
