@@ -102,7 +102,7 @@ final class AndroidRemote implements TvHost.RemoteControl {
     /** Which path would carry this key right now, or null if none can. */
     static String pathFor(Keys.Key k, boolean paired, TvDropAccessibility acc, int sdk) {
         if (k.name.equals("volup") || k.name.equals("voldown") || k.name.equals("mute")) return "system";
-        if (paired) return "remote";
+        if (paired && !k.name.equals("recents")) return "remote"; // RECENT_APPS isn't in the remote protocol
         if (acc != null && k.globalAction != Keys.GA_NONE && sdk >= k.globalActionSdk) return "accessibility";
         if (k.media) return "media";
         return null;
@@ -122,7 +122,7 @@ final class AndroidRemote implements TvHost.RemoteControl {
             default: break;
         }
         String atvError = null;
-        if (atvPaired()) {
+        if (atvPaired() && !k.name.equals("recents")) {
             try {
                 atv.sendKey(k.keyCode);
                 return null;

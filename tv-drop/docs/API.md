@@ -2,6 +2,8 @@
 
 Base: `http://<IP da TV>:8080` (ou a próxima porta livre até 8089). Respostas em JSON. Erros: `{"ok":false,"error":"<código>","message":"<texto para o usuário>"}`.
 
+**CORS:** todas as respostas levam `Access-Control-Allow-Origin: *` (e `Allow-Private-Network`), e `OPTIONS` responde `204`. É o que permite usar o `index.html` independente. Continua seguro porque toda rota que faz algo exige o token. A opção "apps antigos sem pareamento" nunca vale para pedidos com `Origin` de outra página.
+
 **Autenticação:** toda rota `/api/*` exige o token de um aparelho pareado, exceto `GET /api/hello`, `GET /api/v2/info` e `POST /api/v2/pair`. O token vai em `X-TVDrop-Token: <token>`, em `Authorization: Bearer <token>` ou em `?token=<token>`. Sem token: `401 unauthorized`.
 
 ## Rotas 1.0 (mantidas)
@@ -28,7 +30,7 @@ O 2.0 trouxe dois acréscimos compatíveis: o campo `modified` em `files` e o ti
 | `POST /api/v2/pair` (aberta) | `{pin, name}` | `{token, device}`; PIN errado: `403 bad_pin` |
 | `GET /api/v2/session` | — | o aparelho dono do token |
 | `GET /api/v2/capabilities` | — | `remote.keys[]`, `remote.via{tecla: remote/accessibility/media/system}`, `remote.text`, `remote.pointer`, `remote.power`, `remote.atv{available,paired,connected}`, `remote.accessibility{enabled,dpad,enableCommand}`, `apps`, `player`, `files` |
-| `POST /api/v2/remote/key` | `{key}` | teclas em `Keys.java`: `up down left right ok back home menu settings search info guide captions playpause play pause stop next prev ff rew volup voldown mute power del enter space recents`. Indisponível: `409` |
+| `POST /api/v2/remote/key` | `{key}` | teclas em `Keys.java`: `up down left right ok back home menu settings search info guide captions playpause play pause stop next prev ff rew volup voldown mute power chup chdown input assistant red green yellow blue apps num0…num9 del enter space recents`. Indisponível: `409` |
 | `POST /api/v2/remote/text` | `{text, replace, submit}` | até 500 caracteres |
 | `POST /api/v2/remote/pointer` | `{action, dx, dy}` | `move, tap, longpress, scroll, hide` (precisa da acessibilidade) |
 | `POST /api/v2/remote/link` | `{link}` | só `http(s)://` e `market://` |

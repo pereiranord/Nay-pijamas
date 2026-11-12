@@ -14,6 +14,36 @@ const store = {
   del(k) { try { localStorage.removeItem('tvdrop.' + k); } catch (e) { /* ignore */ } },
 };
 
+/* Standalone index.html (opened from a file, the repository or another address): every call goes
+ * to the TV chosen on the connection screen. Served by the TV itself, BASE stays '' (same origin). */
+const STANDALONE = !!window.TVDROP_STANDALONE;
+let BASE = STANDALONE ? store.get('base', '') : '';
+const u = (path) => BASE + path;
+
+/** 8-letter TV code ("1G58-28FG") -> "192.168.18.31:8080" (same packing as Codes.java). */
+function decodeCode(code) {
+  const A = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+  const c = String(code).toUpperCase().replace(/[\s-]/g, '').replace(/O/g, '0').replace(/[IL]/g, '1');
+  if (c.length !== 8) return null;
+  let v = 0n;
+  for (const ch of c) { const d = A.indexOf(ch); if (d < 0) return null; v = (v << 5n) | BigInt(d); }
+  if (v >> 36n) return null;
+  const port = 8080 + Number(v & 15n);
+  v >>= 4n;
+  return `${(v >> 24n) & 255n}.${(v >> 16n) & 255n}.${(v >> 8n) & 255n}.${v & 255n}:${port}`;
+}
+
+/** "1G58-28FG", "192.168.18.31", "192.168.18.31:8081" or "http://192.168.18.31:8080/..." -> "host:port". */
+function parseTvAddress(input) {
+  const s = String(input || '').trim();
+  if (!s) return null;
+  const fromCode = decodeCode(s);
+  if (fromCode) return fromCode;
+  const m = s.replace(/^https?:\/\//i, '').match(/^([a-z0-9.-]+)(?::(\d{2,5}))?(?:\/.*)?$/i);
+  if (!m) return null;
+  return m[1] + ':' + (m[2] || '8080');
+}
+
 const S = {
   token: '', info: null, caps: null, status: null, view: 'home',
   online: null, remoteMode: store.get('remoteMode', 'dpad'), sensitivity: store.get('sensitivity', 1.6),
@@ -100,7 +130,7 @@ async function api(path, { method = 'GET', json, body, timeout = 10000 } = {}) {
   if (json !== undefined) { headers['Content-Type'] = 'application/json'; body = JSON.stringify(json); }
   let r;
   try {
-    r = await fetch(path, { method, headers, body, signal: ctrl.signal, cache: 'no-store' });
+    r = await fetch(u(path), { method, headers, body, signal: ctrl.signal, cache: 'no-store' });
   } catch (e) {
     setOnline(false);
     throw new ApiError(e.name === 'AbortError' ? 'A TV demorou demais para responder.' : 'Sem conexão com a TV.', 0, 'network');
@@ -220,7 +250,8 @@ async function refreshStatus() {
 /* ---------------------------------------------------------------- WebSocket (keys + touchpad) */
 function wsConnect() {
   if (S.ws || !S.token || !('WebSocket' in window)) return;
-  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/v2/ws?token=' + encodeURIComponent(S.token));
+  const host = BASE ? new URL(BASE).host : location.host;
+  const ws = new WebSocket((!BASE && location.protocol === 'https:' ? 'wss://' : 'ws://') + host + '/api/v2/ws?token=' + encodeURIComponent(S.token));
   S.ws = ws;
   ws.onopen = () => { S.wsOk = true; };
   ws.onclose = () => { S.wsOk = false; S.ws = null; if (S.view === 'remote' && S.token) setTimeout(wsConnect, 1500); };
@@ -463,7 +494,7 @@ function pumpUploads() {
   const xhr = new XMLHttpRequest();
   next.xhr = xhr;
   const auto = $('#auto') ? $('#auto').checked : store.get('autoOpen', true);
-  xhr.open('POST', '/api/upload?name=' + encodeURIComponent(next.name) + (auto ? '&auto=1' : ''));
+  xhr.open('POST', u('/api/upload?name=' + encodeURIComponent(next.name) + (auto ? '&auto=1' : '')));
   if (S.token) xhr.setRequestHeader('X-TVDrop-Token', S.token);
   const t0 = Date.now();
   xhr.upload.onprogress = (e) => { if (e.lengthComputable) { next.sent = e.loaded; next.speed = e.loaded / Math.max(0.1, (Date.now() - t0) / 1000); renderXfers(); } };
@@ -517,75 +548,237 @@ function updateFiles(force) {
 }
 
 /* ---------------------------------------------------------------- REMOTE */
+const REPEAT_KEYS = new Set(['up', 'down', 'left', 'right', 'volup', 'voldown', 'chup', 'chdown', 'del', 'rew', 'ff']);
+const KEY_INFO = {
+  power: ['power', 'Liga/Desliga'], input: ['tv', 'Fonte'], assistant: ['mic', 'Assistente'], settings: ['settings', 'Ajustes'],
+  back: ['back', 'Voltar'], home: ['home', 'Início'], menu: ['menu', 'Menu'], apps: ['grid', 'Todos os apps'], recents: ['history', 'Recentes'],
+  rew: ['rew', 'Retroceder'], playpause: ['playpause', 'Play/Pausa'], ff: ['ff', 'Avançar'], stop: ['stop', 'Parar'], prev: ['prev', 'Anterior'], next: ['next', 'Próximo'],
+  mute: ['mute', 'Mudo'], search: ['search', 'Pesquisar'], info: ['info', 'Info'], guide: ['library', 'Guia'], captions: ['cc', 'Legendas'],
+};
+
+/** Why a key is unavailable, in plain words. */
+function keyHint(key) {
+  const r = S.caps && S.caps.remote;
+  if (r && r.atv && !r.atv.paired) return 'Esta tecla precisa do controle pareado: Dispositivos → Parear controle.';
+  return 'Esta TV não aceita esta tecla agora.';
+}
+
+/** Press = one key; hold = repeats (arrows, volume, channel...). Unavailable keys explain why. */
+function bindKey(el, key) {
+  let timer = 0, repeat = 0, pressed = false;
+  const stop = () => {
+    if (pressed && /^(volup|voldown|mute)$/.test(key)) setTimeout(() => loadCaps().then(drawRemoteStatus), 700);
+    pressed = false; clearTimeout(timer); clearInterval(repeat); el.classList.remove('hit');
+  };
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button > 0) return;
+    if (!has(key)) { toast(keyHint(key), false); return; }
+    pressed = true;
+    el.setPointerCapture && el.setPointerCapture(e.pointerId);
+    el.classList.add('hit');
+    sendKey(key);
+    if (REPEAT_KEYS.has(key)) timer = setTimeout(() => { repeat = setInterval(() => { if (pressed) { buzz(); sendKey(key); } }, 120); }, 420);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => el.addEventListener(t, stop));
+  // keyboard activation (Enter/Space on a focused button)
+  el.addEventListener('click', (e) => { if (e.detail === 0) { if (has(key)) sendKey(key, el); else toast(keyHint(key), false); } });
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+function rkey(key, extra = '', label) {
+  const [ico, name] = KEY_INFO[key] || [key, key];
+  return `<button class="key ${extra} ${S.caps && !has(key) ? 'off' : ''}" data-rk="${key}" aria-label="${label || name}">${icon(ico)}</button>`;
+}
+
 function renderRemote() {
   const main = $('#main');
   const caps = S.caps && S.caps.remote;
-  const atvPaired = caps && caps.atv && caps.atv.paired;
-  const k = (name, ico, label, extra = '') => `<div class="key-wrap"><button class="key ${extra}" data-key="${name}" aria-label="${label}" ${S.caps && !has(name) ? 'disabled' : ''}>${icon(ico)}</button><div class="key-label">${label}</div></div>`;
+  const limited = caps && !(caps.atv && caps.atv.paired) && !nativeAtvOk();
   main.innerHTML = header('Controle') + `
-    ${caps && !atvPaired && !nativeAtvOk() ? `<div class="notice">${icon('info')}<div>Teclas desativadas precisam do pareamento do controle. <button class="btn small" data-go="devices" style="margin-top:8px">Parear controle</button></div></div>` : ''}
+    <div class="rstatus" id="rstatus"></div>
+    ${limited ? `<div class="notice">${icon('info')}<div>Algumas teclas estão apagadas porque o controle ainda não foi pareado. <button class="btn small" data-go="devices" style="margin-top:8px">Parear controle</button></div></div>` : ''}
     <div class="seg" role="group" aria-label="Modo do controle">
-      <button data-mode="dpad" aria-pressed="${S.remoteMode === 'dpad'}">Direcional</button>
-      <button data-mode="swipe" aria-pressed="${S.remoteMode === 'swipe'}">Deslizante</button>
-      <button data-mode="pad" aria-pressed="${S.remoteMode === 'pad'}">Touchpad</button>
+      <button data-mode="dpad" aria-pressed="${S.remoteMode === 'dpad'}">${icon('remote')}Direcional</button>
+      <button data-mode="swipe" aria-pressed="${S.remoteMode === 'swipe'}">${icon('pulse')}Deslizante</button>
+      <button data-mode="pad" aria-pressed="${S.remoteMode === 'pad'}">${icon('grid')}Touchpad</button>
     </div>
-    <div class="remote">
-      <div class="key-row">${k('power', 'power', 'Ligar', 'power')}${k('settings', 'settings', 'Ajustes')}${k('menu', 'menu', 'Menu')}</div>
-      <div id="surface"></div>
-      <div class="key-row">${k('back', 'back', 'Voltar')}${k('home', 'home', 'Início')}
-        <div class="key-wrap"><button class="key" id="kbdBtn" aria-label="Teclado" ${S.caps && caps && !caps.text && !nativeAtvOk() ? 'disabled' : ''}>${icon('keyboard')}</button><div class="key-label">Teclado</div></div>
-        <div class="key-wrap"><button class="key" id="micBtn" aria-label="Voz e comandos">${icon('mic')}</button><div class="key-label">Voz</div></div></div>
-      <div class="key-row">${k('rew', 'rew', 'Voltar')}${k('playpause', 'playpause', 'Play/Pausa')}${k('ff', 'ff', 'Avançar')}</div>
-      <div class="key-row">${k('voldown', 'voldown', 'Volume −')}${k('mute', 'mute', 'Mudo')}${k('volup', 'volup', 'Volume +')}</div>
-      <div class="card kbd" id="kbd" hidden><h2>Teclado</h2><p class="sub">Selecione um campo de busca na TV e digite aqui.</p>
-        <textarea id="kbdText" placeholder="Ex.: filmes de ação" autocapitalize="off"></textarea>
-        <div class="row" style="margin-top:10px">
-          <button class="btn primary" id="kbdSend">Enviar</button><button class="btn" id="kbdSearch">${icon('search')}Enviar e buscar</button></div>
-        <div class="row" style="margin-top:10px">
-          <button class="btn small" id="kbdDel">${icon('del')}Apagar</button><button class="btn small" id="kbdEnter">${icon('enter')}Enter</button><button class="btn small" id="kbdSpace">Espaço</button><button class="btn small" id="kbdClear">Limpar campo</button></div></div>
-      <div class="card" id="voice" hidden><h2>Comando de voz</h2><p class="sub" id="voiceHint">Fale, por exemplo: “abrir YouTube”, “aumentar volume”, “voltar”, “pesquisar filmes de ação”.</p>
-        <button class="mic" id="voiceGo" aria-label="Falar">${icon('mic')}</button>
-        <div class="row" style="margin-top:14px"><input class="field grow" id="cmdText" placeholder="Ou digite: abrir Netflix, volume em 20…" autocomplete="off"><button class="btn primary" id="cmdGo">${icon('bolt')}</button></div>
-        <div class="msg" id="voiceMsg" style="text-align:center"></div><div class="row" id="voiceConfirm" hidden><button class="btn primary" data-yes>Executar</button><button class="btn" data-no>Cancelar</button></div></div>
-      <div class="card" id="timerCard"></div>
+    <div class="remote-grid">
+      <div class="rcol">
+        <div class="key-row top4">${rkey('power', 'power')}${rkey('input')}${rkey('assistant')}${rkey('settings')}</div>
+        <div id="surface"></div>
+        <div class="key-row nav3">${rkey('back', 'big')}${rkey('home', 'big')}${rkey('menu', 'big')}</div>
+      </div>
+      <div class="rcol">
+        <div class="rockers">
+          <div class="rocker" aria-label="Volume">
+            <button class="rk-up ${S.caps && !has('volup') ? 'off' : ''}" data-rk="volup" aria-label="Aumentar volume">${icon('plus')}</button>
+            <span class="rk-label">VOL</span>
+            <button class="rk-down ${S.caps && !has('voldown') ? 'off' : ''}" data-rk="voldown" aria-label="Diminuir volume"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+          </div>
+          <div class="media-pad">
+            ${rkey('playpause', 'play-big')}
+            <div class="media-row">${rkey('rew', 'small')}${rkey('mute', 'small')}${rkey('ff', 'small')}</div>
+          </div>
+          <div class="rocker" aria-label="Canal">
+            <button class="rk-up ${S.caps && !has('chup') ? 'off' : ''}" data-rk="chup" aria-label="Próximo canal">${icon('up')}</button>
+            <span class="rk-label">CH</span>
+            <button class="rk-down ${S.caps && !has('chdown') ? 'off' : ''}" data-rk="chdown" aria-label="Canal anterior">${icon('down')}</button>
+          </div>
+        </div>
+        <div class="actionbar">
+          <button class="abtn" id="kbdBtn">${icon('keyboard')}<span>Teclado</span></button>
+          <button class="abtn" id="micBtn">${icon('mic')}<span>Voz</span></button>
+          <button class="abtn" id="numBtn"><b style="font-size:17px">123</b><span>Números</span></button>
+          <button class="abtn" id="moreBtn">${icon('plus')}<span>Mais</span></button>
+        </div>
+        <div class="card panel" id="numPanel" hidden>
+          <div class="numpad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button class="nkey ${S.caps && !has('num' + n) ? 'off' : ''}" data-rk="num${n}">${n}</button>`).join('')}
+            <button class="nkey ${S.caps && !has('info') ? 'off' : ''}" data-rk="info">${icon('info')}</button>
+            <button class="nkey ${S.caps && !has('num0') ? 'off' : ''}" data-rk="num0">0</button>
+            <button class="nkey ${S.caps && !has('del') ? 'off' : ''}" data-rk="del">${icon('del')}</button></div>
+        </div>
+        <div class="card panel" id="morePanel" hidden>
+          <div class="colors">${['red', 'green', 'yellow', 'blue'].map((c) => `<button class="ckey c-${c} ${S.caps && !has(c) ? 'off' : ''}" data-rk="${c}" aria-label="Botão ${c}"></button>`).join('')}</div>
+          <div class="more-grid">${['search', 'guide', 'captions', 'recents', 'apps', 'stop', 'prev', 'next'].map((k) => `<div class="key-wrap">${rkey(k)}<div class="key-label">${KEY_INFO[k][1]}</div></div>`).join('')}</div>
+        </div>
+        <div class="quickapps" id="quickApps"></div>
+        <div class="card kbd" id="kbd" hidden><div class="row"><h2 class="grow" style="margin:0">Teclado</h2>
+          <label class="slider-row" style="margin:0;flex:none"><input type="checkbox" id="kbdLive" ${store.get('liveTyping', false) ? 'checked' : ''} style="width:20px;height:20px"> Digitar ao vivo</label></div>
+          <p class="sub" style="margin-top:6px" id="kbdHint"></p>
+          <textarea id="kbdText" placeholder="Ex.: filmes de ação" autocapitalize="off" autocomplete="off" spellcheck="false"></textarea>
+          <div class="row" style="margin-top:10px" id="kbdSendRow"><button class="btn primary" id="kbdSend">Enviar</button><button class="btn" id="kbdSearch">${icon('search')}Enviar e buscar</button></div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn small" data-rk="del">${icon('del')}Apagar</button><button class="btn small" id="kbdEnter">${icon('enter')}Enter</button><button class="btn small" id="kbdSpace">Espaço</button><button class="btn small" id="kbdClear">Limpar campo</button></div></div>
+        <div class="card" id="voice" hidden><h2>Voz e comandos</h2><p class="sub" id="voiceHint">Fale, por exemplo: “abrir YouTube”, “volume em 20”, “voltar”, “pesquisar filmes de ação”.</p>
+          <button class="mic" id="voiceGo" aria-label="Falar">${icon('mic')}</button>
+          <div class="row" style="margin-top:14px"><input class="field grow" id="cmdText" placeholder="Ou digite: abrir Netflix, volume em 20…" autocomplete="off"><button class="btn primary" id="cmdGo">${icon('bolt')}</button></div>
+          <div class="msg" id="voiceMsg" style="text-align:center"></div><div class="row" id="voiceConfirm" hidden><button class="btn primary" data-yes>Executar</button><button class="btn" data-no>Cancelar</button></div></div>
+        <div class="card" id="timerCard"></div>
+        <div class="card kb-hint" id="kbHint"><h2>Atalhos do teclado</h2><p class="sub" style="margin:0">Setas · Enter = OK · Esc/Backspace = Voltar · H = Início · Espaço = Play/Pausa · + / − = Volume · M = Mudo · PgUp/PgDn = Canal · 0–9</p></div>
+      </div>
     </div>`;
   renderConn();
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
   $$('[data-mode]', main).forEach((b) => b.onclick = () => { S.remoteMode = b.dataset.mode; store.set('remoteMode', S.remoteMode); $$('[data-mode]').forEach((x) => x.setAttribute('aria-pressed', x === b)); renderSurface(); });
-  $$('[data-key]', main).forEach((b) => b.onclick = () => sendKey(b.dataset.key, b));
-  $('#kbdBtn').onclick = () => { const p = $('#kbd'); p.hidden = !p.hidden; $('#voice').hidden = true; if (!p.hidden) $('#kbdText').focus(); };
-  $('#kbdSend').onclick = () => { const t = $('#kbdText').value; if (t) sendText(t).then((ok) => ok && toast('Texto enviado')); };
-  $('#kbdSearch').onclick = () => sendText($('#kbdText').value, { submit: true }).then((ok) => ok && toast('Buscando na TV'));
-  $('#kbdDel').onclick = (e) => sendKey('del', e.currentTarget);
-  $('#kbdEnter').onclick = (e) => sendKey('enter', e.currentTarget);
-  $('#kbdSpace').onclick = () => sendText(' ');
-  $('#kbdClear').onclick = () => sendText('', { replace: true }).then((ok) => ok && toast('Campo limpo'));
+  $$('[data-rk]', main).forEach((b) => bindKey(b, b.dataset.rk));
+  const panel = (id) => { const ids = ['numPanel', 'morePanel', 'kbd', 'voice']; ids.forEach((x) => { if (x !== id) $('#' + x).hidden = true; }); const p = $('#' + id); p.hidden = !p.hidden; return !p.hidden; };
+  $('#numBtn').onclick = () => panel('numPanel');
+  $('#moreBtn').onclick = () => panel('morePanel');
+  $('#kbdBtn').onclick = () => { if (panel('kbd')) $('#kbdText').focus(); };
+  setupKeyboard();
   setupVoice();
+  const voiceToggle = $('#micBtn').onclick; // from setupVoice: toggles the card and explains when there is no mic
+  $('#micBtn').onclick = () => { ['numPanel', 'morePanel'].forEach((x) => { $('#' + x).hidden = true; }); voiceToggle(); };
   renderSurface();
+  drawRemoteStatus();
+  drawQuickApps();
   drawTimer();
   wsConnect();
 }
+
+/** App on screen, volume (with a slider when the TV reports it) and which path the remote uses. */
+function drawRemoteStatus() {
+  const box = $('#rstatus');
+  if (!box) return;
+  const r = S.caps && S.caps.remote;
+  const atv = r && r.atv;
+  const chips = [];
+  if (atv && atv.currentApp) {
+    const a = S.apps.find((x) => x.pkg === atv.currentApp);
+    chips.push(`<span class="chip">${a ? `<img src="${iconUrl(a.pkg)}" alt="" onerror="this.remove()">` : icon('tv')}${esc(a ? a.label : atv.currentApp.split('.').pop())}</span>`);
+  }
+  const via = atv && atv.paired ? 'Controle pareado' : nativeAtvOk() ? 'Controle pelo celular' : r && r.accessibility && r.accessibility.enabled ? 'Acessibilidade' : 'Controle limitado';
+  chips.push(`<span class="chip ${atv && atv.paired || nativeAtvOk() ? 'ok' : ''}">${icon('remote')}${via}</span>`);
+  const volKnown = atv && atv.volumeMax > 0 && atv.volumeLevel >= 0;
+  if (volKnown) chips.push(`<span class="chip">${icon(atv.muted ? 'mute' : 'volup')}${atv.muted ? 'Mudo' : atv.volumeLevel + '/' + atv.volumeMax}</span>`);
+  box.innerHTML = `<div class="chips-row">${chips.join('')}</div>` + (volKnown ? `<label class="slider-row vol-slider">${icon('voldown')}<input type="range" id="volSlider" min="0" max="${atv.volumeMax}" value="${atv.volumeLevel}" aria-label="Volume">${icon('volup')}</label>` : '');
+  const sl = $('#volSlider');
+  if (sl) sl.onchange = async () => { await execute({ intent: 'volumeSet', args: { level: +sl.value } }); setTimeout(() => loadCaps().then(drawRemoteStatus), 600); };
+}
+
+/** Favourite installed apps, one tap away from the remote. */
+async function drawQuickApps() {
+  const box = $('#quickApps');
+  if (!box) return;
+  await loadApps();
+  const favs = getFavs().map(favInfo).filter((f) => f && f.installed).slice(0, 12);
+  if (!favs.length) { box.innerHTML = ''; return; }
+  box.innerHTML = favs.map((f) => `<button class="qa" data-pkg="${esc(f.pkg)}" data-name="${esc(f.label)}" style="background:${esc(f.color)}" aria-label="Abrir ${esc(f.label)}">
+    <img src="${iconUrl(f.pkg)}" alt="" onerror="this.remove()"><span>${esc(f.label)}</span></button>`).join('');
+  $$('.qa', box).forEach((b) => b.onclick = () => launchApp(b.dataset.pkg, b.dataset.name));
+}
+
+function setupKeyboard() {
+  const ta = $('#kbdText');
+  const live = () => $('#kbdLive').checked;
+  const hint = () => {
+    $('#kbdHint').textContent = live() ? 'Cada letra vai direto para o campo selecionado na TV.' : 'Selecione um campo de busca na TV, digite aqui e toque em Enviar.';
+    $('#kbdSendRow').hidden = live();
+  };
+  hint();
+  let last = '', pending = '', flushTimer = 0;
+  const flush = () => { if (pending) { const p = pending; pending = ''; sendText(p); } };
+  $('#kbdLive').onchange = (e) => { store.set('liveTyping', e.target.checked); last = ta.value; hint(); };
+  ta.addEventListener('input', () => {
+    if (!live()) return;
+    const v = ta.value;
+    if (v.startsWith(last)) { pending += v.slice(last.length); clearTimeout(flushTimer); flushTimer = setTimeout(flush, 180); }
+    else if (last.startsWith(v)) { flush(); for (let i = 0; i < last.length - v.length; i++) sendKey('del'); }
+    else { flush(); sendText(v, { replace: true }); }
+    last = v;
+  });
+  ta.addEventListener('keydown', (e) => { if (live() && e.key === 'Enter') { e.preventDefault(); flush(); sendKey('enter'); } });
+  $('#kbdSend').onclick = () => { const t = ta.value; if (t) sendText(t).then((ok) => ok && toast('Texto enviado')); };
+  $('#kbdSearch').onclick = () => sendText(ta.value, { submit: true }).then((ok) => ok && toast('Buscando na TV'));
+  $('#kbdEnter').onclick = () => sendKey('enter');
+  $('#kbdSpace').onclick = () => sendText(' ');
+  $('#kbdClear').onclick = () => { ta.value = ''; last = ''; sendText('', { replace: true }).then((ok) => ok && toast('Campo limpo')); };
+}
+
+// Desktop: keyboard shortcuts while the remote is open.
+document.addEventListener('keydown', (e) => {
+  if (S.view !== 'remote' || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName)) return;
+  const map = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'ok', Escape: 'back', Backspace: 'back',
+    h: 'home', H: 'home', m: 'mute', M: 'mute', ' ': 'playpause', '+': 'volup', '=': 'volup', '-': 'voldown', PageUp: 'chup', PageDown: 'chdown' };
+  let key = map[e.key];
+  if (!key && /^[0-9]$/.test(e.key)) key = 'num' + e.key;
+  if (!key) return;
+  e.preventDefault();
+  if (!has(key)) { toast(keyHint(key), false); return; }
+  const el = $(`[data-rk="${key}"], .dpad [data-key="${key}"]`);
+  sendKey(key, el);
+});
 
 function renderSurface() {
   const box = $('#surface');
   if (!box) return;
   const dpadOk = !S.caps || has('up');
   if (S.remoteMode === 'dpad') {
-    box.innerHTML = `<div class="dpad" role="group" aria-label="Direcional">
-      <button class="up" data-key="up" aria-label="Cima" ${dpadOk ? '' : 'disabled'}>${icon('up')}</button>
-      <button class="left" data-key="left" aria-label="Esquerda" ${dpadOk ? '' : 'disabled'}>${icon('left')}</button>
-      <button class="ok" data-key="ok" aria-label="OK" ${dpadOk ? '' : 'disabled'}>OK</button>
-      <button class="right" data-key="right" aria-label="Direita" ${dpadOk ? '' : 'disabled'}>${icon('right')}</button>
-      <button class="down" data-key="down" aria-label="Baixo" ${dpadOk ? '' : 'disabled'}>${icon('down')}</button></div>`;
-    $$('[data-key]', box).forEach((b) => b.onclick = () => sendKey(b.dataset.key, b));
+    box.innerHTML = `<div class="dpad ${dpadOk ? '' : 'off'}" role="group" aria-label="Direcional">
+      <button class="up" data-rk="up" aria-label="Cima">${icon('up')}</button>
+      <button class="left" data-rk="left" aria-label="Esquerda">${icon('left')}</button>
+      <button class="ok" data-rk="ok" aria-label="OK">OK</button>
+      <button class="right" data-rk="right" aria-label="Direita">${icon('right')}</button>
+      <button class="down" data-rk="down" aria-label="Baixo">${icon('down')}</button></div>`;
+    $$('[data-rk]', box).forEach((b) => bindKey(b, b.dataset.rk));
   } else if (S.remoteMode === 'swipe') {
-    box.innerHTML = `<div class="pad" id="pad" aria-label="Área de deslizar">${dpadOk ? 'Deslize para navegar · toque para OK' : 'O modo deslizante precisa das setas: pareie o controle em Dispositivos.'}</div>`;
+    box.innerHTML = `<div class="pad" id="pad" aria-label="Área de deslizar"><div>${dpadOk ? 'Deslize para navegar<br><small>Toque = OK · segure após deslizar = continua</small>' : 'O modo deslizante precisa das setas: pareie o controle em Dispositivos.'}</div></div>`;
     if (dpadOk) setupSwipe($('#pad'));
   } else {
     const ok = !S.caps || (S.caps.remote && S.caps.remote.pointer);
-    box.innerHTML = `<div class="pad" id="pad" aria-label="Touchpad">${ok ? 'Arraste para mover o cursor · toque para clicar · dois dedos para rolar' : 'O touchpad precisa da acessibilidade do TV Drop ativada na TV (veja Dispositivos).'}</div>
+    box.innerHTML = `<div class="pad" id="pad" aria-label="Touchpad"><div>${ok ? 'Arraste para mover o cursor<br><small>Toque = clique · dois toques = clique duplo · dois dedos = rolar</small>' : 'O touchpad precisa da acessibilidade do TV Drop ativada na TV (veja Dispositivos).'}</div></div>
+      <div class="padbar">
+        <button class="btn small" data-pt="tap">Clique</button><button class="btn small" data-pt="longpress">Segurar</button>
+        <button class="btn small" data-pt="scrollup">${icon('up')}</button><button class="btn small" data-pt="scrolldown">${icon('down')}</button>
+        <button class="btn small" data-pt="hide">Ocultar</button></div>
       <label class="slider-row">Sensibilidade<input type="range" id="sens" min="0.6" max="4" step="0.1" value="${S.sensitivity}"></label>`;
     $('#sens').oninput = (e) => { S.sensitivity = +e.target.value; store.set('sensitivity', S.sensitivity); };
+    $$('[data-pt]', box).forEach((b) => b.onclick = () => {
+      buzz();
+      const t = b.dataset.pt;
+      if (t === 'scrollup') pointer('scroll', 0, 300); else if (t === 'scrolldown') pointer('scroll', 0, -300); else pointer(t);
+    });
     if (ok) setupTouchpad($('#pad'));
   }
 }
@@ -597,27 +790,32 @@ function ripple(pad, x, y) {
   pad.appendChild(d); setTimeout(() => d.remove(), 500);
 }
 
-/** Swipe mode: every ~60 px of travel sends one arrow; a tap sends OK. */
+/** Swipe mode: every ~55 px sends one arrow; holding still after a swipe keeps repeating it; a tap is OK. */
 function setupSwipe(pad) {
-  let sx, sy, moved, start;
-  pad.onpointerdown = (e) => { pad.setPointerCapture(e.pointerId); sx = e.clientX; sy = e.clientY; moved = false; start = Date.now(); };
+  let sx, sy, moved, start, lastKey = null, holdTimer = 0, holdRepeat = 0;
+  const stopHold = () => { clearTimeout(holdTimer); clearInterval(holdRepeat); };
+  const armHold = () => { stopHold(); holdTimer = setTimeout(() => { holdRepeat = setInterval(() => { if (lastKey) { buzz(); sendKey(lastKey); } }, 170); }, 450); };
+  pad.onpointerdown = (e) => { pad.setPointerCapture(e.pointerId); sx = e.clientX; sy = e.clientY; moved = false; start = Date.now(); lastKey = null; };
   pad.onpointermove = (e) => {
     if (sx == null) return;
     const dx = e.clientX - sx, dy = e.clientY - sy;
-    if (Math.max(Math.abs(dx), Math.abs(dy)) < 60) return;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 55) return;
     moved = true;
     const key = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up');
-    sendKey(key); ripple(pad, e.clientX, e.clientY);
+    lastKey = key;
+    buzz(); sendKey(key); ripple(pad, e.clientX, e.clientY);
     sx = e.clientX; sy = e.clientY;
+    armHold();
   };
-  pad.onpointerup = (e) => { if (!moved && Date.now() - start < 400) { sendKey('ok'); ripple(pad, e.clientX, e.clientY); } sx = sy = null; };
-  pad.onpointercancel = () => { sx = sy = null; };
+  const end = (e) => { stopHold(); if (sx != null && !moved && Date.now() - start < 400) { buzz(); sendKey('ok'); ripple(pad, e.clientX, e.clientY); } sx = sy = null; };
+  pad.onpointerup = end;
+  pad.onpointercancel = () => { stopHold(); sx = sy = null; };
 }
 
 /** Touchpad: one finger moves the cursor, a tap clicks, a long press holds, two fingers scroll. */
 function setupTouchpad(pad) {
   const pts = new Map();
-  let acc = { dx: 0, dy: 0 }, raf = 0, downAt = 0, travel = 0, longTimer = 0, scrollY = null, lastTap = 0;
+  let acc = { dx: 0, dy: 0 }, raf = 0, downAt = 0, travel = 0, longTimer = 0, scrollY = null;
   const flush = () => { raf = 0; if (acc.dx || acc.dy) { pointer('move', Math.round(acc.dx), Math.round(acc.dy)); acc = { dx: 0, dy: 0 }; } };
   pad.onpointerdown = (e) => {
     pad.setPointerCapture(e.pointerId);
@@ -643,10 +841,7 @@ function setupTouchpad(pad) {
     const was = pts.size;
     pts.delete(e.pointerId);
     clearTimeout(longTimer);
-    if (was === 1 && travel < 8 && Date.now() - downAt < 300) {
-      pointer('tap'); buzz(); ripple(pad, e.clientX, e.clientY);
-      lastTap = Date.now();
-    }
+    if (was === 1 && travel < 8 && Date.now() - downAt < 300) { pointer('tap'); buzz(); ripple(pad, e.clientX, e.clientY); }
     if (pts.size < 2) scrollY = null;
   };
   pad.onpointerup = end; pad.onpointercancel = end;
@@ -786,7 +981,7 @@ function getFavs() {
   return f;
 }
 const setFavs = (f) => store.set(favKey(), f);
-const iconUrl = (pkg) => '/api/v2/apps/icon?pkg=' + encodeURIComponent(pkg) + '&token=' + encodeURIComponent(S.token);
+const iconUrl = (pkg) => u('/api/v2/apps/icon?pkg=') + encodeURIComponent(pkg) + '&token=' + encodeURIComponent(S.token);
 
 function favInfo(f) {
   if (f.cat) {
@@ -1271,8 +1466,8 @@ async function renderDevices() {
         <div><small>Upload (aqui → TV)</small><b id="dUp">—</b></div><div><small>Rotas da API</small><b id="dApi">—</b></div></div>
       <button class="btn" id="diagBtn">${icon('pulse')}Testar conexão</button><div class="msg" id="diagMsg"></div></div>
 
-    <div class="card"><h2>Este aparelho</h2><p class="sub">${esc(deviceName())}</p>
-      <div class="row"><button class="btn small" id="classic">Página clássica</button><button class="btn small danger" id="logout">Desconectar este aparelho</button></div></div>`;
+    <div class="card"><h2>Este aparelho</h2><p class="sub">${esc(deviceName())}${STANDALONE ? ' · conectado a ' + esc(BASE.replace('http://', '')) : ''}</p>
+      <div class="row">${STANDALONE ? '<button class="btn small" id="switchTv">Trocar de TV</button>' : ''}<button class="btn small" id="classic">Página clássica</button><button class="btn small danger" id="logout">Desconectar este aparelho</button></div></div>`;
   renderConn();
   $('#beep').onclick = findTv;
   if ($('#atvStart')) $('#atvStart').onclick = atvPairStart;
@@ -1292,7 +1487,8 @@ async function renderDevices() {
     };
   };
   if ($('#natUnpair')) $('#natUnpair').onclick = async () => { await nativeAtv('unpair'); await loadNativeAtv(); renderDevices(); };
-  $('#classic').onclick = () => { location.href = '/classic.html'; };
+  $('#classic').onclick = () => { location.href = u('/classic.html'); };
+  if ($('#switchTv')) $('#switchTv').onclick = showConnect;
   $('#logout').onclick = async () => {
     if (!confirm('Desconectar este aparelho da TV? Você vai precisar do código de novo.')) return;
     try { const s = await api('/api/v2/session'); if (s.device) await api('/api/v2/devices/revoke', { method: 'POST', json: { id: s.device.id } }); } catch (e) { /* ignore */ }
@@ -1346,7 +1542,7 @@ async function runDiagnostics() {
     $('#dLat').textContent = Math.round(lat[2]) + ' ms';
     const n = 4000000;
     let t = performance.now();
-    const r = await fetch('/api/v2/speed?bytes=' + n, { headers: { 'X-TVDrop-Token': S.token }, cache: 'no-store' });
+    const r = await fetch(u('/api/v2/speed?bytes=' + n), { headers: { 'X-TVDrop-Token': S.token }, cache: 'no-store' });
     await r.arrayBuffer();
     $('#dDown').textContent = ((n * 8) / ((performance.now() - t) / 1000) / 1e6).toFixed(1) + ' Mb/s';
     const up = new Uint8Array(2000000);
@@ -1374,8 +1570,51 @@ async function start() {
   refreshStatus();
 }
 
+/* ---------------------------------------------------------------- CONNECT (standalone only) */
+function showConnect(message) {
+  wsClose();
+  $('#appView').hidden = true;
+  $('#pairView').hidden = true;
+  $('#connectView').hidden = false;
+  const msg = $('#connectMsg');
+  msg.textContent = message || '';
+  msg.className = 'msg' + (message ? ' err' : '');
+  const last = store.get('base', '');
+  if (last && !$('#tvAddr').value) $('#tvAddr').value = last.replace('http://', '');
+  if (location.protocol === 'https:') $('#connectNote').textContent = 'Esta página está em https, e o navegador não deixa uma página https falar com a TV (http). Ao conectar, você vai para a página da própria TV.';
+  setTimeout(() => $('#tvAddr').focus(), 50);
+}
+
+async function doConnect(input) {
+  const hp = parseTvAddress(input);
+  const msg = $('#connectMsg');
+  if (!hp) { msg.textContent = 'Digite o código de 8 letras da TV (ex.: 1G58-28FG) ou o endereço (ex.: 192.168.18.31).'; msg.className = 'msg err'; return; }
+  if (location.protocol === 'https:') { location.href = 'http://' + hp + '/'; return; }
+  msg.textContent = 'Procurando a TV em ' + hp + '…'; msg.className = 'msg';
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const r = await fetch('http://' + hp + '/api/v2/info', { signal: ctrl.signal, cache: 'no-store' });
+    clearTimeout(timer);
+    const info = await r.json();
+    if (info.app !== 'tvdrop') throw new Error('não é o TV Drop');
+    const newBase = 'http://' + hp;
+    if (newBase !== BASE) saveToken('');
+    BASE = newBase;
+    store.set('base', BASE);
+    $('#connectView').hidden = true;
+    if (S.token) start(); else showPairing();
+  } catch (e) {
+    msg.textContent = 'Não encontrei o TV Drop em ' + hp + '. Confira se a TV está ligada, com o TV Drop aberto, e no mesmo Wi-Fi.';
+    msg.className = 'msg err';
+  }
+}
+
 function boot() {
   fillIcons();
+  $('#connectForm').onsubmit = (e) => { e.preventDefault(); doConnect($('#tvAddr').value); };
+  if ($('#pairSwitch')) $('#pairSwitch').onclick = (e) => { e.preventDefault(); showConnect(); };
+  if (STANDALONE) $('#pairSwitch').hidden = false;
   $$('.nav button').forEach((b) => b.onclick = () => go(b.dataset.view));
   $('#pairForm').onsubmit = (e) => { e.preventDefault(); doPair($('#pinInput').value); };
   // Token handed over by the Android app: #token=...
@@ -1384,11 +1623,12 @@ function boot() {
   // QR code from the TV: /?pair=123456
   const pin = new URLSearchParams(location.search).get('pair');
   if (pin) { history.replaceState(null, '', location.pathname); if (!S.token) { $('#pairView').hidden = false; $('#pinInput').value = pin; doPair(pin); return; } }
+  if (STANDALONE && !BASE) { showConnect(); return; }
   if (!S.token) { showPairing(); return; }
   start();
 }
 
 setInterval(refreshStatus, 2000);
-setInterval(() => { if (!document.hidden && S.token && (S.view === 'remote' || S.view === 'home')) loadCaps(); }, 15000);
+setInterval(() => { if (!document.hidden && S.token && (S.view === 'remote' || S.view === 'home')) loadCaps().then(() => { if (S.view === 'remote') drawRemoteStatus(); }); }, 15000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshStatus(); });
 boot();

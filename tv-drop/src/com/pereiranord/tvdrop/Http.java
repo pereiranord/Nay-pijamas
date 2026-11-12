@@ -119,11 +119,36 @@ final class Http {
                 + "Content-Length: " + body.length + "\r\n"
                 + "Cache-Control: no-store\r\n"
                 + "X-Content-Type-Options: nosniff\r\n"
+                + CORS
                 + (extraHeaders == null ? "" : extraHeaders)
                 + "Connection: close\r\n\r\n";
         out.write(head.getBytes(StandardCharsets.UTF_8));
         out.write(body);
         out.flush();
+    }
+
+    /**
+     * Lets the standalone index.html (opened from a file or another local address) call the TV.
+     * Safe because every route that does something needs a pairing token, which other sites don't have.
+     */
+    static final String CORS = "Access-Control-Allow-Origin: *\r\n"
+            + "Access-Control-Allow-Headers: X-TVDrop-Token, Content-Type, Authorization\r\n"
+            + "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+            + "Access-Control-Allow-Private-Network: true\r\n"
+            + "Access-Control-Max-Age: 600\r\n";
+
+    static void preflight(OutputStream out) throws IOException {
+        out.write(("HTTP/1.1 204 No Content\r\n" + CORS + "Content-Length: 0\r\nConnection: close\r\n\r\n")
+                .getBytes(StandardCharsets.UTF_8));
+        out.flush();
+    }
+
+    /** True when the request comes from a page that the TV itself did not serve. */
+    static boolean crossOrigin(Request r) {
+        String origin = r.header("origin");
+        if (origin == null) return false;
+        String host = r.header("host");
+        return host == null || !(origin.equals("http://" + host) || origin.equals("https://" + host));
     }
 
     static void json(OutputStream out, int code, String body) throws IOException {

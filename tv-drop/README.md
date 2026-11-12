@@ -1,4 +1,4 @@
-# TV Drop 2.1
+# TV Drop 2.2
 
 Central multimídia e controle remoto para **Android TV / Google TV** (feito pensando na Philips 4K Google TV), com app para **celular Android** e versão **web**. O mesmo APK funciona nos dois aparelhos: na TV ele é o receptor; no celular, o controle e o transmissor.
 
@@ -14,7 +14,9 @@ Central multimídia e controle remoto para **Android TV / Google TV** (feito pen
 - **Histórico** com "continuar de onde parou" e favoritos (pode ser desligado). Áudio, legenda e velocidade pelo celular.
 
 **Controlar**
-- **Controle remoto**: direcional circular, modo deslizante, **touchpad** com cursor, teclado do celular, voz (app Android), volume, mídia e Liga/Desliga.
+- **Controle remoto**: direcional circular (segure para repetir), modo deslizante (segure para continuar), **touchpad** com cursor e botões de clique e rolagem, volume e canal em botões de dois lados, mídia, Liga/Desliga, fonte (entrada), assistente do Google, teclado numérico, botões coloridos, guia, legendas e apps recentes.
+- **Barra de estado**: o app aberto na TV, o volume atual com um controle deslizante e por qual caminho o controle está funcionando.
+- **Teclado** com "digitar ao vivo", **voz** (app Android) e comandos digitados. No computador, atalhos de teclado (setas, Enter, Esc, espaço, +/−, números).
 - **Apps**: lista dos apps instalados na TV com os ícones reais, abrir, favoritos organizáveis, loja e desinstalação.
 - **Dispositivos**: pareamento seguro (PIN/QR), aparelhos autorizados, "Encontrar minha TV", diagnóstico de conexão. No app: TVs salvas com apelido, favorita e status online/offline.
 - **Inteligência**: temporizador na TV (pausar, silenciar, encerrar ou desligar), **Meus Atalhos** (sequências de comandos), assistente por voz ou texto ("volume em 20", "desligue em 30 minutos", "abrir YouTube") e busca de filmes e séries com "onde assistir" (TMDB, com chave gratuita sua).
@@ -61,6 +63,14 @@ Baixe o mesmo `TV-Drop.apk` no celular e abra. O Android vai pedir para permitir
 4. Para o controle completo (todas as teclas, Liga/Desliga e teclado), abra **Dispositivos → Parear controle** e digite o código que a TV mostrar. É o mesmo pareamento do app oficial "Google TV", feito uma vez só.
 
 A página antiga continua em `http://IP_DA_TV:8080/classic.html`.
+
+### Versão web em um arquivo só (`index.html`)
+
+O `index.html` na raiz do branch `main` (e anexado a cada Release) é a mesma interface em um arquivo só. Ele é gerado por `python3 tv-drop/tools/build_web.py index.html` a partir de `tv-drop/assets/web`.
+
+- **Aberto pela própria TV** (`http://IP_DA_TV:8080`): funciona direto.
+- **Aberto como arquivo no computador ou num endereço `http` da rede local**: pede o código de 8 letras ou o endereço da TV e conecta. A TV permite essas chamadas (CORS), mas tudo continua exigindo o pareamento.
+- **Aberto numa página `https`** (por exemplo, GitHub Pages): o navegador não deixa uma página https falar com a TV (http), então ele leva você até a página da própria TV.
 
 O celular precisa ficar ligado e no Wi-Fi enquanto o vídeo toca, mas a tela pode apagar: uma notificação mantém a transmissão e tem o botão **Parar**.
 

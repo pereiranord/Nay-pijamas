@@ -45,7 +45,7 @@ public final class Keys {
         add("ok", 23, GA_DPAD_CENTER, 33, false);
         add("back", 4, GA_BACK, 16, false);
         add("home", 3, GA_HOME, 16, false);
-        add("recents", 312, GA_RECENTS, 16, false); // KEYCODE_ALL_APPS-like; mostly via accessibility
+        add("recents", 312, GA_RECENTS, 16, false); // KEYCODE_RECENT_APPS; also an accessibility action
         add("menu", 82, GA_NONE, 0, false);
         add("settings", 176, GA_NONE, 0, false);
         add("search", 84, GA_NONE, 0, false);
@@ -64,6 +64,16 @@ public final class Keys {
         add("voldown", 25, GA_NONE, 0, false);
         add("mute", 164, GA_NONE, 0, false);
         add("power", 26, GA_NONE, 0, false);
+        add("chup", 166, GA_NONE, 0, false);
+        add("chdown", 167, GA_NONE, 0, false);
+        add("input", 178, GA_NONE, 0, false);       // TV input / source
+        add("assistant", 219, GA_NONE, 0, false);   // KEYCODE_ASSIST
+        add("red", 183, GA_NONE, 0, false);
+        add("green", 184, GA_NONE, 0, false);
+        add("yellow", 185, GA_NONE, 0, false);
+        add("blue", 186, GA_NONE, 0, false);
+        add("apps", 284, GA_NONE, 0, false);        // KEYCODE_ALL_APPS
+        for (int n = 0; n <= 9; n++) add("num" + n, 7 + n, GA_NONE, 0, false);
         add("del", 67, GA_NONE, 0, false);
         add("enter", 66, GA_NONE, 0, false);
         add("space", 62, GA_NONE, 0, false);

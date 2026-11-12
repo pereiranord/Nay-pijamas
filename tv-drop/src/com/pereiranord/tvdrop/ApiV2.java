@@ -424,7 +424,7 @@ final class ApiV2 {
         }
         n = Math.max(1, Math.min(n, 64L << 20));
         String head = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: " + n
-                + "\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n";
+                + "\r\nCache-Control: no-store\r\n" + Http.CORS + "Connection: close\r\n\r\n";
         r.out.write(head.getBytes(StandardCharsets.US_ASCII));
         byte[] zeros = new byte[64 * 1024];
         long left = n;

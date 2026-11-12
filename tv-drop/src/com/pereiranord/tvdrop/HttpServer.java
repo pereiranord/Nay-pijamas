@@ -146,6 +146,11 @@ public class HttpServer extends Thread {
         OutputStream out = r.out;
         String path = r.path;
 
+        if ("OPTIONS".equals(r.method)) {
+            Http.preflight(out);
+            return;
+        }
+
         // Web pages and their files (no token needed: they hold no data)
         if ("GET".equals(r.method) && !path.startsWith("/api/")) {
             serveWeb(r);
@@ -154,7 +159,8 @@ public class HttpServer extends Thread {
 
         if (!OPEN.contains(path)) {
             Pairing.Device d = pairing.check(r.token());
-            boolean legacyAllowed = LEGACY.contains(path) && pairing.legacyOpen();
+            // "legacy open" is for the 1.0 phone app only, never for requests from other web pages
+            boolean legacyAllowed = LEGACY.contains(path) && pairing.legacyOpen() && !Http.crossOrigin(r);
             if (d == null && !legacyAllowed) {
                 Http.error(out, 401, "unauthorized",
                         "Este aparelho ainda não foi pareado. Digite o código de 6 números que aparece na TV.");
