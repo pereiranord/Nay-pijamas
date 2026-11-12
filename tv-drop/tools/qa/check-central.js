@@ -43,7 +43,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await shot('l2-lobby-players');
   await pads[0].screenshot({ path: `${out}/p1-phone-lobby.png` });
   // remove Carla with the remote
-  await key_('up', 2); await key_('right', 2); await sleep(300);
+  await key_('up'); await key_('right', 2); await sleep(300); // buttons → player cards (the settings rows are above them)
   console.log('focused card:', await tv.evaluate(() => (document.querySelector('.pcard.is-focus b') || {}).textContent));
   await key_('ok'); await sleep(500); await shot('l3-remove');
   await key_('left'); await key_('ok'); await sleep(900);

@@ -155,3 +155,28 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); cur
 .res-acts { display: flex; gap: 1rem; justify-content: center; margin: .6rem 0 .4rem; }
 /* scrolled down: the top bar gets a solid band so the rail that left the screen doesn't show through */
 .cat.deep .gtop { background: linear-gradient(180deg, var(--bg) 0%, var(--bg) 62%, rgba(12,13,15,0) 100%); padding-bottom: 4.6rem; transition: background .4s; }
+
+/* ---------- waiting room: match settings ---------- */
+.lob-cfg { border-radius: var(--r-l); padding: 1rem 1.2rem; display: flex; flex-direction: column; gap: .9rem; animation: g-rise var(--d-slow) .12s var(--e-out) both; }
+.cfg-head { display: flex; align-items: center; gap: .8rem; }
+.cfg-head svg { width: 1.3rem; height: 1.3rem; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; }
+.cfg-head b { font: 700 1.1rem/1 var(--font-ui); margin-right: .6rem; }
+.cfg-presets { display: flex; gap: .4rem; background: rgba(0, 0, 0, .28); padding: .3rem; border-radius: 999px; }
+.gpill { border: 0; border-radius: 999px; padding: .55rem 1.1rem; font: 650 .95rem/1 var(--font-ui); color: var(--fg-2); background: transparent; transition: transform var(--d-mid) var(--e-jelly), background var(--d-fast), color var(--d-fast); }
+.gpill.on { background: rgba(255, 200, 87, .18); color: var(--accent); }
+.gpill.is-focus { background: var(--fg); color: var(--bg); transform: scale(1.06); }
+.cfg-chips { display: flex; gap: .7rem; flex-wrap: wrap; }
+.gset { border: 0; text-align: left; border-radius: var(--r-m); padding: .7rem 1rem .6rem; min-width: 12rem; background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06); color: var(--fg); transition: transform var(--d-mid) var(--e-jelly), box-shadow var(--d-fast), background var(--d-fast); }
+.gset small { display: block; font: 500 .72rem/1 var(--font-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--fg-3); margin-bottom: .45rem; }
+.gset b { display: block; font: 700 1.25rem/1 var(--font-ui); }
+.gset i { display: flex; gap: .25rem; margin-top: .55rem; }
+.gset i span { height: .22rem; flex: 1; border-radius: .2rem; background: rgba(255, 255, 255, .14); }
+.gset i span.on { background: var(--accent); }
+.gset.is-focus { transform: scale(1.05); background: rgba(255, 255, 255, .12); box-shadow: 0 0 0 .2rem #fff, var(--shadow-1); }
+.pgrid { max-height: 19rem; }
+.pcard { padding: .9rem 1rem; gap: .45rem; }
+.pcard .buddy { width: 4.8rem !important; height: 4.8rem !important; }
+.pcard .who b { font-size: 1.2rem; }
+.lob-game h1 { font-size: 2.5rem; }
+.lob-game img { width: 12rem; }
+.intro2-body .cfg-sum { font: 500 .95rem/1.4 var(--font-mono); letter-spacing: .04em; color: var(--fg-2); background: rgba(0, 0, 0, .35); padding: .55rem 1.1rem; border-radius: 999px; }

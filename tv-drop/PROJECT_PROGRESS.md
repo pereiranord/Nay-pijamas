@@ -9,8 +9,8 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 0 — Auditoria e planejamento | ✅ Concluído (12/11/2026) |
 | 1 — Correção dos controles | ✅ Concluído (12/11/2026) |
 | 2 — Central Gamer na TV | ✅ Concluído (12/11/2026) |
-| 3 — Infraestrutura multiplayer | ⏭️ Próximo |
-| 4 — Rabisco Relâmpago | Pendente (existe versão 2.6 a ampliar) |
+| 3 — Infraestrutura multiplayer | ✅ Concluído (12/11/2026) |
+| 4 — Rabisco Relâmpago | ⏭️ Próximo (existe versão 2.6 a ampliar) |
 | 5 — STOP / Adedonha | Pendente |
 | 6 — Mímica | Pendente |
 | 7 — Desenho Relâmpago | Pendente |
@@ -19,6 +19,36 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 9b — Pesca Maluca, Quem Sou Eu?, Cabo de Guerra, Telefone Maluco | Pendente (pedidos em 12/11) |
 | 10 — Investigação dos Impostores | Bloqueado até os blocos 4–9 serem validados |
 | 11 — Testes e acabamento | Pendente |
+
+## Bloco 3 — Infraestrutura multiplayer
+
+**Implementado**
+- **Conexão do celular** (`gamer/room-client.js`), a mesma para todos os jogos:
+  - reconecta sozinha (1 s, 2 s, 4 s… até 8 s; na hora quando a tela volta ou a rede volta), com o aviso "Sem conexão com a TV. Reconectando…";
+  - **ações confiáveis** (respostas, votos, desenhos, ações da sala) levam um número e ficam guardadas até a TV confirmar (`ack`): o que foi enviado durante uma queda do Wi-Fi chega **uma vez, na ordem**, depois de reconectar;
+  - **ações contínuas** (joystick, direção) não entram na fila: só a última importa;
+  - batimento a cada 3 s respondido pelo servidor (`pong`): detecta conexão morta em até 9 s e mede o atraso;
+  - se a página da TV reiniciar, o celular se apresenta de novo e volta com o mesmo nome e personagem.
+- **Sala na TV** (`gamer/room-host.js`): registro dos jogadores (vaga, cor, personagem), cada ação aplicada **uma única vez** por sessão do celular (repetidas são descartadas), confirmação agrupada (40 ms), limite de 40 ações contínuas/s por jogador, remoção de quem ficou fora por 15 s fora de partida, estatísticas (repetidas, limitadas, aplicadas).
+- **A TV é a autoridade**: cada partida tem um número (`mid`); ações de jogo só valem com o número da partida atual, na tela de jogo e de jogador ativo. Ações de uma partida já encerrada são ignoradas.
+- **Servidor** (`GameHub.java`): responde o batimento sem incomodar a TV e limita cada celular a 60 mensagens/s (rajada de 120), para um celular com defeito não travar a sala.
+- **Configurações da partida** por jogo, com **Rápido / Normal / Longo / Personalizado**:
+  - na TV, painel "Partida" na sala de espera (OK troca o valor; mudar um valor vira Personalizado); no celular do anfitrião, os mesmos botões; os outros celulares veem as configurações sem poder mudar;
+  - TV e celulares sempre iguais (a TV decide e avisa todos); só o anfitrião muda, e só na sala de espera; **travadas depois de iniciar**; a tela Prepare-se mostra o resumo; a última escolha fica guardada na TV por jogo.
+  - Quem Mente?: perguntas (3/5/8), tempo para mentir, tempo para votar. Rabisco: tempo para desenhar, rodadas. Batata-Bomba: pavio (curto/normal/longo). Arena Neon: vitórias para ganhar, zona que fecha. Corrida de Sofá: voltas, tempo extra após o primeiro chegar.
+
+**Arquivos criados:** `assets/web/gamer/room-client.js`, `assets/web/gamer/room-host.js`, `test/gamer-room.test.js`, `tools/qa/check-room.js`.
+**Arquivos modificados:** `gamer-tv.js/html/css`, `jogos-pad.js/css`, `jogos.html`, os 5 jogos (`jogo-*.js`, valores vindos das configurações), `GameHub.java`, `GameHubTest.java`, `AtvRemoteTest.java` (teste instável em máquina ocupada), `tools/qa/check-central.js`, workflow (testes da sala no CI).
+
+**Testes executados**
+- 10 testes da sala com relógio virtual e jogadores simulados: entrada, confirmação, queda do Wi-Fi com reenvio, repetidas, recarregar a página, limite de ações contínuas, remoção, TV reiniciando, código errado, atraso.
+- JUnit: 102 testes (novo: batimento e limite de mensagens no servidor): verdes.
+- Navegador, TV + 6 celulares (`check-room.js`, 18 verificações): configurações sincronizadas e travadas, guest sem permissão, controle remoto escolhendo Longo, jogo usando os valores (3 perguntas, 35 s), queda do Wi-Fi no meio da partida com a mentira chegando uma vez, número repetido reconhecido, ação de partida antiga ignorada, 7º celular recusado.
+- Regressão: partidas completas dos 5 jogos dentro da Central, navegação por controle remoto (`check-central.js`), layouts do celular (`check-phone-layouts.js`) e gravador de trailers: sem erros.
+
+**Não validado aqui:** queda real de Wi-Fi na TV e celulares físicos (simulada no navegador e nos testes).
+
+**Problemas conhecidos:** o controle de cada jogo no celular ainda é o da 2.6 (refeito nos blocos 4+).
 
 ## Bloco 2 — Central Gamer na TV
 
@@ -110,4 +140,4 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 - Imagens realistas do jogo de investigação: usar o gerador de imagens conectado (consome créditos da conta). Confirmar no Bloco 10.
 - `tv-app` está privado: links de download diretos (curl) só funcionam com o repositório público ou pelo espelho em `Nay-pijamas`.
 
-**Próxima etapa recomendada:** Bloco 3 — Infraestrutura multiplayer (sessões, reconexão, ações sem duplicar, configurações de partida com presets).
+**Próxima etapa recomendada:** Bloco 4 — Rabisco Relâmpago (milhares de palavras por categoria, modo aleatório sem repetir, borracha, controle novo no celular).

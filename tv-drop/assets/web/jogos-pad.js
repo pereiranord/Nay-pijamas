@@ -114,21 +114,26 @@
     return api;
   })();
 
-  /* ---------------------------------------------------------------- connection */
-  function connect() {
-    if (P.stop) return;
-    let ws;
-    try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/v2/games/ws?room=' + encodeURIComponent(P.room) + '&id=' + ID); } catch (e) { setTimeout(connect, 1500); return; }
-    P.ws = ws;
-    ws.onopen = () => { P.retry = 0; net(''); hello(); };
-    ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch (err) { return; } try { onMsg(m); } catch (err) { console.error(err); } };
-    ws.onclose = () => { if (P.ws !== ws || P.stop) return; if (P.joined) net('Reconectando…'); else if (++P.retry > 3) { showJoin('Não consegui conectar na TV. Confira se o celular está no mesmo Wi-Fi.'); return; } setTimeout(connect, 1000); };
-  }
-  setInterval(() => { if (P.ws && P.ws.readyState === 1) P.ws.send('{"t":"p"}'); }, 15000);
-  const send = (m) => { if (P.ws && P.ws.readyState === 1) P.ws.send(JSON.stringify(m)); };
-  const hello = () => send({ t: 'hello', name: P.name, shape: store.get('shape', '') });
+  /* ---------------------------------------------------------------- connection (gamer/room-client.js) */
+  // Reliable messages (answers, votes, drawings, room actions) are numbered and sent again after a drop until
+  // the TV confirms them; joystick/steering input is streamed (only the latest one matters).
+  const room = RoomClient({
+    url: (r, id) => (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/v2/games/ws?room=' + encodeURIComponent(r) + '&id=' + id,
+    room: () => P.room, id: ID,
+    hello: () => ({ name: P.name, shape: store.get('shape', '') }),
+    onMessage: (m) => { try { onMsg(m); } catch (err) { console.error(err); } },
+    onStatus: (s) => {
+      if (s === 'open') net('');
+      else if (s === 'reconnecting' && P.joined) net('Sem conexão com a TV. Reconectando…');
+    },
+    onGiveUp: () => showJoin('Não consegui conectar na TV. Confira se o celular está no mesmo Wi-Fi.'),
+  });
+  P.room_ = room;
+  P.ws = { send: (text) => { const m = JSON.parse(text); if (m.t === 'g' && m.mid == null) m.mid = P.mid; return m.t === 'g' && m.k === 'in' ? room.stream(m) : room.send(m); } }; // for automated tests
+  const send = (m) => room.send(m);
   const net = (text) => { const n = $('#net'); n.hidden = !text; n.textContent = text; };
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && P.room && (!P.ws || P.ws.readyState > 1)) connect(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && P.room) room.nudge(); });
+  addEventListener('online', () => room.nudge());
 
   function onMsg(m) {
     switch (m.t) {
@@ -136,12 +141,11 @@
       case 'full': P.stop = true; showJoin('A sala está cheia (6 jogadores).'); break;
       case 'closed': P.stop = true; leaveGame(); showJoin('A sala foi encerrada na TV.'); break;
       case 'kicked': P.stop = true; leaveGame(); showJoin('Você foi removido da sala pelo anfitrião. Pode entrar de novo com o código.'); break;
-      case 'host': P.hostOn = m.on; net(m.on ? '' : 'A TV saiu dos jogos. Aguardando…'); if (m.on) hello(); break;
-      case 'who': hello(); break;
+      case 'host': P.hostOn = m.on; net(m.on ? '' : 'A TV saiu dos jogos. Aguardando…'); break;
       case 'lobby': onRoom(m); break;
-      case 'game': onGame(m); break;
+      case 'game': if (m.mid) P.mid = m.mid; onGame(m); break;
       case 'count': if (P.view === 'intro') { const b = $('#introBox'); if (b) b.innerHTML = `<div class="count">${m.n}</div>`; vib(30); } break;
-      case 'go': mount(); break;
+      case 'go': if (m.mid) P.mid = m.mid; mount(); break;
       case 'g': if (P.inst && P.inst.onMsg) P.inst.onMsg(m); break;
       case 'fx': FX.named(m); if (P.inst && P.inst.onFx) P.inst.onFx(m); break;
       case 'end': showEnd(m); break;
@@ -182,15 +186,16 @@
   function join(room, name) {
     P.room = room; P.name = name.slice(0, 12); store.set('name', P.name);
     P.stop = false; P.retry = 0;
-    if (P.ws) { const w = P.ws; P.ws = null; try { w.close(); } catch (e) { /* ignore */ } }
+    P.room_.stop();
     app.innerHTML = `<section class="view centered"><div class="brand"><i></i><span>TV Drop Jogos</span></div><div class="big">Entrando na sala ${esc(room)}…</div></section>`;
     P.view = 'connecting';
-    connect();
+    P.room_.start();
   }
 
   /* ---------------------------------------------------------------- room state */
   function onRoom(m) {
     P.joined = true; P.state = m;
+    if (m.mid) P.mid = m.mid;
     P.me = m.players.find((p) => p.id === ID) || null;
     if (!P.me) return;
     document.documentElement.style.setProperty('--me', P.me.color);
@@ -217,7 +222,7 @@
       <div class="crew" id="crew"></div>
       <div class="scroll" id="list"></div>
       <div class="bottom" id="bottom"></div></section>`;
-    $('#myName').onchange = (e) => { const n = e.target.value.trim(); if (n) { P.name = n; store.set('name', n); send({ t: 'name', name: n }); } };
+    $('#myName').onchange = (e) => { const n = e.target.value.trim(); if (n) { P.name = n; store.set('name', n); room.hello(); } };
     $('#shape').onclick = () => { send({ t: 'shape' }); vib(20); };
     drawLobbyLists();
     function drawLobbyLists() {
@@ -232,14 +237,32 @@
         list.innerHTML = `<div class="sect">Escolha o jogo</div>` + mm.games.map((g) => `<button class="gcard ${g.id === mm.sel ? 'sel' : ''} ${onNow < g.min ? 'dim' : ''}" data-g="${g.id}" style="--g:${g.grad}"><div class="ico">${icon(g)}</div><div class="t"><b>${esc(g.name)}</b><small>${esc(g.tagline)}</small></div><em>${g.min}–${g.max}</em></button>`).join('');
         list.querySelectorAll('[data-g]').forEach((x) => { x.onclick = () => { send({ t: 'pick', g: x.dataset.g }); vib(15); }; });
         const need = s.min - onNow;
+        list.insertAdjacentHTML('beforeend', cfgHtml(mm.cfg, true));
+        bindCfg(list);
         $('#bottom').innerHTML = `<button class="btn primary" id="start" ${need > 0 ? 'disabled' : ''}>${need > 0 ? `Faltam ${need} jogador${need > 1 ? 'es' : ''}` : 'Começar ' + esc(s.name)}</button>`;
         $('#start').onclick = () => { send({ t: 'start' }); vib(30); };
       } else {
-        list.innerHTML = `<div class="sect">${esc((mm.players.find((p) => p.id === mm.leader) || {}).name || 'O líder')} está escolhendo</div><div class="gcard sel" style="--g:${s.grad}"><div class="ico">${icon(s)}</div><div class="t"><b>${esc(s.name)}</b><small>${esc(s.tagline)}</small></div><em>${s.min}–${s.max}</em></div>`;
+        list.innerHTML = `<div class="sect">${esc((mm.players.find((p) => p.id === mm.leader) || {}).name || 'O líder')} está escolhendo</div><div class="gcard sel" style="--g:${s.grad}"><div class="ico">${icon(s)}</div><div class="t"><b>${esc(s.name)}</b><small>${esc(s.tagline)}</small></div><em>${s.min}–${s.max}</em></div>` + cfgHtml(mm.cfg, false);
         $('#bottom').innerHTML = `<p class="muted" style="text-align:center;font-size:14px">${onNow} na sala · o jogo começa quando o líder tocar em Começar</p>`;
       }
     }
     void on; void sel; void leaderName;
+  }
+
+  /** Match settings: the host changes them (same values as on the TV); everyone else sees them. */
+  function cfgHtml(c, editable) {
+    if (!c || !c.schema) return '';
+    const preset = (c.presets.find((x) => x[0] === c.preset) || [0, ''])[1];
+    if (!editable) {
+      return `<div class="sect">Partida · ${esc(preset)}</div><div class="cfgro">${c.schema.map((s) => { const o = s.options.find((x) => x[0] === c.values[s.id]); return `<span><small>${esc(s.label)}</small><b>${esc(o ? o[1] : '?')}</b></span>`; }).join('')}</div>`;
+    }
+    return `<div class="sect">Configurar a partida</div><div class="cfg">
+      <div class="seg4">${c.presets.map(([k, l]) => `<button class="${c.preset === k ? 'on' : ''}" data-preset="${k}">${esc(l)}</button>`).join('')}</div>
+      ${c.schema.map((s) => `<div class="cfgrow"><small>${esc(s.label)}</small><div class="opts2">${s.options.map(([v, l]) => `<button class="${c.values[s.id] === v ? 'on' : ''}" data-key="${s.id}" data-v='${JSON.stringify(v)}'>${esc(l)}</button>`).join('')}</div></div>`).join('')}</div>`;
+  }
+  function bindCfg(box) {
+    box.querySelectorAll('[data-preset]').forEach((b) => { b.onclick = () => { if (b.dataset.preset !== 'custom') send({ t: 'cfg', preset: b.dataset.preset }); vib(12); }; });
+    box.querySelectorAll('[data-key]').forEach((b) => { b.onclick = () => { send({ t: 'cfg', key: b.dataset.key, v: JSON.parse(b.dataset.v) }); vib(12); }; });
   }
 
   /** The TV is in the catalog (choosing a game): this phone waits, and can still change name and character. */
@@ -301,7 +324,8 @@
     app.appendChild(root);
     const api = {
       root, me: P.me, players: P.state ? P.state.players.filter((p) => p.active) : [], fx: FX, vib, buddy,
-      send: (m) => send({ t: 'g', ...m }),
+      send: (m) => room.send({ t: 'g', mid: P.mid, ...m }),
+      stream: (m) => room.stream({ t: 'g', mid: P.mid, ...m }),
       after(ms, fn) { const id = setTimeout(fn, ms); P.timers.push(id); return id; },
       every(ms, fn) { const id = setInterval(fn, ms); P.timers.push(id); return id; },
       loop(fn) { let lastT = performance.now(), live = true; const tick = (now) => { if (!live) return; const dt = Math.max(0, Math.min(0.05, (now - lastT) / 1000)); lastT = now; fn(dt, now / 1000); requestAnimationFrame(tick); }; requestAnimationFrame(tick); const stop = () => { live = false; }; P.loops.push(stop); return stop; },
@@ -375,7 +399,7 @@
   /* ---------------------------------------------------------------- start */
   addEventListener('contextmenu', (e) => { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
   window.PAD_STATE = P; // for automated tests
-  const room = (qs.get('sala') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
-  P.room = room;
-  if (room.length === 4 && P.name) join(room, P.name); else showJoin('');
+  const code = (qs.get('sala') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  P.room = code;
+  if (code.length === 4 && P.name) join(code, P.name); else showJoin('');
 })();

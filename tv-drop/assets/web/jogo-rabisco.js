@@ -5,7 +5,7 @@
   const WORDS = ('abacaxi,âncora,aranha,arco-íris,árvore,avião,baleia,balão,banana,bandeira,banheira,barco,bicicleta,bigode,bola,bolo,bombeiro,boneco de neve,borboleta,bota,cachorro,cadeira,café,caminhão,cama,camelo,caracol,castelo,cavalo,cebola,cenoura,chapéu,chave,chuva,chuveiro,cobra,coelho,cogumelo,coração,coroa,coruja,dente,dinossauro,elefante,escada,escova de dentes,espelho,estrela,fantasma,farol,foguete,formiga,fogueira,galinha,garfo,gato,geladeira,girafa,guarda-chuva,guitarra,hambúrguer,helicóptero,igreja,ilha,jacaré,janela,joaninha,lâmpada,lápis,leão,livro,lua,macaco,mala,martelo,melancia,mesa,microfone,montanha,morcego,nuvem,óculos,ovo frito,palhaço,panela,papagaio,pato,peixe,pente,pinguim,pipa,pirata,pizza,polvo,ponte,porco,praia,presente,quebra-cabeça,raio,relógio,robô,roda-gigante,sapo,sereia,skate,sol,sorvete,tartaruga,telefone,televisão,tesoura,tigre,tomada,trator,trem,tubarão,unicórnio,vaca,vassoura,vela,violão,vulcão,zebra,cacto,pé de moleque,pão de queijo,futebol,churrasco,carnaval,sofá,escorregador,tatu,capivara,tucano,coxinha,brigadeiro,rede,jangada,berimbau,pipoca,semáforo,ônibus,chinelo').split(',');
   const INK = ['#16132b', '#ff4d6d', '#ff9a3d', '#ffd23f', '#3ecf6e', '#3d9bff', '#9b5cff', '#8a5a3c', '#ffffff'];
   const SIZES = [5, 12, 26];
-  const TIME = 70;
+  // the drawing time comes from the match settings (api.settings.secs)
 
   /** Draws one stroke segment list on a square canvas of side S (points are 0..1000). */
   function strokeOn(c, S, st, from = 0) {
@@ -26,6 +26,11 @@
     icon: '<path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/><path d="M13 20h7"/>',
     how: [['Desenhe', 'Na sua vez, escolha uma palavra e desenhe no celular.'], ['Adivinhe', 'Os outros digitam palpites. Quem acerta antes ganha mais.'], ['Sem letras', 'Vale tudo no desenho, menos escrever a palavra.']],
     padHow: 'Na sua vez você desenha com o dedo. Nas outras, digite palpites o mais rápido que puder.',
+    settings: [
+      { id: 'secs', label: 'Tempo para desenhar', options: [[45, '45 s'], [70, '70 s'], [90, '90 s'], [120, '2 min']] },
+      { id: 'rounds', label: 'Vezes que cada um desenha', options: [[1, '1 vez'], [2, '2 vezes'], [3, '3 vezes']] },
+    ],
+    presets: { rapido: { secs: 45, rounds: 1 }, normal: { secs: 70, rounds: 2 }, longo: { secs: 90, rounds: 3 } },
 
     /* ------------------------------------------------------------------ TV */
     tv(api) {
@@ -60,7 +65,8 @@
       const who = wrap.querySelector('.rb-who'), hintBox = wrap.querySelector('.rb-hint'), feedBox = wrap.querySelector('.rb-feed');
       const score = {}, hits = {};
       api.players.forEach((p) => { score[p.id] = 0; hits[p.id] = 0; bar.score(p, '0'); });
-      const perPlayer = api.players.length <= 3 ? 2 : 1;
+      const TIME = api.settings.secs || 70;
+      const perPlayer = api.settings.rounds || (api.players.length <= 3 ? 2 : 1);
       let order = []; for (let i = 0; i < perPlayer; i++) order = order.concat(shuffle(api.players));
       const pool = shuffle(WORDS), gallery = [];
       let turn = -1, drawer = null, phase = '', word = '', shown = [], strokes = [], got = {}, tickId = 0, deadline = 0, choices = [], last = {}, firstBonus = true;

@@ -7,7 +7,12 @@ J.define('corrida', {
   grad: 'linear-gradient(135deg,#ff9a3d,#ff4d6d)',
   icon: '<path d="M5 11V8a3 3 0 0 1 3-3h8a3 3 0 0 1 3 3v3"/><path d="M3 12a2 2 0 0 1 4 0v2h10v-2a2 2 0 0 1 4 0v5H3z"/><path d="M6 17v2M18 17v2"/>',
   how: [['Vire', 'Arraste o volante no celular para os lados.'], ['Acelere', 'Segure o pedal. Fora do tapete o sofá anda devagar.'], ['3 voltas', 'Setas azuis dão turbo. Café derramado faz rodar.']],
-  padHow: 'Polegar esquerdo no volante (arraste para os lados), polegar direito no pedal. São 3 voltas.',
+  padHow: 'Polegar esquerdo no volante (arraste para os lados), polegar direito no pedal. Fuja do café derramado.',
+  settings: [
+    { id: 'laps', label: 'Voltas', options: [[2, '2'], [3, '3'], [5, '5']] },
+    { id: 'grace', label: 'Tempo depois do 1º chegar', options: [[15, '15 s'], [25, '25 s'], [40, '40 s']] },
+  ],
+  presets: { rapido: { laps: 2, grace: 15 }, normal: { laps: 3, grace: 25 }, longo: { laps: 5, grace: 40 } },
 
   /* ------------------------------------------------------------------ TV */
   tv(api) {
@@ -15,7 +20,7 @@ J.define('corrida', {
     const c = api.canvas();
     const bar = api.topbar(true);
     const parts = new J.Particles();
-    const LAPS = 3, HALF = 50;
+    const LAPS = api.settings.laps || 3, GRACE = api.settings.grace || 25, HALF = 50;
     const CTRL = [[210, 215], [520, 165], [760, 265], [1000, 170], [1165, 310], [1100, 530], [880, 615], [700, 480], [520, 610], [250, 630], [125, 430]];
     // closed Catmull-Rom spline -> evenly indexed samples
     const pts = [];
@@ -99,7 +104,7 @@ J.define('corrida', {
           car.fin = time; car.place = ++finished;
           api.sfx('win'); parts.burst(car.x, car.y, car.p.color, 50, { max: 380, life: 1 });
           api.fx(car.p, car.place === 1 ? 'win' : 'good'); api.fx(car.p, 'stamp', { text: car.place + 'º lugar', color: car.p.color });
-          if (finished === 1) { api.banner(car.p.name + ' chegou!', 'os outros têm 25 segundos'); endAt = time + 25; }
+          if (finished === 1) { api.banner(car.p.name + ' chegou!', `os outros têm ${GRACE} segundos`); endAt = time + GRACE; }
         }
       }
       for (let i = 0; i < cars.length; i++) for (let j = i + 1; j < cars.length; j++) {
@@ -186,7 +191,7 @@ J.define('corrida', {
       .posbig{font-size:54px;font-weight:900;line-height:1;color:var(--me);min-width:76px}
       .wrong{color:#ff4d6d;animation:pulse .5s infinite}
     </style>
-    <div class="hud"><span class="posbig" id="pos">–</span><span class="name" id="lap">Volta 1/3</span><button class="btn small" id="tilt" hidden>Inclinar: não</button></div>
+    <div class="hud"><span class="posbig" id="pos">–</span><span class="name" id="lap">Volta 1</span><button class="btn small" id="tilt" hidden>Inclinar: não</button></div>
     <div class="status" id="st">Acelere!</div>
     <div class="cr"><div class="wheelzone" id="wz"><div class="wheel" id="wheel"><i></i></div><div class="tip">Arraste para virar</div></div><button class="pedal" id="gas">Acelerar<small>segure</small></button></div>`;
     const $ = (s) => root.querySelector(s);
@@ -202,7 +207,7 @@ J.define('corrida', {
     const onTilt = (e) => { if (e.gamma == null) return; if (!tiltSeen) { tiltSeen = true; $('#tilt').hidden = false; } if (tilt) { steer = clamp(e.gamma / 28, -1, 1); show(); } };
     addEventListener('deviceorientation', onTilt);
     $('#tilt').onclick = () => { tilt = !tilt; $('#tilt').textContent = 'Inclinar: ' + (tilt ? 'sim' : 'não'); if (!tilt) { steer = 0; show(); } };
-    api.every(33, () => { const s = Math.round(steer * 25) + ',' + (gas ? 1 : 0); if (s !== sent) { sent = s; api.send({ k: 'in', s: Math.round(steer * 100) / 100, g: gas }); } });
+    api.every(33, () => { const s = Math.round(steer * 25) + ',' + (gas ? 1 : 0); if (s !== sent) { sent = s; api.stream({ k: 'in', s: Math.round(steer * 100) / 100, g: gas }); } });
     const status = (t, cls) => { const st = $('#st'); st.textContent = t; st.className = 'status ' + (cls || ''); };
     return {
       start() {},

@@ -7,6 +7,11 @@ J.define('arena', {
   icon: '<path d="M12 3l7 17-7-4-7 4z"/><path d="M12 9v4"/>',
   how: [['Mova', 'Arraste o joystick no celular para pilotar a nave.'], ['Atire', 'Segure TIRO. Cada nave aguenta 3 acertos.'], ['Sobreviva', 'Quem sobrar ganha a rodada. Vence quem ganhar 3.']],
   padHow: 'Polegar esquerdo pilota. Segure TIRO para atirar e use IMPULSO para escapar. Você tem 3 vidas por rodada.',
+  settings: [
+    { id: 'wins', label: 'Rodadas para vencer', options: [[2, '2'], [3, '3'], [5, '5']] },
+    { id: 'zone', label: 'A arena fecha após', options: [[20, '20 s'], [32, '32 s'], [45, '45 s']] },
+  ],
+  presets: { rapido: { wins: 2, zone: 20 }, normal: { wins: 3, zone: 32 }, longo: { wins: 5, zone: 45 } },
 
   /* ------------------------------------------------------------------ TV */
   tv(api) {
@@ -16,7 +21,7 @@ J.define('arena', {
     const parts = new J.Particles();
     const B = { l: 40, t: 96, r: W - 40, b: H - 36 };
     const BLOCKS = [[300, 240, 120, 46], [860, 240, 120, 46], [300, 470, 120, 46], [860, 470, 120, 46], [610, 150, 60, 60], [610, 530, 60, 60]];
-    const WIN = 3, POWERS = { triple: ['#ffd23f', 'TIRO TRIPLO'], shield: ['#3dc9ff', 'ESCUDO'], speed: ['#3df5a7', 'TURBO'], heal: ['#ff4d6d', '+1 VIDA'] };
+    const WIN = api.settings.wins || 3, ZONE = api.settings.zone || 32, POWERS = { triple: ['#ffd23f', 'TIRO TRIPLO'], shield: ['#3dc9ff', 'ESCUDO'], speed: ['#3df5a7', 'TURBO'], heal: ['#ff4d6d', '+1 VIDA'] };
     const ships = api.players.map((p) => ({ p, x: 0, y: 0, vx: 0, vy: 0, ang: 0, hp: 3, alive: true, fire: 0, dash: 0, inv: 0, power: null, powerT: 0, shield: false, ix: 0, iy: 0, f: false, wins: 0, kills: 0, gone: false, dashT: 0, zoneT: 0 }));
     let bullets = [], powers = [], rings = [], round = 0, phase = 'wait', roundT = 0, powerT = 4, shake = 0, zone = 0, time = 0;
 
@@ -79,7 +84,7 @@ J.define('arena', {
       const champ = ships.find((s) => s.wins >= WIN);
       const left = ships.filter((s) => !s.gone);
       api.after(2600, () => {
-        if (champ || round >= 7 || left.length < 2) api.end(ships.map((s) => ({ id: s.p.id, pts: s.wins * 10 + s.kills, note: s.kills + (s.kills === 1 ? ' abate' : ' abates') })));
+        if (champ || round >= WIN * 2 + 1 || left.length < 2) api.end(ships.map((s) => ({ id: s.p.id, pts: s.wins * 10 + s.kills, note: s.kills + (s.kills === 1 ? ' abate' : ' abates') })));
         else { ships.forEach((s) => bar.out(s.p, s.gone)); newRound(); }
       });
     }
@@ -88,7 +93,7 @@ J.define('arena', {
       time += dt;
       if (phase !== 'play') { parts.step(dt); return; }
       roundT += dt;
-      if (roundT > 32) zone = Math.min(250, zone + 14 * dt);
+      if (roundT > ZONE) zone = Math.min(250, zone + 14 * dt);
       const Z = { l: B.l + zone * 1.6, t: B.t + zone, r: B.r - zone * 1.6, b: B.b - zone };
       for (const s of ships) {
         if (!s.alive || s.gone) continue;
@@ -213,7 +218,7 @@ J.define('arena', {
       <div class="padzone"><div id="stick"></div><div class="actions"><button class="abtn fire" id="fire">Tiro<small>segure</small></button><button class="abtn dash" id="dash">Impulso<div class="cool" id="cool"></div></button></div></div>`;
     root.querySelector('#ab').replaceWith(api.buddy(me, 40));
     const $ = (s) => root.querySelector(s);
-    const push = () => { const s = Math.round(x * 20) + ',' + Math.round(y * 20) + ',' + (f ? 1 : 0); if (s !== sent) { sent = s; api.send({ k: 'in', x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, f }); } };
+    const push = () => { const s = Math.round(x * 20) + ',' + Math.round(y * 20) + ',' + (f ? 1 : 0); if (s !== sent) { sent = s; api.stream({ k: 'in', x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, f }); } };
     api.stick($('#stick'), (nx, ny) => { x = nx; y = ny; });
     api.hold($('#fire'), () => { f = true; push(); api.vib(12); }, () => { f = false; push(); });
     api.hold($('#dash'), () => { if (alive) api.send({ k: 'dash' }); });

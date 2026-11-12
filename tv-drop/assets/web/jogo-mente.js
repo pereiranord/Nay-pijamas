@@ -37,7 +37,6 @@
     { q: 'O beija-flor é a única ave que consegue voar para ___.', a: 'trás', alt: ['tras', 'atras', 'de re'], f: ['dentro da água', 'cima em linha reta', 'os lados'] },
     { q: 'A impressão ___ do coala é quase idêntica à de um ser humano.', a: 'digital', alt: ['digitais', 'do dedo'], f: ['dos dentes', 'do pé', 'do nariz'] },
   ];
-  const ROUNDS = 3;
 
   J.define('mente', {
     name: 'Quem Mente?', kind: 'blefe', min: 3, max: 6, unit: 'pontos',
@@ -46,12 +45,19 @@
     icon: '<path d="M4 5h16v11H9l-5 4z"/><path d="M9.5 9a2.5 2.5 0 1 1 3.4 2.3c-.6.3-.9.7-.9 1.2"/><path d="M12 14.6v.1"/>',
     how: [['Minta', 'Escreva no celular uma resposta falsa que pareça verdade.'], ['Vote', 'Entre as respostas, escolha a que você acha verdadeira.'], ['Pontue', '1000 por acertar a verdade. 500 por cada um que cair na sua mentira.']],
     padHow: 'Você vai escrever uma mentira convincente para cada pergunta e depois votar na resposta que acha verdadeira.',
+    settings: [
+      { id: 'questions', label: 'Perguntas', options: [[3, '3'], [5, '5'], [8, '8']] },
+      { id: 'write', label: 'Tempo para mentir', options: [[35, '35 s'], [50, '50 s'], [75, '75 s']] },
+      { id: 'vote', label: 'Tempo para votar', options: [[20, '20 s'], [30, '30 s'], [45, '45 s']] },
+    ],
+    presets: { rapido: { questions: 3, write: 35, vote: 20 }, normal: { questions: 5, write: 50, vote: 30 }, longo: { questions: 8, write: 75, vote: 45 } },
 
     /* ------------------------------------------------------------------ TV */
     tv(api) {
       const { esc, norm, shuffle, el } = J;
       const bar = api.topbar(true);
       const view = el('div', 'center'); api.stage.appendChild(view);
+      const ROUNDS = Math.min(QUESTIONS.length, api.settings.questions || 3), WRITE = api.settings.write || 50, VOTE = api.settings.vote || 30;
       const qs = shuffle(QUESTIONS).slice(0, ROUNDS);
       const score = {}, fooled = {};
       api.players.forEach((p) => { score[p.id] = 0; fooled[p.id] = 0; bar.score(p, '0'); });
@@ -78,8 +84,8 @@
         view.innerHTML = `<div class="kicker">Pergunta ${r + 1} de ${ROUNDS}${mult() > 1 ? ' · pontos em dobro' : ''}</div><div class="question">${html(q.q)}</div>
           <div class="kicker" style="color:var(--muted)">Escreva uma mentira convincente no celular</div><div class="waiters"></div>`;
         waiters(lies); api.sfx('reveal');
-        api.players.forEach((p) => tell(p, { k: 'write', q: q.q, n: r + 1, of: ROUNDS, secs: 50 }));
-        clock(50, vote);
+        api.players.forEach((p) => tell(p, { k: 'write', q: q.q, n: r + 1, of: ROUNDS, secs: WRITE }));
+        clock(WRITE, vote);
       }
 
       function vote() {
@@ -93,8 +99,8 @@
         view.innerHTML = `<div class="kicker">Qual é a verdade?</div><div class="question" style="font-size:2.4rem">${html(q.q)}</div>
           <div class="answers">${opts.map((o, i) => `<div class="answer" data-i="${i}" style="animation-delay:${i * 0.12}s"><span class="txt">${esc(o.text)}</span><span class="who"></span></div>`).join('')}</div><div class="waiters"></div>`;
         waiters(votes); api.sfx('select');
-        api.players.forEach((p) => tell(p, { k: 'vote', q: q.q, secs: 30, opts: opts.map((o, i) => ({ i, text: o.text })).filter((o) => !opts[o.i].by.includes(p)) }));
-        clock(30, reveal);
+        api.players.forEach((p) => tell(p, { k: 'vote', q: q.q, secs: VOTE, opts: opts.map((o, i) => ({ i, text: o.text })).filter((o) => !opts[o.i].by.includes(p)) }));
+        clock(VOTE, reveal);
       }
 
       function reveal() {

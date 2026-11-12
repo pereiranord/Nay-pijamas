@@ -8,6 +8,10 @@ J.define('batata', {
   icon: '<circle cx="11" cy="14" r="6.5"/><path d="M15.5 9.5l2.5-2.5"/><path d="M18 7c1-2 2.5-1 3.5-3"/>',
   how: [['Pegou?', 'O celular de quem está com a bomba treme e esquenta.'], ['Resolva', 'Acerte o desafio rápido que aparece na sua tela.'], ['Passe', 'Escolha para quem jogar. Quem explodir está fora.']],
   padHow: 'Quando a bomba chegar, resolva o desafio da tela e escolha para quem jogar. Ninguém sabe quando ela explode.',
+  settings: [
+    { id: 'fuse', label: 'Pavio', options: [[0.7, 'Curto'], [1, 'Médio'], [1.4, 'Longo']] },
+  ],
+  presets: { rapido: { fuse: 0.7 }, normal: { fuse: 1 }, longo: { fuse: 1.4 } },
 
   /* ------------------------------------------------------------------ TV */
   tv(api) {
@@ -32,7 +36,7 @@ J.define('batata', {
     function newRound() {
       round++; phase = 'play'; heat = 0;
       const a = alive();
-      total = rand(13, 22) + a.length * 1.5; fuse = 0;
+      total = (rand(13, 22) + a.length * 1.5) * (api.settings.fuse || 1); fuse = 0;
       api.banner('Rodada ' + round, a.length + ' na roda');
       api.sfx('reveal');
       api.after(1400, () => give(pick(alive()), null));

@@ -16,6 +16,7 @@ import java.util.concurrent.LinkedBlockingQueue;
  *   host -> player   the host sends "<player id>|<json>" or "*|<json>" (everyone)
  *   hub -> host      {"t":"room",...}  {"t":"join","id"}  {"t":"leave","id"}
  *   host -> hub      "!kick|<player id>" removes that player (the phone gets {"t":"kicked"})
+ *   player -> hub    {"t":"p"} pulse, answered right away with {"t":"pong"}; at most 60 messages/s per phone
  *   hub -> player    {"t":"host","on":bool}  {"t":"closed"}  {"t":"full"}  {"t":"noroom"}  {"t":"kicked"}
  *
  * Players join with the 4-digit room code shown on the TV. They are guests:
@@ -24,6 +25,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 final class GameHub {
     static final int MAX_PLAYERS = 10; // 6 play, the rest wait for the next match
     private static final int MAX_MESSAGE = 24_000;
+    static final int RATE = 60, BURST = 120;
+    volatile long dropped; // messages refused by the rate limit (for tests and diagnostics)
     private static final String DIGITS = "0123456789";
     private static final String POISON = new String("close");
     private final SecureRandom rnd = new SecureRandom();
@@ -182,8 +185,17 @@ final class GameHub {
         }
         try {
             String msg;
+            double tokens = BURST;
+            long last = System.nanoTime();
             while ((msg = ws.receive()) != null) {
+                if (msg.startsWith("{\"t\":\"p\"")) { me.send("{\"t\":\"pong\"}"); continue; } // pulse: answered here, the TV page isn't bothered
                 if (msg.length() < 10 || msg.length() > MAX_MESSAGE || msg.charAt(0) != '{') continue; // keep-alive or junk
+                // at most RATE messages per second per phone (bursts up to BURST): a broken or hostile page can't flood the TV
+                long t = System.nanoTime();
+                tokens = Math.min(BURST, tokens + (t - last) / 1e9 * RATE);
+                last = t;
+                if (tokens < 1) { dropped++; continue; }
+                tokens -= 1;
                 synchronized (this) {
                     if (players.get(id) != me) break;
                     if (host != null) host.send("{\"t\":\"m\",\"id\":" + Http.js(id) + ",\"d\":" + msg + "}");

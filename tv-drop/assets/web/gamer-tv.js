@@ -1,18 +1,18 @@
 /* TV Drop — Central Gamer on the TV.
    Screens: catalog → details → waiting room → intro → countdown → match → results → catalog.
-   The room (players, phones, messages) and the match engine are the ones the games already use; the games
-   themselves are in jogo-*.js. Navigation is made for the TV remote: arrows, OK and Back. */
+   Layers: gamer/room-host.js (who is in the room, each phone's messages applied once) → this file (screens,
+   match flow, settings, validation of what reaches a game) → jogo-*.js (the games, which never see the network).
+   Navigation is made for the TV remote: arrows, OK and Back. */
 'use strict';
 (() => {
-  const { GAMES, ORDER, COLORS, SHAPES, esc, el, Sfx } = J;
+  const { GAMES, ORDER, SHAPES, esc, el, Sfx } = J;
   const C = window.CATALOG;
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const app = $('#app');
   const KEY = new URLSearchParams(location.search).get('key') || '';
   const REM = () => innerWidth / 96;
-  const T = { players: [], screen: 'catalog', gameId: C.featured, room: '', url: '', game: null, inst: null, active: [], timers: [], loops: [], modal: null, last: {}, hero: null, rowOf: {} };
-  let ws = null, wsTimer = 0;
+  const T = { screen: 'catalog', gameId: C.featured, game: null, inst: null, active: [], timers: [], loops: [], modal: null, last: {}, hero: null, matchId: 0, cfg: {}, cfgRun: null };
   const playable = (id) => !!GAMES[id] && C.byId[id] && C.byId[id].status === 'ready';
   const svg = (d) => `<svg viewBox="0 0 24 24">${d}</svg>`;
   const IC = {
@@ -21,78 +21,99 @@
     back: '<path d="M15 5l-7 7 7 7"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/>',
     swap: '<path d="M4 8h13l-3-3M20 16H7l3 3"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
   };
 
-  /* ================================================================ connection to the room */
-  function connect() {
-    clearTimeout(wsTimer);
-    try { ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/v2/games/ws?role=host&key=' + encodeURIComponent(KEY)); } catch (e) { wsTimer = setTimeout(connect, 2000); return; }
-    ws.onopen = () => { $('#net').hidden = true; };
-    ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch (err) { return; } try { onHub(m); } catch (err) { console.error(err); } };
-    ws.onclose = () => { $('#net').hidden = false; wsTimer = setTimeout(connect, 1500); };
-  }
-  setInterval(() => { if (ws && ws.readyState === 1) ws.send('p'); }, 15000);
-  const raw = (id, msg) => { if (ws && ws.readyState === 1) ws.send(id + '|' + JSON.stringify(msg)); };
-  const send = (p, msg) => raw(p.id, msg);
-  const all = (msg) => raw('*', msg);
-
-  function onHub(m) {
-    if (m.t === 'room') { T.room = m.code; T.url = m.url; if (T.screen === 'lobby') renderLobby(); }
-    else if (m.t === 'join') { const p = byId(m.id); if (p) { p.on = true; clearTimeout(p.gone); sync(p); changed(); if (T.inst && p.active && T.inst.onJoin) T.inst.onJoin(p); } else raw(m.id, { t: 'who' }); }
-    else if (m.t === 'leave') { if (m.kicked) { T.players = T.players.filter((x) => x.id !== m.id); changed(); } else left(m.id); }
-    else if (m.t === 'm') onMsg(m.id, m.d);
-  }
-
-  /* ================================================================ players */
-  const byId = (id) => T.players.find((p) => p.id === id);
-  const leader = () => T.players.find((p) => p.on) || null;
-  const online = () => T.players.filter((p) => p.on);
+  /* ================================================================ the room (gamer/room-host.js) */
+  const quiet = () => T.screen === 'catalog' || T.screen === 'details' || T.screen === 'lobby';
+  const room = RoomHost({
+    url: () => (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/v2/games/ws?role=host&key=' + encodeURIComponent(KEY),
+    on: {
+      net: (up) => { $('#net').hidden = up; },
+      room: () => { if (T.screen === 'lobby') renderLobby(); },
+      joined: () => Sfx.play('join'),
+      hello: (p) => sync(p),
+      rejoin: (p) => { sync(p); if (T.inst && p.active && T.inst.onJoin) T.inst.onJoin(p); },
+      leave: (p) => { if (T.inst && p.active && T.inst.onLeave) T.inst.onLeave(p); },
+      removed: () => Sfx.play('leave'),
+      quiet,
+      changed: () => changed(),
+      message: (p, d) => onMsg(p, d),
+    },
+  });
+  Object.defineProperty(T, 'players', { get: () => room.players });
+  Object.defineProperty(T, 'room', { get: () => room.code });
+  Object.defineProperty(T, 'url', { get: () => room.url });
+  const send = (p, msg) => room.send(p, msg);
+  const all = (msg) => room.all(msg);
+  const byId = (id) => room.byId(id);
+  const leader = () => room.leader();
+  const online = () => room.online();
   const cleanName = (s) => String(s || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 12);
   const pub = (p) => ({ id: p.id, name: p.name, color: p.color, shape: p.shape, idx: p.idx, on: p.on, cups: p.cups, active: p.active });
-  const quiet = () => T.screen === 'catalog' || T.screen === 'details' || T.screen === 'lobby';
-
-  function hello(id, d) {
-    let p = byId(id);
-    const name = cleanName(d.name);
-    if (!p) {
-      const used = new Set(T.players.map((x) => x.idx));
-      let idx = 0; while (used.has(idx)) idx++;
-      if (idx >= 6) { raw(id, { t: 'full' }); return; }
-      const shapesUsed = new Set(T.players.map((x) => x.shape));
-      const wanted = SHAPES.includes(d.shape) && !shapesUsed.has(d.shape) ? d.shape : SHAPES.find((s) => !shapesUsed.has(s)) || SHAPES[idx];
-      p = { id, name: name || 'Jogador ' + (idx + 1), idx, color: COLORS[idx], shape: wanted, on: true, cups: 0, active: false, fresh: true };
-      T.players.push(p);
-      Sfx.play('join');
-    } else { if (name) p.name = name; p.on = true; clearTimeout(p.gone); }
-    sync(p);
-    changed();
-  }
-  function left(id) {
-    const p = byId(id);
-    if (!p) return;
-    p.on = false;
-    if (T.inst && p.active && T.inst.onLeave) { try { T.inst.onLeave(p); } catch (e) { console.error(e); } }
-    if (quiet()) prune(p);
-    changed();
-  }
-  /** Outside a match, a phone that went away loses its place after a while (a locked screen comes back sooner). */
-  function prune(p) {
-    clearTimeout(p.gone);
-    p.gone = setTimeout(() => { if (!p.on && quiet()) { T.players = T.players.filter((x) => x !== p); Sfx.play('leave'); changed(); } }, 15000);
-  }
   function kick(p) {
-    if (ws && ws.readyState === 1) ws.send('!kick|' + p.id);
-    T.players = T.players.filter((x) => x !== p);
-    Sfx.play('leave');
+    room.kick(p);
     toast(`${p.name} saiu da sala`);
-    changed();
   }
 
+  /* ================================================================ match settings (per game, with presets) */
+  // A game declares settings: [{id, label, options: [[value, label], ...]}] and presets: {rapido, normal, longo}.
+  // The host chooses on the TV or on the phone before the match; from the start until the end they are locked.
+  const PRESETS = [['rapido', 'Rápido'], ['normal', 'Normal'], ['longo', 'Longo'], ['custom', 'Personalizado']];
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem('tvdrop.central.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('tvdrop.central.' + k, JSON.stringify(v)); } catch (e) { /* ignore */ } },
+  };
+  function cfgOf(id) {
+    const g = GAMES[id];
+    if (!g || !g.settings) return { preset: 'normal', values: {} };
+    if (!T.cfg[id]) {
+      const saved = store.get('cfg.' + id, null);
+      const base = { preset: 'normal', values: { ...(g.presets && g.presets.normal) } };
+      if (saved && saved.values && g.settings.every((s) => s.options.some((o) => o[0] === saved.values[s.id]))) T.cfg[id] = { preset: saved.preset, values: { ...saved.values } };
+      else T.cfg[id] = base;
+    }
+    return T.cfg[id];
+  }
+  /** Changes a setting (or picks a preset). Returns false when it isn't allowed now or the value is not offered. */
+  function setCfg(id, change) {
+    const g = GAMES[id];
+    if (!g || !g.settings || T.screen !== 'lobby' || id !== T.gameId) return false;
+    const c = cfgOf(id);
+    if (change.preset) {
+      if (change.preset === 'custom') { c.preset = 'custom'; }
+      else if (g.presets && g.presets[change.preset]) { c.preset = change.preset; c.values = { ...g.presets[change.preset] }; }
+      else return false;
+    } else {
+      const s = g.settings.find((x) => x.id === change.key);
+      if (!s || !s.options.some((o) => o[0] === change.v)) return false;
+      c.values[s.id] = change.v;
+      // back to a preset's name when the values match one exactly
+      const match = Object.keys(g.presets || {}).find((k) => g.settings.every((x) => g.presets[k][x.id] === c.values[x.id]));
+      c.preset = match || 'custom';
+    }
+    store.set('cfg.' + id, c);
+    return true;
+  }
+  function cfgSummary(id, values) {
+    const g = GAMES[id];
+    if (!g || !g.settings) return '';
+    return g.settings.map((s) => { const o = s.options.find((x) => x[0] === values[s.id]); return `${s.label}: ${o ? o[1] : '?'}`; }).join(' · ');
+  }
+  function cfgState() {
+    const g = GAMES[T.gameId];
+    if (!g || !g.settings) return null;
+    const c = cfgOf(T.gameId);
+    return { game: T.gameId, preset: c.preset, values: c.values, locked: T.screen !== 'lobby', presets: PRESETS,
+      schema: g.settings.map((s) => ({ id: s.id, label: s.label, options: s.options })) };
+  }
+
+  /* ================================================================ what the phones see */
   function roomState() {
     const l = leader();
     const state = T.screen === 'count' ? 'intro' : T.screen === 'details' ? 'catalog' : T.screen;
     return { t: 'lobby', state, room: T.room, players: T.players.map(pub), leader: l ? l.id : null, sel: T.gameId,
-      game: T.game ? T.game.id : null,
+      game: T.game ? T.game.id : null, cfg: cfgState(), mid: T.matchId,
       games: ORDER.filter(playable).map((id) => { const g = GAMES[id]; return { id, name: g.name, tagline: g.tagline, min: g.min, max: g.max, grad: g.grad, icon: g.icon }; }) };
   }
   /** Something about the room changed: tell every phone and update what the TV shows. */
@@ -101,28 +122,33 @@
     if (T.screen === 'lobby') updateLobby();
     if (T.screen === 'catalog') updatePlayersChip();
   }
+  /** Brings one phone up to date (it just connected, came back, or reloaded its page). */
   function sync(p) {
     send(p, roomState());
-    if ((T.screen === 'intro' || T.screen === 'count') && p.active) send(p, { t: 'game', g: T.game.id, phase: 'intro' });
-    if (T.screen === 'play' && p.active) { send(p, { t: 'game', g: T.game.id, phase: 'play' }); if (T.inst && T.inst.sync) T.inst.sync(p); }
+    if ((T.screen === 'intro' || T.screen === 'count') && p.active) send(p, { t: 'game', g: T.game.id, phase: 'intro', mid: T.matchId });
+    if (T.screen === 'play' && p.active) { send(p, { t: 'game', g: T.game.id, phase: 'play', mid: T.matchId }); if (T.inst && T.inst.sync) T.inst.sync(p); }
     if (T.screen === 'results' && T.last[p.id]) send(p, T.last[p.id]);
   }
 
-  function onMsg(id, d) {
-    if (!d || typeof d !== 'object') return;
-    if (d.t === 'hello') { hello(id, d); return; }
-    const p = byId(id);
-    if (!p) { raw(id, { t: 'who' }); return; }
+  /** Every message from a phone passes here: is this phone allowed to do this, now? */
+  function onMsg(p, d) {
     const lead = leader() === p;
     switch (d.t) {
       case 'shape': if (quiet()) { const used = new Set(T.players.filter((x) => x !== p).map((x) => x.shape)); let i = SHAPES.indexOf(p.shape); for (let k = 0; k < 6; k++) { i = (i + 1) % 6; if (!used.has(SHAPES[i])) break; } p.shape = SHAPES[i]; p.fresh = true; Sfx.play('pop'); changed(); } break;
-      case 'name': { const n = cleanName(d.name); if (n) { p.name = n; changed(); } break; }
+      case 'name': { const n = cleanName(d.name); if (n && n !== p.name) { p.name = n; changed(); } break; }
       case 'wave': { const s = $(`.pcard[data-id="${p.id}"]`); if (s) { s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); Sfx.play('pop'); } break; }
       case 'pick': if (lead && T.screen === 'lobby' && playable(d.g) && d.g !== T.gameId) { T.gameId = d.g; Sfx.play('move'); renderLobby(); all(roomState()); } break;
+      case 'cfg':
+        if (lead && setCfg(T.gameId, d.preset ? { preset: String(d.preset) } : { key: String(d.key), v: d.v })) { Sfx.play('move'); updateSettings(); all(roomState()); }
+        else send(p, roomState()); // refused (not the host, too late, unknown value): show the phone the real settings again
+        break;
       case 'start': if (lead) { if (T.screen === 'lobby') tryStart(); else if (T.screen === 'intro') countdown(); } break;
       case 'again': if (lead && T.screen === 'results') tryStart(T.game.id); break;
       case 'menu': if (lead && T.screen === 'results') toCatalog(); break;
-      case 'g': if (T.screen === 'play' && p.active && T.inst) T.inst.onMsg(p, d); break;
+      case 'g':
+        // a game action counts only during this match, from a player of this match
+        if (T.screen === 'play' && p.active && T.inst && d.mid === T.matchId && typeof d.k === 'string') T.inst.onMsg(p, d);
+        break;
       default: break;
     }
   }
@@ -338,6 +364,7 @@
         <div class="digits">${(T.room || '····').split('').map((c) => `<span>${esc(c)}</span>`).join('')}</div></div>
       <div class="lob-main">
         <div class="lob-game"><img alt="" src="${coverUrl(g.id, 640)}"><div><div class="t-eyebrow">Sala de espera</div><h1 class="t-display">${esc(g.name)}</h1><div class="meta">${metaChips(g)}</div></div></div>
+        <div class="lob-cfg glass"></div>
         <div class="pgrid"></div>
         <div class="lob-foot"><button class="gbtn primary" data-a="start">${svg(IC.play)}Iniciar partida</button><button class="gbtn" data-a="swap">${svg(IC.swap)}Trocar de jogo</button><span class="lob-msg"></span></div>
       </div>`;
@@ -351,14 +378,31 @@
     updateLobby(true);
     all(roomState());
   }
-  /** Redraws only the players and the start button, keeping the focus where it was. */
+  /** The settings panel of the waiting room: presets, then one chip per setting (OK = next value). */
+  function drawSettings() {
+    const box = $('.lob-cfg');
+    if (!box) return [[], []];
+    const g = GAMES[T.gameId];
+    if (!g || !g.settings) { box.hidden = true; return [[], []]; }
+    const c = cfgOf(T.gameId);
+    box.innerHTML = `<div class="cfg-head">${svg(IC.gear)}<b>Partida</b><div class="cfg-presets">${PRESETS.map(([k, l]) => `<button class="gpill ${c.preset === k ? 'on' : ''}" data-k="preset:${k}">${l}</button>`).join('')}</div></div>
+      <div class="cfg-chips">${g.settings.map((st) => { const o = st.options.find((x) => x[0] === c.values[st.id]); return `<button class="gset" data-k="set:${st.id}"><small>${esc(st.label)}</small><b>${esc(o ? o[1] : '?')}</b><i>${st.options.map((x) => `<span class="${x[0] === c.values[st.id] ? 'on' : ''}"></span>`).join('')}</i></button>`; }).join('')}</div>`;
+    const presets = $$('.gpill', box), chips = $$('.gset', box);
+    presets.forEach((b) => { const k = b.dataset.k.split(':')[1]; b._act = () => { if (k === 'custom') { if (chips[0]) { F.r = 1; F.c = 0; paint(); } return; } if (setCfg(T.gameId, { preset: k })) { updateLobby(); all(roomState()); } }; });
+    chips.forEach((b) => { const id = b.dataset.k.split(':')[1]; b._act = () => { const st = g.settings.find((x) => x.id === id); const i = st.options.findIndex((x) => x[0] === c.values[id]); if (setCfg(T.gameId, { key: id, v: st.options[(i + 1) % st.options.length][0] })) { updateLobby(); all(roomState()); } }; });
+    return [presets, chips];
+  }
+  const updateSettings = () => { if (T.screen === 'lobby') updateLobby(); };
+
+  /** Redraws the settings, the players and the start button, keeping the focus where it was. */
   function updateLobby(first) {
     const box = $('.pgrid');
     if (!box) return;
     const run = GAMES[T.gameId];
     const l = leader();
     const before = cur();
-    const keepId = before && before.dataset ? before.dataset.id : null;
+    const keepId = before && before.dataset ? (before.dataset.id || before.dataset.k) : null;
+    const [presets, chips] = drawSettings();
     let html = '';
     for (let i = 0; i < 6; i++) {
       const p = T.players.find((x) => x.idx === i);
@@ -366,7 +410,7 @@
         : `<div class="pcard empty">Vaga livre</div>`;
     }
     box.innerHTML = html;
-    $$('[data-buddy]', box).forEach((s) => { const p = byId(s.dataset.buddy); if (p) s.replaceWith(J.buddyEl(p, Math.round(6.4 * REM()), p.on ? 'happy' : 'sad')); });
+    $$('[data-buddy]', box).forEach((s) => { const p = byId(s.dataset.buddy); if (p) s.replaceWith(J.buddyEl(p, Math.round(4.8 * REM()), p.on ? 'happy' : 'sad')); });
     T.players.forEach((p) => { p.fresh = false; });
     const n = online().length, need = run.min - n;
     const msg = $('.lob-msg');
@@ -377,13 +421,13 @@
     const cards = $$('.pcard[data-id]', box);
     cards.forEach((c) => { c._act = () => { const p = byId(c.dataset.id); if (p) confirmBox(`Remover ${p.name}?`, 'O celular sai da sala e pode entrar de novo com o código.', [['Remover', () => kick(p)], ['Cancelar', null]]); }; });
     const foot = $$('.lob-foot .gbtn');
-    const rows = [cards.slice(0, 3), cards.slice(3), foot];
+    const rows = [presets, chips, cards.slice(0, 3), cards.slice(3), foot];
     F.onMove = null;
-    if (first) { setRows(rows, rows.length - 1, 0); return; }
-    // keep the focus on the same player (or on the buttons)
+    if (first) { setRows(rows, rows.filter((x) => x.length).length - 1, 0); return; }
+    // keep the focus on the same item (setting, player or button)
     const flat = rows.filter((x) => x.length);
     let r = flat.length - 1, c = foot.indexOf(before);
-    if (keepId) flat.forEach((row, ri) => row.forEach((e, ci) => { if (e.dataset.id === keepId) { r = ri; c = ci; } }));
+    if (keepId) flat.forEach((row, ri) => row.forEach((e, ci) => { if ((e.dataset.id || e.dataset.k) === keepId) { r = ri; c = ci; } }));
     setRows(rows, r, Math.max(0, c));
   }
 
@@ -415,11 +459,14 @@
     stopVideos();
     const g = GAMES[id], meta = C.byId[id];
     T.game = g; T.gameId = id;
+    T.matchId++;
+    // the settings of this match, locked until it ends
+    T.cfgRun = Object.freeze({ ...cfgOf(id).values });
     T.active = online().slice(0, g.max);
     T.players.forEach((p) => { p.active = T.active.includes(p); });
     T.screen = 'intro'; T.last = {};
     all(roomState());
-    T.active.forEach((p) => send(p, { t: 'game', g: id, phase: 'intro' }));
+    T.active.forEach((p) => send(p, { t: 'game', g: id, phase: 'intro', mid: T.matchId }));
     Sfx.play('select');
     app.innerHTML = '';
     const scr = el('section', 'scr intro2');
@@ -430,6 +477,7 @@
     const body = el('div', 'intro2-body');
     body.innerHTML = `<div class="t-eyebrow" style="color:var(--accent)">Prepare-se</div><h1 class="t-display">${esc(meta.name)}</h1><p class="tag">${esc(meta.tagline)}</p>
       <div class="steps">${meta.how.map((h, i) => `<div class="step glass"><b><em>0${i + 1}</em>${esc(h[0])}</b><p>${esc(h[1])}</p></div>`).join('')}</div>
+      ${g.settings ? `<div class="cfg-sum">${esc(PRESETS.find((x) => x[0] === cfgOf(id).preset)[1])} · ${esc(cfgSummary(id, T.cfgRun))}</div>` : ''}
       <div class="bar"><i style="animation-duration:8s"></i></div><div class="ghint">Olhe o celular: os controles já estão lá · <b>OK</b> começa agora</div>`;
     scr.appendChild(body);
     F.rows = []; F.onMove = null;
@@ -456,7 +504,7 @@
     app.appendChild(stage);
     Sfx.play('go');
     T.inst = T.game.tv(makeApi(stage));
-    T.active.forEach((p) => send(p, { t: 'go' }));
+    T.active.forEach((p) => send(p, { t: 'go', mid: T.matchId }));
     T.inst.start();
   }
 
@@ -464,7 +512,7 @@
   function makeApi(stage) {
     const safe = (fn) => (...a) => { try { return fn(...a); } catch (e) { console.error(e); } };
     return {
-      stage, players: T.active, W: 1280, H: 720, rem: REM,
+      stage, players: T.active, W: 1280, H: 720, rem: REM, settings: T.cfgRun || {},
       send: (p, m) => send(p, { t: 'g', ...m }),
       all: (m) => T.active.forEach((p) => send(p, { t: 'g', ...m })),
       fx: (p, k, d) => send(p, { t: 'fx', k, ...(d || {}) }),
@@ -536,7 +584,7 @@
     const cv = el('canvas', 'confetti'); cv.width = 1280; cv.height = 720; cv.style.width = '100%'; cv.style.height = '100%';
     document.body.appendChild(cv);
     const c = cv.getContext('2d');
-    const bits = Array.from({ length: 150 }, () => ({ x: J.rand(0, 1280), y: J.rand(-700, -10), vx: J.rand(-40, 40), vy: J.rand(140, 330), r: J.rand(0, 6), vr: J.rand(-6, 6), w: J.rand(8, 16), h: J.rand(5, 10), color: J.pick(COLORS) }));
+    const bits = Array.from({ length: 150 }, () => ({ x: J.rand(0, 1280), y: J.rand(-700, -10), vx: J.rand(-40, 40), vy: J.rand(140, 330), r: J.rand(0, 6), vr: J.rand(-6, 6), w: J.rand(8, 16), h: J.rand(5, 10), color: J.pick(J.COLORS) }));
     let lastT = performance.now(), t = 0;
     const tick = (now) => {
       if (!cv.isConnected) return;
@@ -552,7 +600,7 @@
     const id = T.game ? T.game.id : T.gameId;
     stopGame();
     T.game = null; T.active = [];
-    T.players.forEach((p) => { p.active = false; p.fresh = true; if (!p.on) prune(p); });
+    T.players.forEach((p) => { p.active = false; p.fresh = true; if (!p.on) room.prune(p); });
     renderCatalog(id);
   }
 
@@ -612,5 +660,6 @@
   })();
   window.TV_STATE = T; // for automated tests and the trailer recorder
   window.Central = { details: renderDetails, lobby: openLobby, start: tryStart, catalog: renderCatalog };
-  Covers.ready().then(() => { renderCatalog(); connect(); });
+  window.ROOM = room; // for automated tests
+  Covers.ready().then(() => { renderCatalog(); room.start(); });
 })();

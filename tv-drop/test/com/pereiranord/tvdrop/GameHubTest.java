@@ -172,6 +172,27 @@ public class GameHubTest extends ServerTestBase {
     }
 
     @Test
+    public void phonesGetAPongAndCannotFloodTheTv() throws Exception {
+        String code = open();
+        try (Ws tv = new Ws(server.port(), "/api/v2/games/ws?role=host&key=" + server.games.hostKey());
+             Ws p = new Ws(server.port(), "/api/v2/games/ws?room=" + code + "&id=floodphone01")) {
+            assertEquals("room", new JSONObject(tv.read()).getString("t"));
+            assertEquals("host", new JSONObject(p.read()).getString("t"));
+            assertEquals("join", new JSONObject(tv.read()).getString("t"));
+            p.send("{\"t\":\"p\"}");
+            assertEquals("pong", new JSONObject(p.read()).getString("t"));
+            for (int i = 0; i < 400; i++) p.send("{\"t\":\"g\",\"k\":\"in\",\"n\":" + i + "}");
+            p.send("{\"t\":\"p\"}");
+            assertEquals("pong", new JSONObject(p.read()).getString("t")); // the phone's messages are all read by now
+            assertTrue("most of a 400-message burst is refused: " + server.games.dropped, server.games.dropped >= 250);
+            int got = 0;
+            tv.s.setSoTimeout(800);
+            try { while (tv.read() != null) got++; } catch (java.net.SocketTimeoutException e) { /* drained */ }
+            assertTrue("the TV page received only the allowed part: " + got, got >= 100 && got <= 150);
+        }
+    }
+
+    @Test
     public void aRoomCodeGivesNoAccessToTheRestOfTheTv() throws Exception {
         String code = open();
         assertEquals(401, req("GET", "/api/status?room=" + code, (String) null, null).code);

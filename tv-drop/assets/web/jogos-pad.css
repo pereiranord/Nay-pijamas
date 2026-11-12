@@ -72,6 +72,20 @@ input { font: inherit; color: inherit; -webkit-user-select: text; user-select: t
 .place { font-size: 34vw; font-weight: 900; line-height: .95; background: linear-gradient(180deg, #fff, var(--me)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(18px + var(--sb)); z-index: 58; background: #fff; color: var(--ink); border-radius: 16px; padding: 12px 16px; font-weight: 800; text-align: center; animation: viewIn .25s both; }
 
+/* ---------- match settings in the waiting room ---------- */
+.cfg { display: flex; flex-direction: column; gap: 12px; background: var(--panel); border-radius: 20px; padding: 12px; margin-bottom: 10px; }
+.seg4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; background: rgba(0, 0, 0, .3); border-radius: 14px; padding: 4px; }
+.seg4 button { min-height: 40px; border-radius: 10px; font-weight: 800; font-size: 13px; color: var(--muted); }
+.seg4 button.on { background: rgba(255, 200, 87, .18); color: #ffc857; }
+.seg4 button[data-preset="custom"] { pointer-events: none; }
+.cfgrow small, .cfgro small { display: block; font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.opts2 { display: flex; gap: 6px; flex-wrap: wrap; }
+.opts2 button { min-height: 42px; min-width: 56px; padding: 0 12px; border-radius: 12px; font-weight: 800; font-size: 15px; background: rgba(255, 255, 255, .07); border: 1px solid var(--line); }
+.opts2 button.on { background: #ffc857; color: #120d02; border-color: #ffc857; }
+.cfgro { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.cfgro span { background: var(--panel); border-radius: 14px; padding: 8px 12px; }
+.cfgro b { font-size: 16px; }
+
 /* ---------- shared controller pieces ---------- */
 .hud { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 .hud .name { font-weight: 900; font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

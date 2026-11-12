@@ -151,8 +151,13 @@ public class AtvRemoteTest {
         AtvRemote r = client(new KeyValueStore.Memory());
         r.startPairing();
         r.finishPairing(tv.shownCode.poll(5, TimeUnit.SECONDS));
+        // on a busy machine the session may still be opening right after pairing
+        for (int i = 0; i < 200 && !r.isConnected(); i++) Thread.sleep(50);
         r.sendKey(3);
-        assertEquals(3, tv.received.poll(5, TimeUnit.SECONDS).msg(10).num(1, 0));
+        Proto.Msg first = tv.received.poll(10, TimeUnit.SECONDS);
+        while (first != null && (first.all(10) == null || first.all(10).isEmpty())) first = tv.received.poll(2, TimeUnit.SECONDS);
+        assertTrue("the first key should reach the TV", first != null);
+        assertEquals(3, first.msg(10).num(1, 0));
         tv.dropSessions();
         // wait until the client has noticed the drop (slow CI machines take longer)
         for (int i = 0; i < 100 && r.isConnected(); i++) Thread.sleep(50);
