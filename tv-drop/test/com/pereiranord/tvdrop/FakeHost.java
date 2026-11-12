@@ -97,6 +97,24 @@ class FakeHost implements TvHost {
     @Override public boolean uninstallApp(String pkg) { uninstalled.add(pkg); return true; }
     @Override public boolean openStorePage(String pkg) { return true; }
     @Override public void beep() { beeps++; }
+    long cacheBytes = 5_000_000;
+    @Override public org.json.JSONArray storageVolumes() {
+        try {
+            return new org.json.JSONArray()
+                    .put(new JSONObject().put("name", "Armazenamento interno").put("total", 8_000_000_000L).put("free", 1_500_000_000L).put("removable", false))
+                    .put(new JSONObject().put("name", "Pendrive").put("total", 32_000_000_000L).put("free", 30_000_000_000L).put("removable", true));
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+    @Override public JSONObject appSizes() {
+        try {
+            return new JSONObject().put("permission", true).put("apps", new JSONArray()
+                    .put(new JSONObject().put("pkg", "com.netflix.ninja").put("label", "Netflix").put("app", 120_000_000L).put("data", 900_000_000L).put("cache", 300_000_000L))
+                    .put(new JSONObject().put("pkg", "com.example.globo").put("label", "Globoplay").put("app", 80_000_000L).put("data", 50_000_000L).put("cache", 20_000_000L)));
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+    @Override public long clearOwnCache() { long c = cacheBytes; cacheBytes = 0; return c; }
+    final List<String> settingsOpened = new ArrayList<>();
+    @Override public boolean openAppSettings(String pkg) { settingsOpened.add(pkg); return true; }
     boolean mirroring;
     @Override public boolean mirrorActive() { return mirroring; }
     @Override public boolean mirrorStop() { boolean was = mirroring; mirroring = false; return was; }

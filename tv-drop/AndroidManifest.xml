@@ -17,6 +17,9 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- Storage analysis: size of each app. Granted on the TV by: adb shell appops set com.pereiranord.tvdrop GET_USAGE_STATS allow -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        xmlns:tools="http://schemas.android.com/tools" tools:ignore="ProtectedPermissions" />
 
     <!-- External players used for audio the TV can't decode (DTS, TrueHD...) -->
     <queries>
@@ -62,12 +65,21 @@
             </intent-filter>
         </activity>
 
-        <!-- Phone: finds the TV and streams videos to it -->
+        <!-- Phone: the classic TV Drop 1.0 screen (opened from Dispositivos → Modo clássico) -->
         <activity
             android:name=".PhoneActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Phone app home: the TV Drop interface (remote, apps, files...) bundled in the APK -->
+        <activity
+            android:name=".RemoteActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:windowSoftInputMode="adjustResize">
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -83,14 +95,6 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
-
-        <!-- Phone: the shared TV Drop 2.0 interface (remote, apps, files) in a WebView -->
-        <activity
-            android:name=".RemoteActivity"
-            android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:windowSoftInputMode="adjustResize"
-            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
         <activity
             android:name=".PlayerActivity"

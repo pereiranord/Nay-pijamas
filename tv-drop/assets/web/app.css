@@ -224,6 +224,32 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
 .item .t { flex: 1 1 140px; }
 .qrow .t { flex: 1 1 120px; }
 
+/* ---------- 2.3 app home: TVs found ---------- */
+.found { display: grid; gap: 10px; margin: 6px 0 18px; text-align: left; }
+.tv-found { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; background: var(--surface); }
+.tv-found svg { color: var(--green); width: 28px; height: 28px; }
+.tv-found b { display: block; }
+.tv-found small { color: var(--muted); }
+.searching { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--muted); padding: 14px; }
+.dot.pulse { background: var(--green); animation: pulse 1s infinite; }
+
+/* ---------- 2.3 storage ---------- */
+.vol { margin: 10px 0 14px; }
+.bar { height: 6px; border-radius: 6px; background: var(--key); overflow: hidden; display: flex; }
+.bar i { display: block; height: 100%; background: var(--green); }
+.bar.big { height: 12px; margin-top: 8px; }
+.bar.big.warn i { background: var(--red); }
+.bar.stack { height: 14px; margin: 8px 0 10px; }
+.bar.stack i { border-right: 2px solid var(--surface); }
+.bar.thin { height: 4px; margin-top: 6px; }
+.legends { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); }
+.legend { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 3px; }
+.h3 { font-size: 15px; margin: 18px 0 6px; font-weight: 700; }
+.check-row { cursor: pointer; }
+.check-row input { width: 20px; height: 20px; accent-color: var(--green); flex: none; }
+.appicon { width: 52px; height: 32px; object-fit: contain; border-radius: 8px; background: var(--surface-2); flex: none; }
+
 /* ---------- 2.2 remote ---------- */
 .rstatus { margin: -6px 0 14px; }
 .chips-row { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }

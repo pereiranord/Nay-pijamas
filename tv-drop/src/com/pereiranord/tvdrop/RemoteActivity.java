@@ -12,6 +12,7 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
 
 import org.json.JSONObject;
 
@@ -20,9 +21,12 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Phone: the TV Drop 2.0 interface (served by the TV) in a WebView, so the
- * browser and the app share one interface. Adds native extras the browser can't
- * offer on the TV's http page: voice recognition and casting a file from the phone.
+ * Phone app home screen: the TV Drop interface bundled in the APK (assets/web, the
+ * same one the TV serves and the standalone index.html), in a WebView. The page
+ * finds the TV through native discovery, pairs, and talks to it over the local
+ * network. Native extras the browser can't offer: discovery, voice recognition,
+ * casting and queueing files from the phone, screen mirroring, the phone-direct
+ * remote and Android's "Share" menu. The classic 1.0 screen stays available.
  */
 public class RemoteActivity extends Activity {
     static final String EXTRA_TV = "tv", EXTRA_TOKEN = "token";
@@ -31,6 +35,10 @@ public class RemoteActivity extends Activity {
     private WebView web;
     private String tv, token;
     private com.pereiranord.tvdrop.atv.AtvRemote atv;
+    private Discovery discovery;
+    private java.util.List<Uri> pendingShare;
+    private String pendingLink;
+    static final String HOME = "file:///android_asset/web/index.html";
 
     @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
     @Override
@@ -38,10 +46,7 @@ public class RemoteActivity extends Activity {
         super.onCreate(b);
         tv = getIntent().getStringExtra(EXTRA_TV);
         token = getIntent().getStringExtra(EXTRA_TOKEN);
-        if (tv == null) {
-            finish();
-            return;
-        }
+        if (token != null) Net.token = token;
         web = new WebView(this);
         web.setBackgroundColor(Color.parseColor("#121417"));
         WebSettings s = web.getSettings();
@@ -49,12 +54,12 @@ public class RemoteActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
-        final String origin = "http://" + tv;
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
-                // Stay on the TV's pages; anything else opens outside the app.
-                if (r.getUrl().toString().startsWith(origin + "/")) return false;
+                // Stay on the bundled interface or the TV's own pages; anything else opens outside the app.
+                String url = r.getUrl().toString();
+                if (url.startsWith("file:///android_asset/web/") || (tv != null && url.startsWith("http://" + tv + "/"))) return false;
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, r.getUrl()));
                 } catch (Exception ignored) {
@@ -64,11 +69,131 @@ public class RemoteActivity extends Activity {
         });
         web.addJavascriptInterface(new Bridge(), "TVDropNative");
         setContentView(web);
-        web.loadUrl(origin + "/" + (token != null ? "#token=" + Uri.encode(token) : ""));
+        if (getIntent().hasExtra(EXTRA_TV)) {
+            // opened from the classic screen: that TV's own page, already paired
+            web.loadUrl("http://" + tv + "/" + (token != null ? "#token=" + Uri.encode(token) : ""));
+        } else {
+            web.loadUrl(HOME);
+        }
+        handleShare(getIntent());
+        if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 0);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleShare(intent);
+    }
+
+    // ---------- Android "Share" -> TV Drop ----------
+
+    private void handleShare(Intent i) {
+        if (i == null || i.getAction() == null) return;
+        java.util.List<Uri> uris = new ArrayList<>();
+        if (Intent.ACTION_SEND_MULTIPLE.equals(i.getAction())) {
+            @SuppressWarnings("deprecation")
+            ArrayList<Uri> list = i.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (list != null) uris.addAll(list);
+        } else if (Intent.ACTION_SEND.equals(i.getAction())) {
+            @SuppressWarnings("deprecation")
+            Uri u = i.getParcelableExtra(Intent.EXTRA_STREAM);
+            if (u != null) uris.add(u);
+            else {
+                String text = i.getStringExtra(Intent.EXTRA_TEXT);
+                if (text != null && text.matches("(?is).*https?://\\S+.*")) {
+                    pendingLink = text.replaceAll("(?is).*?(https?://\\S+).*", "$1");
+                    deliverLink();
+                }
+                return;
+            }
+        } else {
+            return;
+        }
+        if (uris.isEmpty()) return;
+        pendingShare = uris;
+        if (tv != null && token != null) deliverShare();
+        else Toast.makeText(this, "Conecte a uma TV: em seguida você escolhe o que fazer com " + (uris.size() == 1 ? "o arquivo." : uris.size() + " arquivos."), Toast.LENGTH_LONG).show();
+    }
+
+    private void deliverLink() {
+        if (pendingLink == null || tv == null || token == null) return;
+        String link = pendingLink;
+        pendingLink = null;
+        web.evaluateJavascript("window.tvdropShareLink && tvdropShareLink(" + JSONObject.quote(link) + ")", null);
+    }
+
+    /** Videos/music: play now or queue (served from the phone, no copy) or copy. Other files: copy to the TV. */
+    private void deliverShare() {
+        final java.util.List<Uri> uris = pendingShare;
+        pendingShare = null;
+        if (uris == null || uris.isEmpty()) return;
+        boolean media = true;
+        for (Uri u : uris) {
+            String t = getContentResolver().getType(u);
+            if (t == null || !(t.startsWith("video/") || t.startsWith("audio/"))) media = false;
+        }
+        final String target = tv;
+        final boolean isMedia = media;
+        String title = uris.size() == 1 ? PhoneCast.displayName(this, uris.get(0)) : uris.size() + " arquivos";
+        String[] items = media
+                ? new String[]{"Tocar agora na TV (sem copiar)", "Adicionar à fila da TV (sem copiar)", "Copiar para a TV (arquivos recebidos)"}
+                : new String[]{"Enviar para a TV (arquivos recebidos)", "Enviar e abrir na TV (APK: instalar)"};
+        new android.app.AlertDialog.Builder(this).setTitle(title).setItems(items, (d, which) -> io.execute(() -> {
+            int ok = 0;
+            String err = null;
+            for (int k = 0; k < uris.size(); k++) {
+                Uri u = uris.get(k);
+                String e;
+                if (isMedia && which == 0) e = k == 0 ? PhoneCast.cast(this, target, u) : PhoneCast.queue(this, target, u, "end");
+                else if (isMedia && which == 1) e = PhoneCast.queue(this, target, u, "end");
+                else e = PhoneCast.upload(this, target, u, !isMedia && which == 1);
+                if (e == null) ok++; else err = e;
+            }
+            final String msg = ok + " de " + uris.size() + " concluído(s)" + (err != null ? " (" + err + ")" : "");
+            runOnUiThread(() -> js("toast", msg));
+        })).setNegativeButton("Cancelar", null).show();
     }
 
     /** window.TVDropNative in the page. Only the TV's own page is ever loaded in this WebView. */
     final class Bridge {
+        /** The page tells which TV it is connected to (host:port) and its pairing token. */
+        @JavascriptInterface
+        public void setTv(String hostPort, String tok) {
+            runOnUiThread(() -> {
+                if (hostPort == null || !hostPort.matches("[A-Za-z0-9.\\-]+:\\d{2,5}")) return;
+                if (!hostPort.equals(tv)) atv = null;
+                tv = hostPort;
+                token = tok;
+                Net.token = tok;
+                getSharedPreferences("tvdrop", MODE_PRIVATE).edit().putString("last", hostPort).putString("token:" + hostPort, tok).apply();
+                if (pendingShare != null) deliverShare();
+                deliverLink();
+            });
+        }
+
+        /** Finds TVs on the network (mDNS + subnet scan): tvdropFound({name,host,port}) for each, then tvdropDiscoveryDone(). */
+        @JavascriptInterface
+        public void discover() {
+            runOnUiThread(() -> {
+                if (discovery != null) discovery.stop();
+                discovery = new Discovery(RemoteActivity.this, (name, host, port) -> runOnUiThread(() -> {
+                    try {
+                        JSONObject o = new JSONObject().put("name", name).put("host", host).put("port", port);
+                        web.evaluateJavascript("window.tvdropFound && tvdropFound(" + o + ")", null);
+                    } catch (Exception ignored) {
+                    }
+                }));
+                discovery.start();
+                web.postDelayed(() -> web.evaluateJavascript("window.tvdropDiscoveryDone && tvdropDiscoveryDone()", null), 9000);
+            });
+        }
+
+        /** The classic TV Drop 1.0 phone screen. */
+        @JavascriptInterface
+        public void classic() {
+            runOnUiThread(() -> startActivity(new Intent(RemoteActivity.this, PhoneActivity.class)));
+        }
+
         @JavascriptInterface
         public void voice() {
             runOnUiThread(() -> {
@@ -245,12 +370,18 @@ public class RemoteActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (web != null && web.canGoBack()) web.goBack();
-        else super.onBackPressed();
+        // the page decides first (e.g. goes back to Início); otherwise leave the app
+        web.evaluateJavascript("window.tvdropBack ? tvdropBack() : false", v -> {
+            if (!"true".equals(v)) {
+                if (web.canGoBack()) web.goBack();
+                else finish();
+            }
+        });
     }
 
     @Override
     protected void onDestroy() {
+        if (discovery != null) discovery.stop();
         if (web != null) web.destroy();
         io.shutdown();
         super.onDestroy();

@@ -43,6 +43,7 @@ public class HttpServer extends Thread {
     private final ApiV2 v2;
     final Library library;
     final SleepTimer timer;
+    final KeyRepeater repeater;
     private ServerSocket socket;
     private volatile boolean running = true;
 
@@ -61,6 +62,11 @@ public class HttpServer extends Thread {
             t.setDaemon(true);
             return t;
         }), System::currentTimeMillis, what -> ApiV2.timerAction(host, what));
+        this.repeater = new KeyRepeater(java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "tvdrop-keyrepeat");
+            t.setDaemon(true);
+            return t;
+        }), key -> host.remote().key(key));
         this.v2 = new ApiV2(host, pairing, this);
     }
 

@@ -60,6 +60,16 @@ public interface TvHost {
     boolean mirrorActive();
     boolean mirrorStop();
 
+    // ---- storage (TV Drop 2.3) ----
+    /** Disks: [{"name","total","free","removable"}], internal storage first. */
+    org.json.JSONArray storageVolumes();
+    /** {"permission":bool,"apps":[{"pkg","label","app","data","cache"}]} (needs usage access on the TV). */
+    JSONObject appSizes();
+    /** Empties TV Drop's own cache; returns the bytes freed. */
+    long clearOwnCache();
+    /** Opens the app's system settings page on the TV (where its cache/data can be cleared). */
+    boolean openAppSettings(String pkg);
+
     /** Plays a short sound so the TV can be found. */
     void beep();
 

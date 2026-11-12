@@ -197,6 +197,92 @@ final class AndroidTvHost implements TvHost {
         }
     }
 
+    // ---- storage ----
+
+    @Override
+    public org.json.JSONArray storageVolumes() {
+        org.json.JSONArray out = new org.json.JSONArray();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        try {
+            android.os.StatFs data = new android.os.StatFs(android.os.Environment.getDataDirectory().getPath());
+            out.put(new JSONObject().put("name", "Armazenamento interno").put("total", data.getTotalBytes())
+                    .put("free", data.getAvailableBytes()).put("removable", false));
+            seen.add(data.getTotalBytes() + ":" + data.getAvailableBytes());
+            // USB drives / SD cards: one app-specific dir per mounted volume
+            for (File dir : ctx.getExternalFilesDirs(null)) {
+                if (dir == null) continue;
+                try {
+                    if (!android.os.Environment.isExternalStorageRemovable(dir)) continue;
+                    android.os.StatFs st = new android.os.StatFs(dir.getPath());
+                    if (!seen.add(st.getTotalBytes() + ":" + st.getAvailableBytes())) continue;
+                    out.put(new JSONObject().put("name", "Pendrive / cartão").put("total", st.getTotalBytes())
+                            .put("free", st.getAvailableBytes()).put("removable", true));
+                } catch (Exception ignored) {
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return out;
+    }
+
+    @Override
+    public JSONObject appSizes() {
+        JSONObject res = new JSONObject();
+        org.json.JSONArray list = new org.json.JSONArray();
+        boolean permission = true;
+        try {
+            android.app.usage.StorageStatsManager ssm = ctx.getSystemService(android.app.usage.StorageStatsManager.class);
+            android.os.UserHandle me = android.os.Process.myUserHandle();
+            java.util.List<JSONObject> rows = new ArrayList<>();
+            for (AppInfo a : apps()) {
+                try {
+                    android.app.usage.StorageStats st = ssm.queryStatsForPackage(android.os.storage.StorageManager.UUID_DEFAULT, a.pkg, me);
+                    rows.add(new JSONObject().put("pkg", a.pkg).put("label", a.label).put("app", st.getAppBytes())
+                            .put("data", st.getDataBytes()).put("cache", st.getCacheBytes()));
+                } catch (SecurityException se) {
+                    permission = false;
+                    break;
+                } catch (Exception ignored) {
+                }
+            }
+            Collections.sort(rows, (x, y) -> Long.compare(y.optLong("app") + y.optLong("data"), x.optLong("app") + x.optLong("data")));
+            for (JSONObject r : rows) list.put(r);
+            res.put("permission", permission).put("apps", permission ? list : new org.json.JSONArray())
+                    .put("enableCommand", "adb shell appops set " + ctx.getPackageName() + " GET_USAGE_STATS allow");
+        } catch (Exception e) {
+            try { res.put("permission", false).put("apps", new org.json.JSONArray()); } catch (Exception ignored) {}
+        }
+        return res;
+    }
+
+    @Override
+    public long clearOwnCache() {
+        return deleteTree(ctx.getCacheDir(), false) + (ctx.getExternalCacheDir() != null ? deleteTree(ctx.getExternalCacheDir(), false) : 0);
+    }
+
+    private static long deleteTree(File f, boolean self) {
+        long freed = 0;
+        File[] kids = f.listFiles();
+        if (kids != null) for (File k : kids) freed += deleteTree(k, true);
+        if (self) {
+            long len = f.isFile() ? f.length() : 0;
+            if (f.delete()) freed += len;
+        }
+        return freed;
+    }
+
+    @Override
+    public boolean openAppSettings(String pkg) {
+        try {
+            Intent i = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + pkg));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(i);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Override public boolean mirrorActive() { return MirrorServer.isActive(); }
     @Override public boolean mirrorStop() { return MirrorServer.stopActive(); }
 

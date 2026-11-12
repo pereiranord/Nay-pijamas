@@ -1,4 +1,4 @@
-# TV Drop 2.2
+# TV Drop 2.3
 
 Central multimídia e controle remoto para **Android TV / Google TV** (feito pensando na Philips 4K Google TV), com app para **celular Android** e versão **web**. O mesmo APK funciona nos dois aparelhos: na TV ele é o receptor; no celular, o controle e o transmissor.
 
@@ -14,10 +14,12 @@ Central multimídia e controle remoto para **Android TV / Google TV** (feito pen
 - **Histórico** com "continuar de onde parou" e favoritos (pode ser desligado). Áudio, legenda e velocidade pelo celular.
 
 **Controlar**
+- **Segurar uma tecla = ação contínua**: o celular avisa "apertou/soltou" e a própria TV repete a tecla num ritmo constante (sem picotar com o Wi-Fi), parando ao soltar, se a conexão cair ou após 15 s.
 - **Controle remoto**: direcional circular (segure para repetir), modo deslizante (segure para continuar), **touchpad** com cursor e botões de clique e rolagem, volume e canal em botões de dois lados, mídia, Liga/Desliga, fonte (entrada), assistente do Google, teclado numérico, botões coloridos, guia, legendas e apps recentes.
 - **Barra de estado**: o app aberto na TV, o volume atual com um controle deslizante e por qual caminho o controle está funcionando.
 - **Teclado** com "digitar ao vivo", **voz** (app Android) e comandos digitados. No computador, atalhos de teclado (setas, Enter, Esc, espaço, +/−, números).
 - **Apps**: lista dos apps instalados na TV com os ícones reais, abrir, favoritos organizáveis, loja e desinstalação.
+- **Armazenamento da TV**: espaço livre de cada disco (inclusive pendrive), arquivos recebidos por tipo, maiores arquivos com exclusão em lote, limpar o cache do TV Drop e o tamanho de cada app (com atalho para os ajustes dele na TV). Para o tamanho dos apps, libere uma vez: `adb shell appops set com.pereiranord.tvdrop GET_USAGE_STATS allow`.
 - **Dispositivos**: pareamento seguro (PIN/QR), aparelhos autorizados, "Encontrar minha TV", diagnóstico de conexão. No app: TVs salvas com apelido, favorita e status online/offline.
 - **Inteligência**: temporizador na TV (pausar, silenciar, encerrar ou desligar), **Meus Atalhos** (sequências de comandos), assistente por voz ou texto ("volume em 20", "desligue em 30 minutos", "abrir YouTube") e busca de filmes e séries com "onde assistir" (TMDB, com chave gratuita sua).
 
@@ -53,6 +55,8 @@ adb shell am start -n com.pereiranord.tvdrop/.MainActivity
 ## 2. Instalar no celular
 
 Baixe o mesmo `TV-Drop.apk` no celular e abra. O Android vai pedir para permitir a instalação de apps dessa origem.
+
+O app do celular abre direto na interface nova (a mesma do `index.html`, embutida no APK): ele procura as TVs na rede, conecta na última usada e pede o PIN só na primeira vez. A tela antiga continua em **Dispositivos → Modo clássico do app**.
 
 ## 3. Conectar e usar
 

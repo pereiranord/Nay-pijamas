@@ -42,7 +42,8 @@ public class MainActivity extends Activity {
             TEXT = 0xFFECEFF1, MUTED = 0xFF9AA4AD, WARN = 0xFFFFCC80;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
-    private TextView pinView, pinTimer, address, codeView, status, perms, log;
+    private TextView pinView, pinTimer, address, codeView, status, perms, log, storage;
+    private long lastStorage;
     private ImageView qr;
     private LinearLayout filesBox, permButtons, devicesBox;
     private Button legacyButton;
@@ -127,6 +128,12 @@ public class MainActivity extends Activity {
         filesCard.addView(filesBox);
         right.addView(filesCard);
 
+        LinearLayout storageCard = card();
+        storageCard.addView(text("Armazenamento", 20, TEXT));
+        storage = text("", 15, MUTED);
+        storageCard.addView(storage);
+        right.addView(storageCard);
+
         LinearLayout logCard = card();
         logCard.addView(text("Atividade", 20, TEXT));
         log = text("", 13, MUTED);
@@ -206,6 +213,33 @@ public class MainActivity extends Activity {
         log.setText(l.length() == 0 ? "Nada ainda." : l.toString().trim());
 
         refreshFiles();
+        if (System.currentTimeMillis() - lastStorage > 15_000) refreshStorage();
+    }
+
+    /** Free space on each disk and how much the received files take. Details: Dispositivos → Armazenamento. */
+    private void refreshStorage() {
+        lastStorage = System.currentTimeMillis();
+        StringBuilder sb = new StringBuilder();
+        try {
+            org.json.JSONArray vols = new AndroidTvHost(this).storageVolumes();
+            for (int i = 0; i < vols.length(); i++) {
+                org.json.JSONObject v = vols.getJSONObject(i);
+                sb.append(v.getString("name")).append(": ").append(gb(v.getLong("free"))).append(" livres de ")
+                        .append(gb(v.getLong("total"))).append('\n');
+            }
+            long inbox = 0;
+            File[] fs = Actions.inbox(this).listFiles();
+            if (fs != null) for (File f : fs) inbox += f.length();
+            sb.append("Arquivos recebidos: ").append(gb(inbox)).append("\nDetalhes e limpeza: no celular, Dispositivos → Armazenamento.");
+        } catch (Exception e) {
+            sb.append("Não foi possível ler o armazenamento.");
+        }
+        storage.setText(sb.toString());
+    }
+
+    private static String gb(long b) {
+        return b >= 1L << 30 ? String.format(Locale.ROOT, "%.1f GB", b / (double) (1L << 30))
+                : String.format(Locale.ROOT, "%.0f MB", b / (double) (1L << 20));
     }
 
     private void refreshDevices() {

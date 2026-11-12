@@ -22,6 +22,7 @@ import java.util.Map;
  *   GET  /api/v2/session              the device this token belongs to
  *   GET  /api/v2/capabilities         what this TV can do right now, and through which path
  *   POST /api/v2/remote/key           {"key":"up"}           (see Keys)
+ *   POST /api/v2/remote/hold          {"key","on"}  hold a key: the TV repeats it until on=false (continuous action)
  *   POST /api/v2/remote/text          {"text","replace","submit"}
  *   POST /api/v2/remote/pointer       {"action":"move|tap|longpress|scroll|hide","dx","dy"}
  *   POST /api/v2/remote/link          {"link"}               open a link/app link on the TV
@@ -49,6 +50,9 @@ import java.util.Map;
  *   GET  /api/v2/history              POST /api/v2/history/play {"src","resume"} | favorite | clear | enabled
  *   GET  /api/v2/player/tracks        POST /api/v2/player/track {"type","group","track"} | speed {"speed"}
  *   GET  /api/v2/timer                POST /api/v2/timer {"minutes","action"} | /api/v2/timer/cancel
+ *   GET  /api/v2/storage              disks, received files by type, largest files, TV Drop cache
+ *   GET  /api/v2/storage/apps         size of each app (needs usage access on the TV)
+ *   POST /api/v2/storage/delete       {"files":[names]}   POST /api/v2/storage/cache   POST /api/v2/apps/settings {"pkg"}
  *   POST /api/v2/mirror/stop          ends screen mirroring (stream itself: TCP 8100, see MirrorProtocol)
  *   GET  /api/v2/ws?token=            WebSocket: {"t":"key","k":..} {"t":"move","dx","dy"} {"t":"tap"} {"t":"scroll","dy"} ...
  */
@@ -87,6 +91,8 @@ final class ApiV2 {
                 return;
             }
             if (get && "/speed".equals(p)) { speedDown(r); return; }
+            if (get && "/storage".equals(p)) { Http.json(out, 200, storage()); return; }
+            if (get && "/storage/apps".equals(p)) { Http.json(out, 200, host.appSizes().put("ok", true)); return; }
             if (get && "/queue".equals(p)) { Http.json(out, 200, server.library.queueJson().put("ok", true)); return; }
             if (get && "/playlists".equals(p)) { Http.json(out, 200, server.library.playlistsJson().put("ok", true)); return; }
             if (get && "/history".equals(p)) { Http.json(out, 200, server.library.historyJson().put("ok", true)); return; }
@@ -108,6 +114,14 @@ final class ApiV2 {
             }
             switch (p) {
                 case "/remote/key": done(out, host.remote().key(body.optString("key")), "OK"); return;
+                case "/remote/hold": {
+                    String owner = "http:" + Pairing.sha256(String.valueOf(r.token())).substring(0, 12);
+                    String k = body.optString("key");
+                    if (Keys.get(k) == null) { Http.error(out, 409, "unavailable", "Tecla desconhecida: " + k); return; }
+                    if (body.optBoolean("on", true)) done(out, server.repeater.start(owner, k), "Segurando " + k);
+                    else { server.repeater.stop(owner, k); Http.ok(out, "Solto"); }
+                    return;
+                }
                 case "/remote/text": {
                     String text = body.optString("text", "");
                     if (text.length() > 500) { Http.fail(out, "Texto grande demais (máx. 500)"); return; }
@@ -160,6 +174,34 @@ final class ApiV2 {
                     return;
                 }
                 case "/beep": host.beep(); Http.ok(out, "A TV está tocando um som"); return;
+                case "/storage/cache": {
+                    long freed = host.clearOwnCache();
+                    Http.json(out, 200, new JSONObject().put("ok", true).put("freed", freed).put("message", "Cache do TV Drop limpo"));
+                    return;
+                }
+                case "/storage/delete": {
+                    JSONArray names = body.optJSONArray("files");
+                    if (names == null || names.length() == 0) { Http.fail(out, "Nenhum arquivo escolhido"); return; }
+                    int deleted = 0;
+                    long freed = 0;
+                    for (int i = 0; i < names.length() && i < 500; i++) {
+                        java.io.File f = server.existing(names.optString(i));
+                        if (f == null) continue;
+                        long len = f.length();
+                        if (f.delete()) { deleted++; freed += len; }
+                    }
+                    Events.add("Armazenamento: " + deleted + " arquivo(s) apagado(s)");
+                    Http.json(out, 200, new JSONObject().put("ok", true).put("deleted", deleted).put("freed", freed)
+                            .put("message", deleted + " arquivo(s) apagado(s)"));
+                    return;
+                }
+                case "/apps/settings": {
+                    String pkg = body.optString("pkg");
+                    if (!pkg.matches("[A-Za-z0-9_.]+")) { Http.fail(out, "Pacote inválido"); return; }
+                    if (host.openAppSettings(pkg)) Http.ok(out, "Ajustes do app abertos na TV");
+                    else Http.error(out, 409, "unavailable", "A TV não abriu os ajustes do app");
+                    return;
+                }
                 case "/mirror/stop":
                     if (host.mirrorStop()) Http.ok(out, "Espelhamento encerrado");
                     else Http.error(out, 409, "not_mirroring", "Nenhum espelhamento ativo");
@@ -366,6 +408,36 @@ final class ApiV2 {
                 .put("mirror", new JSONObject().put("active", host.mirrorActive()).put("port", MirrorProtocol.PORT));
     }
 
+    // ---- storage ----
+
+    /** Disks, received files by type, the largest ones, and TV Drop's own cache. */
+    JSONObject storage() throws JSONException {
+        JSONObject byKind = new JSONObject();
+        long total = 0;
+        int count = 0;
+        java.util.List<java.io.File> files = new java.util.ArrayList<>();
+        java.io.File[] list = host.inbox().listFiles();
+        if (list != null) for (java.io.File f : list) if (f.isFile()) files.add(f);
+        for (java.io.File f : files) {
+            String k = HttpServer.kind(f.getName());
+            JSONObject e = byKind.optJSONObject(k);
+            if (e == null) { e = new JSONObject().put("bytes", 0L).put("count", 0); byKind.put(k, e); }
+            e.put("bytes", e.getLong("bytes") + f.length()).put("count", e.getInt("count") + 1);
+            total += f.length();
+            count++;
+        }
+        files.sort((a, b) -> Long.compare(b.length(), a.length()));
+        JSONArray largest = new JSONArray();
+        for (int i = 0; i < Math.min(15, files.size()); i++) {
+            java.io.File f = files.get(i);
+            largest.put(new JSONObject().put("name", f.getName()).put("size", f.length())
+                    .put("kind", HttpServer.kind(f.getName())).put("modified", f.lastModified()));
+        }
+        return new JSONObject().put("ok", true)
+                .put("volumes", host.storageVolumes())
+                .put("inbox", new JSONObject().put("bytes", total).put("count", count).put("byKind", byKind).put("largest", largest));
+    }
+
     // ---- apps ----
 
     private JSONObject apps() throws JSONException {
@@ -460,15 +532,20 @@ final class ApiV2 {
         if (!Http.WebSocket.isUpgrade(r)) { Http.fail(r.out, "Esperava uma conexão WebSocket"); return; }
         s.setSoTimeout(0);
         Http.WebSocket ws = Http.WebSocket.accept(r);
-        String msg;
-        while ((msg = ws.receive()) != null) {
-            String reply = handleWs(msg);
-            if (reply != null) ws.sendText(reply);
+        String owner = "ws:" + System.identityHashCode(ws) + ":" + System.nanoTime();
+        try {
+            String msg;
+            while ((msg = ws.receive()) != null) {
+                String reply = handleWs(msg, owner);
+                if (reply != null) ws.sendText(reply);
+            }
+        } finally {
+            server.repeater.stopAll(owner); // never leave a key held when the phone goes away
         }
     }
 
     /** Handles one WebSocket message; returns the reply, or null when none is due (pointer moves). */
-    String handleWs(String msg) {
+    String handleWs(String msg, String owner) {
         try {
             JSONObject m = new JSONObject(msg);
             String t = m.optString("t");
@@ -476,6 +553,13 @@ final class ApiV2 {
             String err;
             switch (t) {
                 case "key": err = host.remote().key(m.optString("k")); break;
+                case "hold": {
+                    String k = m.optString("k");
+                    if (Keys.get(k) == null) { err = "Tecla desconhecida: " + k; break; }
+                    if (m.optBoolean("on", true)) err = server.repeater.start(owner, k);
+                    else { server.repeater.stop(owner, k); err = null; }
+                    break;
+                }
                 case "text": err = host.remote().text(m.optString("text"), m.optBoolean("replace"), m.optBoolean("submit")); break;
                 case "move": case "tap": case "longpress": case "scroll": case "hide":
                     err = host.remote().pointer(t, (float) m.optDouble("dx", 0), (float) m.optDouble("dy", 0));
