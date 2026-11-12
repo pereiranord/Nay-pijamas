@@ -38,6 +38,13 @@ jobs:
           VERSION_NAME: 2.1.${{ github.run_number }}
         run: ./tv-drop/build.sh
 
+      - name: Show failed tests
+        if: failure()
+        run: |
+          grep -l "<failure\|<error" tv-drop/build/test-results/testReleaseUnitTest/*.xml 2>/dev/null | while read f; do
+            echo "== $f"; grep -A8 "<failure\|<error" "$f" | head -40
+          done
+
       - uses: actions/upload-artifact@v4
         with:
           name: TV-Drop

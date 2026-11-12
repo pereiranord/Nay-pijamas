@@ -154,7 +154,9 @@ public class AtvRemoteTest {
         r.sendKey(3);
         assertEquals(3, tv.received.poll(5, TimeUnit.SECONDS).msg(10).num(1, 0));
         tv.dropSessions();
-        Thread.sleep(300);
+        // wait until the client has noticed the drop (slow CI machines take longer)
+        for (int i = 0; i < 100 && r.isConnected(); i++) Thread.sleep(50);
+        assertFalse("the client should notice the TV closed the connection", r.isConnected());
         r.sendKey(4);
         assertEquals(4, tv.received.poll(5, TimeUnit.SECONDS).msg(10).num(1, 0));
     }
