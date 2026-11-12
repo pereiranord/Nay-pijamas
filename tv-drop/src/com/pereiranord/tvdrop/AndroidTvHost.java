@@ -72,7 +72,8 @@ final class AndroidTvHost implements TvHost {
     // ---- files and player ----
 
     @Override public File inbox() { return Actions.inbox(ctx); }
-    @Override public void play(String src) { Actions.play(ctx, src, 0); }
+    /** -1 = continue from where it stopped (when known), 0 = from the start, >0 = that position. */
+    @Override public void play(String src) { Actions.play(ctx, src, -1); }
     @Override public void play(String src, long startMs) { Actions.play(ctx, src, startMs); }
     @Override public JSONObject playerTracks() { return PlayerActivity.tracks(); }
     @Override public boolean playerSelectTrack(String type, int group, int track) { return PlayerActivity.selectTrack(type, group, track); }
@@ -280,6 +281,207 @@ final class AndroidTvHost implements TvHost {
             return true;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    // ---- media extras ----
+
+    @Override
+    public byte[] thumbnail(String path) {
+        try {
+            Bitmap bmp;
+            if ("image".equals(HttpServer.kind(path))) {
+                android.graphics.BitmapFactory.Options o = new android.graphics.BitmapFactory.Options();
+                o.inJustDecodeBounds = true;
+                android.graphics.BitmapFactory.decodeFile(path, o);
+                int sample = 1;
+                while (o.outWidth / (sample * 2) >= 320) sample *= 2;
+                o = new android.graphics.BitmapFactory.Options();
+                o.inSampleSize = sample;
+                bmp = android.graphics.BitmapFactory.decodeFile(path, o);
+            } else {
+                android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+                try {
+                    if (path.startsWith("/")) r.setDataSource(path);
+                    else r.setDataSource(path, new java.util.HashMap<>());
+                    long dur = parseLong(r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION));
+                    long at = dur > 0 ? Math.min(dur / 10, 60_000) * 1000 : 5_000_000;
+                    bmp = Build.VERSION.SDK_INT >= 27
+                            ? r.getScaledFrameAtTime(at, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 180)
+                            : r.getFrameAtTime(at);
+                } finally {
+                    r.release();
+                }
+            }
+            if (bmp == null) return null;
+            if (bmp.getWidth() > 320) bmp = Bitmap.createScaledBitmap(bmp, 320, Math.max(1, Math.round(bmp.getHeight() * 320f / bmp.getWidth())), true);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            bmp.compress(Bitmap.CompressFormat.JPEG, 78, out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public long mediaDuration(String path) {
+        android.media.MediaMetadataRetriever r = new android.media.MediaMetadataRetriever();
+        try {
+            if (path.startsWith("/")) r.setDataSource(path);
+            else r.setDataSource(path, new java.util.HashMap<>());
+            long d = parseLong(r.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION));
+            return d > 0 ? d : -1;
+        } catch (Exception e) {
+            return -1;
+        } finally {
+            try { r.release(); } catch (Exception ignored) {}
+        }
+    }
+
+    private static long parseLong(String s) {
+        try { return s == null ? -1 : Long.parseLong(s); } catch (NumberFormatException e) { return -1; }
+    }
+
+    /** The media session of another app (needs notification access for TV Drop). */
+    private android.media.session.MediaController activeSession() {
+        android.media.session.MediaSessionManager msm = ctx.getSystemService(android.media.session.MediaSessionManager.class);
+        java.util.List<android.media.session.MediaController> list =
+                msm.getActiveSessions(new android.content.ComponentName(ctx, MediaListener.class));
+        android.media.session.MediaController best = null;
+        for (android.media.session.MediaController c : list) {
+            if (c.getPackageName().equals(ctx.getPackageName())) continue;
+            android.media.session.PlaybackState st = c.getPlaybackState();
+            if (st != null && st.getState() == android.media.session.PlaybackState.STATE_PLAYING) return c;
+            if (best == null) best = c;
+        }
+        return best;
+    }
+
+    @Override
+    public JSONObject externalMedia() {
+        JSONObject o = new JSONObject();
+        try {
+            android.media.session.MediaController c;
+            try {
+                c = activeSession();
+            } catch (SecurityException se) {
+                return o.put("available", false).put("reason", "permission")
+                        .put("enableCommand", "adb shell cmd notification allow_listener " + ctx.getPackageName() + "/" + MediaListener.class.getName());
+            }
+            if (c == null) return o.put("available", false).put("reason", "idle");
+            android.media.MediaMetadata md = c.getMetadata();
+            android.media.session.PlaybackState st = c.getPlaybackState();
+            String title = md == null ? null : md.getString(android.media.MediaMetadata.METADATA_KEY_TITLE);
+            if (title == null && md != null) title = md.getString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_TITLE);
+            String artist = md == null ? null : md.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST);
+            if (artist == null && md != null) artist = md.getString(android.media.MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE);
+            long duration = md == null ? -1 : md.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION);
+            boolean playing = st != null && st.getState() == android.media.session.PlaybackState.STATE_PLAYING;
+            long pos = st == null ? -1 : st.getPosition();
+            if (playing && st.getLastPositionUpdateTime() > 0) {
+                pos += (long) ((android.os.SystemClock.elapsedRealtime() - st.getLastPositionUpdateTime()) * st.getPlaybackSpeed());
+            }
+            String label = c.getPackageName();
+            try {
+                label = ctx.getPackageManager().getApplicationLabel(ctx.getPackageManager().getApplicationInfo(c.getPackageName(), 0)).toString();
+            } catch (Exception ignored) {
+            }
+            boolean art = md != null && (md.getBitmap(android.media.MediaMetadata.METADATA_KEY_ART) != null
+                    || md.getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART) != null);
+            return o.put("available", true).put("app", c.getPackageName()).put("appLabel", label)
+                    .put("title", title == null ? JSONObject.NULL : title).put("artist", artist == null ? JSONObject.NULL : artist)
+                    .put("playing", playing).put("position", Math.max(-1, pos)).put("duration", duration).put("art", art);
+        } catch (Exception e) {
+            try { return o.put("available", false).put("reason", "error"); } catch (Exception ignored) { return o; }
+        }
+    }
+
+    @Override
+    public byte[] externalArt() {
+        try {
+            android.media.session.MediaController c = activeSession();
+            if (c == null || c.getMetadata() == null) return null;
+            Bitmap b = c.getMetadata().getBitmap(android.media.MediaMetadata.METADATA_KEY_ART);
+            if (b == null) b = c.getMetadata().getBitmap(android.media.MediaMetadata.METADATA_KEY_ALBUM_ART);
+            if (b == null) return null;
+            if (b.getWidth() > 480) b = Bitmap.createScaledBitmap(b, 480, Math.max(1, Math.round(b.getHeight() * 480f / b.getWidth())), true);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            b.compress(Bitmap.CompressFormat.PNG, 100, out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public boolean externalControl(String action, long ms) {
+        try {
+            android.media.session.MediaController c = activeSession();
+            if (c == null) return false;
+            android.media.session.MediaController.TransportControls t = c.getTransportControls();
+            android.media.session.PlaybackState st = c.getPlaybackState();
+            boolean playing = st != null && st.getState() == android.media.session.PlaybackState.STATE_PLAYING;
+            switch (action) {
+                case "play": t.play(); break;
+                case "pause": t.pause(); break;
+                case "toggle": if (playing) t.pause(); else t.play(); break;
+                case "next": t.skipToNext(); break;
+                case "prev": t.skipToPrevious(); break;
+                case "seek": t.seekTo(Math.max(0, ms)); break;
+                default: return false;
+            }
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public byte[] screenshot() {
+        TvDropAccessibility acc = TvDropAccessibility.get();
+        return acc == null || Build.VERSION.SDK_INT < 30 ? null : acc.screenshotJpeg();
+    }
+
+    @Override
+    public String slideshow(List<String> paths, int seconds, String musicPath) {
+        try {
+            Intent i = new Intent(ctx, SlideshowActivity.class)
+                    .putStringArrayListExtra(SlideshowActivity.EXTRA_PATHS, new ArrayList<>(paths))
+                    .putExtra(SlideshowActivity.EXTRA_SECONDS, seconds)
+                    .putExtra(SlideshowActivity.EXTRA_MUSIC, musicPath)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            ctx.startActivity(i);
+            return null;
+        } catch (Exception e) {
+            return "A TV não abriu o slideshow: " + e.getMessage();
+        }
+    }
+
+    @Override public boolean slideshowStop() { return SlideshowActivity.stop(); }
+
+    @Override
+    public String present(String path) {
+        try {
+            ctx.startActivity(new Intent(ctx, PresentActivity.class).putExtra(PresentActivity.EXTRA_PATH, path)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+            for (int i = 0; i < 30 && PresentActivity.state() == null; i++) Thread.sleep(100);
+            return PresentActivity.state() == null ? "A TV não abriu o PDF (deixe o TV Drop aberto ou libere \"Sobrepor a outros apps\")." : null;
+        } catch (Exception e) {
+            return "A TV não abriu o PDF: " + e.getMessage();
+        }
+    }
+
+    @Override public JSONObject presentControl(String action, int page) { return PresentActivity.control(action, page); }
+    @Override public JSONObject presentState() { return PresentActivity.state(); }
+    @Override public byte[] presentPage(int page) { return PresentActivity.pageJpeg(page); }
+    @Override public boolean playerSubtitle(String path) { return PlayerActivity.addSubtitle(path); }
+
+    @Override
+    public long freeSpace() {
+        try {
+            return new android.os.StatFs(inbox().getPath()).getAvailableBytes();
+        } catch (Exception e) {
+            return -1;
         }
     }
 

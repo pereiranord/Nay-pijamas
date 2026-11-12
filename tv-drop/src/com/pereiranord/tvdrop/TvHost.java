@@ -70,6 +70,33 @@ public interface TvHost {
     /** Opens the app's system settings page on the TV (where its cache/data can be cleared). */
     boolean openAppSettings(String pkg);
 
+    // ---- media extras (TV Drop 2.5) ----
+    /** JPEG thumbnail of a video/image (local path or URL), or null. */
+    byte[] thumbnail(String path);
+    /** Duration in ms, or -1 when unknown. */
+    long mediaDuration(String path);
+    /** What another app is playing (Netflix, YouTube...): {"app","title","artist","playing","position","duration"}; {"available":false,"reason"} when unknown. */
+    JSONObject externalMedia();
+    byte[] externalArt();
+    /** play | pause | toggle | next | prev | seek (ms) on the other app's media session. */
+    boolean externalControl(String action, long ms);
+    /** JPEG of the TV screen (Android 11+ with the accessibility service), or null. */
+    byte[] screenshot();
+    /** Photo slideshow on the TV; returns null on success or the reason it failed. */
+    String slideshow(List<String> paths, int seconds, String musicPath);
+    boolean slideshowStop();
+    /** PDF presentation on the TV; returns null on success or the reason. */
+    String present(String path);
+    /** next | prev | goto(page) | stop; returns the state {"file","page","pages"} or null when none. */
+    JSONObject presentControl(String action, int page);
+    JSONObject presentState();
+    /** One page as JPEG (for the phone's preview). */
+    byte[] presentPage(int page);
+    /** Loads an external .srt/.vtt into the TV Drop player. */
+    boolean playerSubtitle(String path);
+    /** Free bytes where received files are stored (-1 when unknown). */
+    long freeSpace();
+
     /** Plays a short sound so the TV can be found. */
     void beep();
 

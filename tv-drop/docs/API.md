@@ -56,6 +56,16 @@ O 2.0 trouxe dois acréscimos compatíveis: o campo `modified` em `files` e o ti
 | `GET /api/v2/player/tracks` · `POST /api/v2/player/track` · `/speed` | `{type: audio\|text, group, track}` (`track:-1` desliga a legenda) · `{speed}` (0,25–3) | só para o player do TV Drop |
 | `GET /api/v2/timer` · `POST /api/v2/timer` · `/timer/cancel` | `{minutes, action: pause\|mute\|stop\|power}` | roda na TV; `power` sem o controle pareado vira `stop` |
 | `POST /api/v2/mirror/stop` | — | encerra o espelhamento |
+| `POST /api/v2/queue/shuffle` | — | embaralha o que vem depois do item atual |
+| `GET /api/v2/thumb?src=` | `src`: `inbox:<arquivo>` ou URL | JPEG ~320 px (aceita `?token=`); 404 sem miniatura |
+| `GET /api/v2/media/info?src=` | — | `{duration}` em ms (`-1` se desconhecida) |
+| `GET /api/v2/media/now` · `GET /api/v2/media/art` · `POST /api/v2/media/control` | `{action: play\|pause\|toggle\|next\|prev\|seek, ms?}` | mídia de outros apps; sem acesso às notificações: `{available:false, reason:"permission", enableCommand}` |
+| `GET /api/v2/screenshot` | — | JPEG da tela (aceita `?token=`); 409 sem acessibilidade ou Android < 11 |
+| `POST /api/v2/slideshow` · `/slideshow/stop` | `{files:[..], seconds (2–60), music?}` | só fotos/músicas recebidas |
+| `GET /api/v2/present` · `POST /api/v2/present` · `/present/control` · `GET /api/v2/present/page?page=` | `{file}` · `{action: next\|prev\|goto\|stop, page?}` | PDF recebido; estado `{file, page, pages, active}` |
+| `POST /api/v2/player/subtitle` | `{file}` | carrega um `.srt/.vtt/.ass` recebido no vídeo atual |
+| `POST /api/v2/subtitles/search` · `/subtitles/download` | `{query, key, lang?}` · `{fileId, key, name, attach?}` | OpenSubtitles com a chave do usuário; o `.srt` vai para os arquivos recebidos |
+| `POST /api/upload` (1.0) | — | agora responde **507** `no_space` quando o arquivo não cabe (deixa 100 MB livres) |
 | `GET /api/v2/ping` | — | latência |
 | `GET /api/v2/speed?bytes=` / `POST /api/v2/speed` | bytes | velocidade TV ↔ aparelho |
 

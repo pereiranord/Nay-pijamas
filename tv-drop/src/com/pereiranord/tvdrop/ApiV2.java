@@ -53,6 +53,13 @@ import java.util.Map;
  *   GET  /api/v2/storage              disks, received files by type, largest files, TV Drop cache
  *   GET  /api/v2/storage/apps         size of each app (needs usage access on the TV)
  *   POST /api/v2/storage/delete       {"files":[names]}   POST /api/v2/storage/cache   POST /api/v2/apps/settings {"pkg"}
+ *   GET  /api/v2/thumb?src=           JPEG thumbnail (accepts ?token=)    GET /api/v2/media/info?src= {duration}
+ *   GET  /api/v2/media/now            what another app is playing; GET /api/v2/media/art; POST /api/v2/media/control {action,ms}
+ *   GET  /api/v2/screenshot           JPEG of the TV screen (accepts ?token=)
+ *   POST /api/v2/slideshow            {"files":[..],"seconds","music"}  POST /api/v2/slideshow/stop
+ *   POST /api/v2/present {"file"}     GET /api/v2/present   POST /api/v2/present/control {action,page}   GET /api/v2/present/page?page=
+ *   POST /api/v2/player/subtitle {"file"}   POST /api/v2/subtitles/search {query,key,lang}   POST /api/v2/subtitles/download {fileId,key,name}
+ *   POST /api/v2/queue/shuffle
  *   POST /api/v2/mirror/stop          ends screen mirroring (stream itself: TCP 8100, see MirrorProtocol)
  *   GET  /api/v2/ws?token=            WebSocket: {"t":"key","k":..} {"t":"move","dx","dy"} {"t":"tap"} {"t":"scroll","dy"} ...
  */
@@ -92,6 +99,36 @@ final class ApiV2 {
             }
             if (get && "/speed".equals(p)) { speedDown(r); return; }
             if (get && "/storage".equals(p)) { Http.json(out, 200, storage()); return; }
+            if (get && "/thumb".equals(p)) { thumb(r); return; }
+            if (get && "/media/info".equals(p)) {
+                String path = resolve(validSrcOrNull(r.query.get("src")));
+                long d = path == null ? -1 : durations.computeIfAbsent(path, host::mediaDuration);
+                Http.json(out, 200, new JSONObject().put("ok", true).put("duration", d));
+                return;
+            }
+            if (get && "/media/now".equals(p)) {
+                JSONObject m = host.externalMedia();
+                Http.json(out, 200, (m == null ? new JSONObject().put("available", false) : m).put("ok", true));
+                return;
+            }
+            if (get && "/media/art".equals(p)) { image(out, host.externalArt(), "image/png", "Sem capa"); return; }
+            if (get && "/screenshot".equals(p)) {
+                byte[] img = host.screenshot();
+                if (img == null) Http.error(out, 409, "unavailable", "Captura indisponível: precisa da acessibilidade do TV Drop ativada e Android 11 ou mais novo. Conteúdo protegido (Netflix etc.) aparece preto.");
+                else Http.send(out, 200, "image/jpeg", img);
+                return;
+            }
+            if (get && "/present".equals(p)) {
+                JSONObject st = host.presentState();
+                Http.json(out, 200, (st == null ? new JSONObject().put("active", false) : st.put("active", true)).put("ok", true));
+                return;
+            }
+            if (get && "/present/page".equals(p)) {
+                int pg;
+                try { pg = Integer.parseInt(r.query.getOrDefault("page", "0")); } catch (NumberFormatException e) { pg = 0; }
+                image(out, host.presentPage(pg), "image/jpeg", "Nenhuma apresentação aberta");
+                return;
+            }
             if (get && "/storage/apps".equals(p)) { Http.json(out, 200, host.appSizes().put("ok", true)); return; }
             if (get && "/queue".equals(p)) { Http.json(out, 200, server.library.queueJson().put("ok", true)); return; }
             if (get && "/playlists".equals(p)) { Http.json(out, 200, server.library.playlistsJson().put("ok", true)); return; }
@@ -107,6 +144,11 @@ final class ApiV2 {
             if (!post) { Http.error(out, 404, "not_found", "Rota não encontrada"); return; }
 
             JSONObject body = r.json();
+            if (p.startsWith("/media/") || p.startsWith("/slideshow") || p.startsWith("/present") || p.startsWith("/subtitles/")
+                    || "/player/subtitle".equals(p)) {
+                mediaRoute(out, p, body);
+                return;
+            }
             if (p.startsWith("/queue/") || p.startsWith("/playlists/") || p.startsWith("/history/")
                     || p.startsWith("/player/") || p.startsWith("/timer")) {
                 library(out, p, body);
@@ -231,6 +273,7 @@ final class ApiV2 {
                 case "/queue/remove": queueResult(out, lib.remove(b.optInt("index", -1)), "Removido da fila"); return;
                 case "/queue/move": queueResult(out, lib.move(b.optInt("from", -1), b.optInt("to", -1)), "Fila reorganizada"); return;
                 case "/queue/clear": lib.clear(); queueResult(out, true, "Fila limpa"); return;
+                case "/queue/shuffle": lib.shuffle(new java.util.Random()); queueResult(out, true, "Fila embaralhada"); return;
                 case "/queue/repeat": lib.setRepeat(b.optString("mode", "off")); queueResult(out, true, "Repetição alterada"); return;
                 case "/queue/play": queuePlay(out, lib.play(b.optInt("index", -1))); return;
                 case "/queue/next": queuePlay(out, lib.next(false)); return;
@@ -308,6 +351,118 @@ final class ApiV2 {
         host.play(path);
         return true;
     }
+
+    // ---- media extras ----
+
+    private final java.util.Map<String, Long> durations = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, byte[]> thumbs = java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<String, byte[]>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<String, byte[]> e) {
+            return size() > 80;
+        }
+    });
+
+    private String validSrcOrNull(String s) {
+        return s == null ? null : validSrc(s);
+    }
+
+    private void thumb(Http.Request r) throws IOException {
+        String src = validSrcOrNull(r.query.get("src"));
+        String path = src == null ? null : resolve(src);
+        if (path == null) { Http.fail(r.out, "Item inválido"); return; }
+        byte[] img = thumbs.get(path);
+        if (img == null) {
+            img = host.thumbnail(path);
+            if (img != null) thumbs.put(path, img);
+        }
+        image(r.out, img, "image/jpeg", "Sem miniatura");
+    }
+
+    private static void image(OutputStream out, byte[] img, String type, String missing) throws IOException {
+        if (img == null) Http.error(out, 404, "not_found", missing);
+        else Http.send(out, 200, type, img, "Cache-Control: private, max-age=600\r\n");
+    }
+
+    private java.io.File inboxFile(String name) {
+        return name == null ? null : server.existing(name);
+    }
+
+    private void mediaRoute(OutputStream out, String p, JSONObject b) throws IOException, JSONException {
+        switch (p) {
+            case "/media/control": {
+                String a = b.optString("action");
+                if (!a.matches("play|pause|toggle|next|prev|seek")) { Http.fail(out, "Ação inválida"); return; }
+                done(out, host.externalControl(a, b.optLong("ms")) ? null : "Nenhum app está tocando mídia agora (ou o acesso às notificações está desligado).", "OK");
+                return;
+            }
+            case "/slideshow": {
+                JSONArray names = b.optJSONArray("files");
+                java.util.List<String> paths = new java.util.ArrayList<>();
+                if (names != null) for (int i = 0; i < names.length(); i++) {
+                    java.io.File f = inboxFile(names.optString(i));
+                    if (f != null && "image".equals(HttpServer.kind(f.getName()))) paths.add(f.getAbsolutePath());
+                }
+                if (paths.isEmpty()) { Http.fail(out, "Escolha pelo menos uma foto recebida"); return; }
+                int secs = Math.max(2, Math.min(60, b.optInt("seconds", 6)));
+                java.io.File music = inboxFile(b.optString("music", null));
+                String music_ = music != null && "audio".equals(HttpServer.kind(music.getName())) ? music.getAbsolutePath() : null;
+                done(out, host.slideshow(paths, secs, music_), "Slideshow com " + paths.size() + " foto(s) na TV");
+                return;
+            }
+            case "/slideshow/stop": done(out, host.slideshowStop() ? null : "Nenhum slideshow aberto", "Slideshow encerrado"); return;
+            case "/present": {
+                java.io.File f = inboxFile(b.optString("file"));
+                if (f == null || !f.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) { Http.fail(out, "Escolha um PDF recebido"); return; }
+                String err = host.present(f.getAbsolutePath());
+                if (err != null) { Http.error(out, 409, "unavailable", err); return; }
+                JSONObject st = host.presentState();
+                Http.json(out, 200, (st == null ? new JSONObject() : st).put("ok", true).put("active", true).put("message", "Apresentação aberta na TV"));
+                return;
+            }
+            case "/present/control": {
+                String a = b.optString("action");
+                if (!a.matches("next|prev|goto|stop")) { Http.fail(out, "Ação inválida"); return; }
+                JSONObject st = host.presentControl(a, b.optInt("page", 0));
+                if (st == null && !"stop".equals(a)) { Http.error(out, 409, "unavailable", "Nenhuma apresentação aberta"); return; }
+                Http.json(out, 200, (st == null ? new JSONObject().put("active", false) : st.put("active", true)).put("ok", true));
+                return;
+            }
+            case "/player/subtitle": {
+                java.io.File f = inboxFile(b.optString("file"));
+                if (f == null || !f.getName().toLowerCase(java.util.Locale.ROOT).matches(".*\\.(srt|vtt|ass|ssa)$")) { Http.fail(out, "Escolha um arquivo de legenda (.srt ou .vtt)"); return; }
+                done(out, host.playerSubtitle(f.getAbsolutePath()) ? null : "Nada tocando no TV Drop agora.", "Legenda carregada");
+                return;
+            }
+            case "/subtitles/search": {
+                String q = b.optString("query").trim();
+                if (q.isEmpty()) { Http.fail(out, "Digite o nome do filme ou série"); return; }
+                try {
+                    JSONArray res = new Subtitles(subtitlesBase, b.optString("key")).search(q, b.optString("lang", "pt-br,pt"));
+                    Http.json(out, 200, new JSONObject().put("ok", true).put("results", res));
+                } catch (IOException e) {
+                    Http.error(out, 409, "unavailable", e.getMessage());
+                }
+                return;
+            }
+            case "/subtitles/download": {
+                try {
+                    String base = b.optString("name", "legenda").replaceAll("\\.(srt|vtt)$", "");
+                    java.io.File f = new Subtitles(subtitlesBase, b.optString("key")).download(b.optLong("fileId"), host.inbox(), base);
+                    boolean attached = b.optBoolean("attach", true) && host.playerSubtitle(f.getAbsolutePath());
+                    Events.add("Legenda baixada: " + f.getName());
+                    Http.json(out, 200, new JSONObject().put("ok", true).put("file", f.getName()).put("attached", attached)
+                            .put("message", attached ? "Legenda baixada e carregada no player" : "Legenda baixada (em Arquivos recebidos)"));
+                } catch (IOException e) {
+                    Http.error(out, 409, "unavailable", e.getMessage());
+                }
+                return;
+            }
+            default: Http.error(out, 404, "not_found", "Rota não encontrada");
+        }
+    }
+
+    /** Tests point the subtitles client at a fake server. */
+    String subtitlesBase = Subtitles.DEFAULT_BASE;
 
     /** Accepts http(s)/rtsp URLs and "inbox:<received file>". */
     String validSrc(String src) {
@@ -405,7 +560,19 @@ final class ApiV2 {
                 .put("files", new JSONObject().put("upload", true).put("install", host.canInstall()))
                 .put("autoOpen", host.canOverlay())
                 .put("beep", true)
-                .put("mirror", new JSONObject().put("active", host.mirrorActive()).put("port", MirrorProtocol.PORT));
+                .put("mirror", new JSONObject().put("active", host.mirrorActive()).put("port", MirrorProtocol.PORT))
+                .put("storage", storageHealth())
+                .put("screenshot", host.sdk() >= 30 && c.optJSONObject("accessibility") != null && c.optJSONObject("accessibility").optBoolean("enabled"));
+    }
+
+    /** Low-space warning: below 1 GB or 5% free on the internal storage. */
+    JSONObject storageHealth() throws JSONException {
+        long free = host.freeSpace();
+        long total = 0;
+        JSONArray vols = host.storageVolumes();
+        if (vols.length() > 0) total = vols.getJSONObject(0).optLong("total");
+        boolean low = free >= 0 && (free < (1L << 30) || (total > 0 && free < total / 20));
+        return new JSONObject().put("free", free).put("total", total).put("low", low);
     }
 
     // ---- storage ----

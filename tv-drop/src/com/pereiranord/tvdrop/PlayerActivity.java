@@ -252,16 +252,86 @@ public class PlayerActivity extends Activity {
         pos = 0;
         dur = 0;
         audio = "";
-        Library lib = ServerService.library(this);
+        final Library lib = ServerService.library(this);
         String title = lib.titleFor(historyKey(src));
         lib.recordStart(historyKey(src), title);
         label.setText("Carregando " + title + "...");
         Uri uri = src.startsWith("/") ? Uri.fromFile(new File(src)) : Uri.parse(src);
-        player.setMediaItem(MediaItem.fromUri(uri));
-        long start = intent.getLongExtra(EXTRA_START, 0);
+        subtitles.clear();
+        File sibling = siblingSubtitle(src);
+        if (sibling != null) subtitles.add(sibling.getAbsolutePath());
+        player.setMediaItem(mediaItem(uri));
+        long start = intent.getLongExtra(EXTRA_START, -1);
+        if (start < 0) {
+            // opening something started before: continue where it stopped
+            start = lib.resumePosition(historyKey(src));
+            if (start > 0) {
+                final long from = start;
+                label.postDelayed(() -> label.setText("Continuando de " + fmt(from) + " · ◀ volta 10 s"), 600);
+                label.postDelayed(() -> label.setText(""), 5000);
+            }
+        }
         if (start > 0) player.seekTo(start);
         player.prepare();
         player.setPlayWhenReady(true);
+    }
+
+    private final java.util.List<String> subtitles = new java.util.ArrayList<>();
+
+    private static String fmt(long ms) {
+        long s = ms / 1000;
+        return s >= 3600 ? String.format(java.util.Locale.ROOT, "%d:%02d:%02d", s / 3600, s / 60 % 60, s % 60)
+                : String.format(java.util.Locale.ROOT, "%d:%02d", s / 60, s % 60);
+    }
+
+    /** "Filme.mkv" plays with "Filme.srt" / "Filme.pt.srt" / "Filme.vtt" from the same folder. */
+    private static File siblingSubtitle(String src) {
+        if (!src.startsWith("/")) return null;
+        File f = new File(src);
+        String name = f.getName();
+        int dot = name.lastIndexOf('.');
+        String base = dot > 0 ? name.substring(0, dot) : name;
+        File dir = f.getParentFile();
+        if (dir == null) return null;
+        for (String suffix : new String[]{".srt", ".pt.srt", ".pt-BR.srt", ".vtt", ".pt.vtt"}) {
+            File s = new File(dir, base + suffix);
+            if (s.isFile()) return s;
+        }
+        return null;
+    }
+
+    private MediaItem mediaItem(Uri uri) {
+        MediaItem.Builder b = new MediaItem.Builder().setUri(uri);
+        java.util.List<MediaItem.SubtitleConfiguration> subs = new java.util.ArrayList<>();
+        for (String s : subtitles) {
+            String lower = s.toLowerCase(java.util.Locale.ROOT);
+            String mime = lower.endsWith(".vtt") ? androidx.media3.common.MimeTypes.TEXT_VTT
+                    : lower.endsWith(".ass") || lower.endsWith(".ssa") ? androidx.media3.common.MimeTypes.TEXT_SSA
+                    : androidx.media3.common.MimeTypes.APPLICATION_SUBRIP;
+            subs.add(new MediaItem.SubtitleConfiguration.Builder(Uri.fromFile(new File(s)))
+                    .setMimeType(mime).setLanguage("pt").setLabel(new File(s).getName())
+                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT).build());
+        }
+        return b.setSubtitleConfigurations(subs).build();
+    }
+
+    /** Loads an external subtitle file into what's playing, keeping the position. */
+    public static boolean addSubtitle(String path) {
+        final PlayerActivity p = current;
+        if (p == null || playing == null) return false;
+        p.runOnUiThread(() -> {
+            long at = p.player.getCurrentPosition();
+            if (!p.subtitles.contains(path)) p.subtitles.add(0, path);
+            String src = playing;
+            Uri uri = src.startsWith("/") ? Uri.fromFile(new File(src)) : Uri.parse(src);
+            p.player.setTrackSelectionParameters(p.player.getTrackSelectionParameters().buildUpon()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false).build());
+            p.player.setMediaItem(p.mediaItem(uri), at);
+            p.player.prepare();
+            p.player.play();
+            Events.add("Legenda: " + new File(path).getName());
+        });
+        return true;
     }
 
     /** History/queue key: received files are stored as "inbox:<name>" so they survive path changes. */

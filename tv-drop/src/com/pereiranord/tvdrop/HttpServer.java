@@ -40,7 +40,7 @@ public class HttpServer extends Thread {
 
     private final TvHost host;
     private final Pairing pairing;
-    private final ApiV2 v2;
+    final ApiV2 v2; // package-private for tests
     final Library library;
     final SleepTimer timer;
     final KeyRepeater repeater;
@@ -219,6 +219,12 @@ public class HttpServer extends Thread {
             case "/api/upload": {
                 String name = uniqueName(safeName(r.query.get("name")), r.query.containsKey("replace"));
                 if (name == null) { Http.fail(out, "Nome de arquivo inválido"); return; }
+                long free = host.freeSpace();
+                if (free >= 0 && r.length > free - (100L << 20)) {
+                    Http.error(out, 507, "no_space", "Espaço insuficiente na TV: o arquivo tem " + mb(r.length) + " e há " + mb(Math.max(0, free)) + " livres. Libere espaço em Dispositivos → Armazenamento.");
+                    Events.add("Envio recusado por falta de espaço: " + name);
+                    return;
+                }
                 File f = new File(host.inbox(), name);
                 Events.add("Recebendo: " + name + " (" + mb(r.length) + ")");
                 long got = copy(r.in, f, r.length);
@@ -336,6 +342,7 @@ public class HttpServer extends Thread {
         String n = name.toLowerCase(Locale.ROOT);
         if (n.matches(".*\\.(jpe?g|png|gif|webp|heic|bmp)$")) return "image";
         if (n.matches(".*\\.(pdf|docx?|xlsx?|pptx?|txt|odt|ods|odp|csv)$")) return "document";
+        if (n.matches(".*\\.(srt|vtt|ass|ssa)$")) return "subtitle";
         return "other";
     }
 

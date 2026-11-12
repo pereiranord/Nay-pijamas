@@ -182,6 +182,26 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .xfer .bar { height: 6px; border-radius: 6px; background: var(--key); overflow: hidden; margin-top: 6px; }
 .xfer .bar i { display: block; height: 100%; width: 0; background: var(--green); transition: width .15s; }
 .fileicon { width: 40px; height: 40px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; color: var(--muted); flex: none; }
+.fileicon.thumb { position: relative; overflow: hidden; width: 64px; }
+.fileicon.thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .2s; }
+.fileicon.thumb.has img { opacity: 1; }
+.slide-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin: 12px 0; max-height: 300px; overflow: auto; }
+.slide-pick { position: relative; aspect-ratio: 1; border-radius: 12px; overflow: hidden; background: var(--surface-2); cursor: pointer; }
+.slide-pick img { width: 100%; height: 100%; object-fit: cover; opacity: .45; transition: opacity .15s; }
+.slide-pick input { position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; z-index: 1; }
+.slide-pick input:checked + img { opacity: 1; }
+.ext { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+.ext .t { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ext .t b { overflow-wrap: anywhere; }
+.ext .t small { color: var(--muted); }
+.ext-art { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: var(--surface-2); display: grid; place-items: center; color: var(--muted); flex: none; }
+#extCard .bar, #presentCard .bar { height: 5px; border-radius: 5px; background: var(--key); overflow: hidden; }
+#extCard .bar i { display: block; height: 100%; background: var(--green); }
+.pdf-page, .peek { display: block; width: 100%; border-radius: 12px; background: #000; margin-top: 10px; min-height: 120px; object-fit: contain; }
+.big-next { flex: 2 !important; }
+.subs { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.modal { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, .7); display: grid; place-items: center; padding: 16px; }
+.modal-box { width: min(720px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--surface); border-radius: 22px; padding: 18px; }
 pre.log { margin: 0; white-space: pre-wrap; color: var(--muted); font-size: 12.5px; max-height: 220px; overflow: auto; }
 
 /* ---------- diagnostics ---------- */

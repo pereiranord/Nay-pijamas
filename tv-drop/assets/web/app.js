@@ -94,6 +94,9 @@ const ICONS = {
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
   library: '<path d="M4 4v16M8 4v16"/><path d="M12 4l4 16"/><path d="M17 4h3v16h-3z"/>',
   next: '<path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/>', prev: '<path d="M19 20L9 12l10-8z"/><path d="M5 19V5"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  shuffle: '<path d="M16 3h5v5"/><path d="M4 20L21 3"/><path d="M21 16v5h-5"/><path d="M15 15l6 6"/><path d="M4 4l5 5"/>',
+  slides: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4"/><path d="M8 20h8"/>',
   repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
   drag: '<path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01"/>',
   star: '<path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
@@ -349,7 +352,10 @@ function renderHome() {
       <button data-go="apps">${icon('grid')}Apps</button>
       <button id="findTv">${icon('bell')}Encontrar TV</button>
     </div>
+    ${spaceNotice()}
     <div class="card" id="npCard"></div>
+    <div class="card" id="extCard" hidden></div>
+    <div class="card" id="presentCard" hidden></div>
     <div class="card" id="continueCard" hidden></div>
     <div class="card" id="timerCard"></div>
     <div class="card"><h2>${esc(S.info ? S.info.name : 'TV')}</h2>
@@ -362,6 +368,122 @@ function renderHome() {
   updateNowPlaying();
   drawTimer();
   drawContinue();
+  drawExternal();
+  drawPresent();
+}
+
+/** Low space on the TV: warn before a big transfer fails. */
+function spaceNotice() {
+  const st = S.caps && S.caps.storage;
+  if (!st || !st.low) return '';
+  return `<div class="notice">${icon('info')}<div>Pouco espaço na TV: <b>${fmtSize(Math.max(0, st.free))}</b> livres. Arquivos grandes podem não caber. <button class="btn small" data-go="devices" style="margin-top:8px">Ver armazenamento</button></div></div>`;
+}
+
+/* ---------------------------------------------------------------- Other apps (Netflix, YouTube, Spotify…) */
+let extTick = 0;
+async function drawExternal() {
+  const box = $('#extCard');
+  if (!box) return;
+  clearTimeout(extTick);
+  let m;
+  try { m = await api('/api/v2/media/now', { timeout: 5000 }); } catch (e) { box.hidden = true; return; }
+  if (!$('#extCard')) return;
+  if (S.status && S.status.playing) { box.hidden = true; extTick = setTimeout(drawExternal, 8000); return; }
+  if (!m.available) {
+    box.hidden = m.reason !== 'permission';
+    if (m.reason === 'permission') box.innerHTML = `<h2>O que está tocando na TV</h2><p class="sub">Para ver e controlar o que toca no Netflix, YouTube, Spotify… libere uma vez pelo computador/Termux:</p><pre class="log" style="user-select:all">${esc(m.enableCommand || '')}</pre>`;
+    else extTick = setTimeout(drawExternal, 10000);
+    return;
+  }
+  box.hidden = false;
+  const art = m.art ? `<img class="ext-art" alt="" src="${u('/api/v2/media/art?token=') + encodeURIComponent(S.token) + '&t=' + encodeURIComponent(m.title || '')}">` : `<div class="ext-art">${icon('music')}</div>`;
+  box.innerHTML = `<h2>Tocando em ${esc(m.appLabel || m.app)}</h2>
+    <div class="ext">${art}<div class="t"><b>${esc(m.title || 'Sem título')}</b><small>${esc(m.artist || '')}</small>
+      ${m.duration > 0 ? `<small>${fmtTime(m.position)} de ${fmtTime(m.duration)}</small>` : ''}</div></div>
+    ${m.duration > 0 ? `<div class="bar"><i style="width:${Math.min(100, Math.round(100 * m.position / m.duration))}%"></i></div>` : ''}
+    <div class="transport">
+      <button class="key" data-ext="prev" aria-label="Anterior">${icon('prev')}</button>
+      <button class="key" data-ext="back" aria-label="Voltar 10 segundos">${icon('rew')}</button>
+      <button class="key" data-ext="toggle" aria-label="Pausar ou continuar">${icon(m.playing ? 'pause' : 'play')}</button>
+      <button class="key" data-ext="fwd" aria-label="Avançar 30 segundos">${icon('ff')}</button>
+      <button class="key" data-ext="next" aria-label="Próximo">${icon('next')}</button>
+    </div>`;
+  $$('[data-ext]', box).forEach((b) => b.onclick = () => {
+    buzz();
+    let action = b.dataset.ext, ms = 0;
+    if (action === 'back' || action === 'fwd') { if (!(m.position >= 0)) { toast('Este app não informa a posição', false); return; } ms = Math.max(0, m.position + (action === 'back' ? -10000 : 30000)); action = 'seek'; }
+    api('/api/v2/media/control', { method: 'POST', json: { action, ms } }).then(() => setTimeout(drawExternal, 600), (e) => toast(e.message, false));
+  });
+  extTick = setTimeout(drawExternal, m.playing ? 5000 : 10000);
+}
+
+/* ---------------------------------------------------------------- PDF presentation */
+async function present(file) {
+  try { const r = await api('/api/v2/present', { method: 'POST', json: { file }, timeout: 15000 }); toast(r.message); S.presentOpen = true; drawPresent(r); }
+  catch (e) { toast(e.message, false); }
+}
+async function drawPresent(st) {
+  const box = $('#presentCard');
+  if (!box) return;
+  if (!st) { try { st = await api('/api/v2/present'); } catch (e) { box.hidden = true; return; } }
+  if (!st.active) { box.hidden = true; return; }
+  box.hidden = false;
+  const page = (n) => u('/api/v2/present/page?page=' + n + '&token=') + encodeURIComponent(S.token);
+  box.innerHTML = `<div class="row"><h2 class="grow" style="margin:0">Apresentação</h2><span class="pill ok">${st.page + 1} / ${st.pages}</span></div>
+    <p class="sub" style="margin-top:6px;overflow-wrap:anywhere">${esc(st.file || '')}</p>
+    <img class="pdf-page" alt="Página ${st.page + 1}" src="${page(st.page)}">
+    ${st.page + 1 < st.pages ? `<p class="sub" style="margin:8px 0 0">A seguir: página ${st.page + 2}</p>` : ''}
+    <div class="transport">
+      <button class="key" data-pc="prev" aria-label="Página anterior" ${st.page ? '' : 'disabled'}>${icon('prev')}</button>
+      <button class="key big-next" data-pc="next" aria-label="Próxima página" ${st.page + 1 < st.pages ? '' : 'disabled'}>${icon('next')}</button>
+    </div>
+    <div class="row"><input class="field grow" id="pcGoto" type="number" min="1" max="${st.pages}" inputmode="numeric" placeholder="Ir para a página"><button class="btn" id="pcGo">Ir</button><button class="btn danger" data-pc="stop">Encerrar</button></div>`;
+  const ctl = (action, p) => { buzz(); api('/api/v2/present/control', { method: 'POST', json: { action, page: p } }).then(drawPresent, (e) => toast(e.message, false)); };
+  $$('[data-pc]', box).forEach((b) => b.onclick = () => ctl(b.dataset.pc));
+  $('#pcGo').onclick = () => { const n = +$('#pcGoto').value; if (n >= 1) ctl('goto', n - 1); };
+}
+
+/* ---------------------------------------------------------------- Peek at the TV screen */
+let peekTimer = 0;
+function openModal(title, html, onClose) {
+  closeModal();
+  const m = document.createElement('div');
+  m.className = 'modal';
+  m.id = 'modal';
+  m.innerHTML = `<div class="modal-box" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="row"><h2 class="grow" style="margin:0">${esc(title)}</h2><button class="btn small" id="modalX" aria-label="Fechar">${icon('x')}</button></div>${html}</div>`;
+  document.body.appendChild(m);
+  m.onclick = (e) => { if (e.target === m) closeModal(); };
+  $('#modalX').onclick = closeModal;
+  m._onClose = onClose;
+  return m;
+}
+function closeModal() {
+  const m = $('#modal');
+  if (!m) return;
+  if (m._onClose) m._onClose();
+  m.remove();
+}
+function peekScreen() {
+  if (S.caps && S.caps.screenshot === false) {
+    toast('Ver a tela precisa da acessibilidade do TV Drop ligada e Android 11+ na TV (Dispositivos → diagnóstico).', false);
+    return;
+  }
+  const m = openModal('Tela da TV', `<img class="peek" id="peekImg" alt="Tela da TV agora">
+    <p class="sub" id="peekMsg">Carregando…</p>
+    <div class="row"><button class="btn" id="peekRefresh">${icon('repeat')}Atualizar</button>
+      <label class="slider-row" style="margin:0;flex:none"><input type="checkbox" id="peekAuto" style="width:20px;height:20px"> Ao vivo (a cada 2 s)</label></div>
+    <p class="sub" style="margin-bottom:0">Netflix e outros apps protegidos aparecem pretos: é proteção do próprio app.</p>`, () => clearInterval(peekTimer));
+  const img = $('#peekImg', m), msg = $('#peekMsg', m);
+  const load = () => {
+    const url = u('/api/v2/screenshot?token=') + encodeURIComponent(S.token) + '&t=' + Date.now();
+    fetch(url).then(async (r) => {
+      if (!r.ok) { let j = {}; try { j = await r.json(); } catch (e) { /* ignore */ } throw new Error(j.message || 'Não deu para capturar a tela'); }
+      return r.blob();
+    }).then((b) => { const old = img.src; img.src = URL.createObjectURL(b); if (old.startsWith('blob:')) URL.revokeObjectURL(old); msg.textContent = 'Capturada às ' + new Date().toLocaleTimeString('pt-BR'); }, (e) => { msg.textContent = e.message; clearInterval(peekTimer); $('#peekAuto').checked = false; });
+  };
+  load();
+  $('#peekRefresh').onclick = load;
+  $('#peekAuto').onchange = (e) => { clearInterval(peekTimer); if (e.target.checked) peekTimer = setInterval(load, 2000); };
 }
 
 /** "Continuar assistindo": the latest history entries with a resume point. */
@@ -457,8 +579,11 @@ function renderCast() {
       <label class="slider-row" style="margin-top:12px"><input type="checkbox" id="auto" ${store.get('autoOpen', true) ? 'checked' : ''} style="flex:none;width:20px;height:20px"> Tocar vídeo / instalar APK assim que chegar</label>
       <div id="xfers"></div></div>
     <div class="card" id="npCard"></div>
+    <div class="card" id="presentCard" hidden></div>
+    <div class="card"><h2>Slideshow de fotos</h2><p class="sub">Mostra as fotos recebidas em tela cheia, com música se quiser.</p>
+      <button class="btn" style="width:100%" id="slidesBtn">${icon('slides')}Montar slideshow</button><div id="slidesBox" hidden></div></div>
     <div class="card"><h2>Arquivos recebidos</h2>
-      <div class="chips" id="chips">${[['all', 'Todos'], ['video', 'Vídeos'], ['audio', 'Músicas'], ['image', 'Fotos'], ['document', 'Documentos'], ['apk', 'APKs'], ['other', 'Outros']].map(([k, l]) => `<button data-f="${k}" aria-pressed="${S.fileFilter === k}">${l}</button>`).join('')}</div>
+      <div class="chips" id="chips">${[['all', 'Todos'], ['video', 'Vídeos'], ['audio', 'Músicas'], ['image', 'Fotos'], ['document', 'Documentos'], ['subtitle', 'Legendas'], ['apk', 'APKs'], ['other', 'Outros']].map(([k, l]) => `<button data-f="${k}" aria-pressed="${S.fileFilter === k}">${l}</button>`).join('')}</div>
       <div class="list" id="files"><div class="empty">Carregando…</div></div></div>
     <div class="card"><h2>Atividade</h2><pre class="log" id="log"></pre></div>`;
   renderConn();
@@ -485,9 +610,40 @@ function renderCast() {
   pick.onchange = () => { uploadAll([...pick.files]); pick.value = ''; };
   $('#auto').onchange = (e) => store.set('autoOpen', e.target.checked);
   $$('#chips button').forEach((b) => b.onclick = () => { S.fileFilter = b.dataset.f; $$('#chips button').forEach((x) => x.setAttribute('aria-pressed', x === b)); updateFiles(true); });
+  $('#slidesBtn').onclick = toggleSlides;
   renderXfers();
   updateNowPlaying();
   updateFiles(true);
+  drawPresent();
+}
+
+const thumbUrl = (src) => u('/api/v2/thumb?src=') + encodeURIComponent(src) + '&token=' + encodeURIComponent(S.token);
+/** A thumbnail with the file icon as fallback (old TVs, files without a frame). */
+const thumbOr = (src, ic) => `<div class="fileicon thumb">${icon(ic)}<img loading="lazy" alt="" src="${thumbUrl(src)}" onload="this.parentNode.classList.add('has')" onerror="this.remove()"></div>`;
+
+function toggleSlides() {
+  const box = $('#slidesBox');
+  if (!box.hidden) { box.hidden = true; return; }
+  const files = (S.status ? S.status.files : []);
+  const imgs = files.filter((f) => f.kind === 'image'), music = files.filter((f) => f.kind === 'audio');
+  box.hidden = false;
+  if (!imgs.length) { box.innerHTML = '<div class="empty">Envie fotos para a TV primeiro (em “Enviar arquivos”).</div>'; return; }
+  box.innerHTML = `<div class="row" style="margin-top:12px"><button class="btn small" id="slAll">Marcar todas</button><button class="btn small" id="slNone">Desmarcar</button></div>
+    <div class="slide-grid">${imgs.map((f) => `<label class="slide-pick"><input type="checkbox" value="${esc(f.name)}" checked><img loading="lazy" alt="" title="${esc(f.name)}" src="${thumbUrl('inbox:' + f.name)}"></label>`).join('')}</div>
+    <label class="slider-row">Tempo por foto <b id="slSecsV">6 s</b><input type="range" id="slSecs" min="2" max="30" value="6"></label>
+    <label class="sub" style="display:block">Música</label>
+    <select class="field" id="slMusic"><option value="">Sem música</option>${music.map((f) => `<option>${esc(f.name)}</option>`).join('')}</select>
+    <div class="row" style="margin-top:12px"><button class="btn primary grow" id="slGo">${icon('play')}Começar na TV</button><button class="btn" id="slStop">${icon('stop')}Parar</button></div>`;
+  const checks = () => $$('.slide-pick input', box);
+  $('#slAll').onclick = () => checks().forEach((c) => { c.checked = true; });
+  $('#slNone').onclick = () => checks().forEach((c) => { c.checked = false; });
+  $('#slSecs').oninput = (e) => { $('#slSecsV').textContent = e.target.value + ' s'; };
+  $('#slGo').onclick = () => {
+    const sel = checks().filter((c) => c.checked).map((c) => c.value);
+    if (!sel.length) { toast('Marque pelo menos uma foto', false); return; }
+    api('/api/v2/slideshow', { method: 'POST', json: { files: sel, seconds: +$('#slSecs').value, music: $('#slMusic').value || null } }).then((r) => toast(r.message), (e) => toast(e.message, false));
+  };
+  $('#slStop').onclick = () => api('/api/v2/slideshow/stop', { method: 'POST' }).then((r) => toast(r.message), (e) => toast(e.message, false));
 }
 
 /** Decides how a link should open on the TV. */
@@ -567,16 +723,21 @@ function updateFiles(force) {
   const key = S.fileFilter + JSON.stringify(files);
   if (!force && key === lastFilesKey) { $('#log').textContent = (S.status.log || []).join('\n') || 'Nada ainda.'; return; }
   lastFilesKey = key;
-  const ic = { video: 'video', audio: 'music', image: 'image', apk: 'apk', document: 'file', other: 'file' };
-  box.innerHTML = files.length ? files.map((f) => `<div class="item"><div class="fileicon">${icon(ic[f.kind] || 'file')}</div>
+  const ic = { video: 'video', audio: 'music', image: 'image', apk: 'apk', document: 'file', subtitle: 'cc', other: 'file' };
+  const pdf = (n) => /\.pdf$/i.test(n);
+  box.innerHTML = files.length ? files.map((f) => `<div class="item">${f.kind === 'video' || f.kind === 'image' ? thumbOr('inbox:' + f.name, ic[f.kind]) : `<div class="fileicon">${icon(ic[f.kind] || 'file')}</div>`}
       <div class="t"><b>${esc(f.name)}</b><small>${fmtSize(f.size)} · ${esc(f.name.split('.').pop().toUpperCase())}${f.modified ? ' · ' + fmtDate(f.modified) : ''}</small></div>
       ${f.kind === 'video' || f.kind === 'audio' ? `<button class="btn small primary" data-play="${esc(f.name)}">Tocar</button><button class="btn small" data-fq="${esc(f.name)}" aria-label="Adicionar ${esc(f.name)} à fila">+ Fila</button>` : ''}
       ${f.kind === 'apk' ? `<button class="btn small primary" data-install="${esc(f.name)}">Instalar</button>` : ''}
+      ${pdf(f.name) ? `<button class="btn small primary" data-present="${esc(f.name)}">Apresentar</button>` : ''}
+      ${f.kind === 'subtitle' ? `<button class="btn small primary" data-sub="${esc(f.name)}">Usar no vídeo</button>` : ''}
       <button class="btn small danger" data-del="${esc(f.name)}" aria-label="Apagar ${esc(f.name)}">${icon('trash')}</button></div>`).join('')
     : '<div class="empty">Nenhum arquivo nesta categoria.</div>';
   $$('[data-play]', box).forEach((b) => b.onclick = () => api('/api/play?file=' + encodeURIComponent(b.dataset.play), { method: 'POST' }).then(() => { toast('Tocando na TV'); setTimeout(refreshStatus, 600); }, (e) => toast(e.message, false)));
   $$('[data-fq]', box).forEach((b) => b.onclick = () => queueAdd('inbox:' + b.dataset.fq, b.dataset.fq));
   $$('[data-install]', box).forEach((b) => b.onclick = () => api('/api/install?file=' + encodeURIComponent(b.dataset.install), { method: 'POST' }).then((r) => toast(r.message), (e) => toast(e.message, false)));
+  $$('[data-present]', box).forEach((b) => b.onclick = () => present(b.dataset.present));
+  $$('[data-sub]', box).forEach((b) => b.onclick = () => useSubtitle(b.dataset.sub));
   $$('[data-del]', box).forEach((b) => b.onclick = () => { if (confirm('Apagar ' + b.dataset.del + ' da TV?')) api('/api/delete?file=' + encodeURIComponent(b.dataset.del), { method: 'POST' }).then(refreshStatus, (e) => toast(e.message, false)); });
   $('#log').textContent = (S.status.log || []).join('\n') || 'Nada ainda.';
 }
@@ -693,6 +854,7 @@ function renderRemote() {
         <div class="card panel" id="morePanel" hidden>
           <div class="colors">${['red', 'green', 'yellow', 'blue'].map((c) => `<button class="ckey c-${c} ${S.caps && !has(c) ? 'off' : ''}" data-rk="${c}" aria-label="Botão ${c}"></button>`).join('')}</div>
           <div class="more-grid">${['search', 'guide', 'captions', 'recents', 'apps', 'stop', 'prev', 'next'].map((k) => `<div class="key-wrap">${rkey(k)}<div class="key-label">${KEY_INFO[k][1]}</div></div>`).join('')}</div>
+          <button class="btn" style="width:100%;margin-top:12px" id="peekBtn" ${S.caps && S.caps.screenshot === false ? 'aria-disabled="true"' : ''}>${icon('eye')}Ver a tela da TV no celular</button>
         </div>
         <div class="quickapps" id="quickApps"></div>
         <div class="card kbd" id="kbd" hidden><div class="row"><h2 class="grow" style="margin:0">Teclado</h2>
@@ -717,6 +879,7 @@ function renderRemote() {
   const panel = (id) => { const ids = ['numPanel', 'morePanel', 'kbd', 'voice']; ids.forEach((x) => { if (x !== id) $('#' + x).hidden = true; }); const p = $('#' + id); p.hidden = !p.hidden; return !p.hidden; };
   $('#numBtn').onclick = () => panel('numPanel');
   $('#moreBtn').onclick = () => panel('morePanel');
+  $('#peekBtn').onclick = peekScreen;
   $('#kbdBtn').onclick = () => { if (panel('kbd')) $('#kbdText').focus(); };
   setupKeyboard();
   setupVoice();
@@ -1152,13 +1315,59 @@ async function toggleTracks() {
     box.innerHTML = `
       <label>Áudio<select class="field" id="trAudio">${opt(t.audio) || '<option>Única faixa</option>'}</select></label>
       <label>Legenda<select class="field" id="trText">${t.text.length ? opt(t.text, true) : '<option>Sem legendas no arquivo</option>'}</select></label>
-      <label>Velocidade<select class="field" id="trSpeed">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((v) => `<option value="${v}" ${Math.abs(t.speed - v) < 0.01 ? 'selected' : ''}>${v}x</option>`).join('')}</select></label>`;
+      <label>Velocidade<select class="field" id="trSpeed">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((v) => `<option value="${v}" ${Math.abs(t.speed - v) < 0.01 ? 'selected' : ''}>${v}x</option>`).join('')}</select></label>
+      <div class="subs"><b>Legenda de fora</b>
+        <div class="row">${subFiles().length ? `<select class="field grow" id="trExt">${subFiles().map((f) => `<option>${esc(f.name)}</option>`).join('')}</select><button class="btn small" id="trExtGo">Usar</button>` : '<small class="sub grow">Envie um .srt para a TV ou busque abaixo.</small>'}</div>
+        <div class="row"><input class="field grow" id="osQuery" placeholder="Buscar legenda (nome do filme)" value="${esc(guessTitle())}"><button class="btn small" id="osGo">${icon('search')}Buscar</button></div>
+        <div class="list" id="osList"></div></div>`;
+    if ($('#trExtGo')) $('#trExtGo').onclick = () => useSubtitle($('#trExt').value);
+    $('#osGo').onclick = () => searchSubtitles($('#osQuery').value);
     if (!anyText && t.text.length) $('#trText').value = '-1:-1';
     const pick = (type, sel) => { const [g, k] = sel.value.split(':').map(Number); api('/api/v2/player/track', { method: 'POST', json: { type, group: g, track: k } }).then((r) => toast(r.message), (e) => toast(e.message, false)); };
     $('#trAudio').onchange = (e) => pick('audio', e.target);
     if (t.text.length) $('#trText').onchange = (e) => pick('text', e.target);
     $('#trSpeed').onchange = (e) => api('/api/v2/player/speed', { method: 'POST', json: { speed: +e.target.value } }).then((r) => toast(r.message), (er) => toast(er.message, false));
   } catch (e) { box.innerHTML = `<div class="sub">${esc(e.message)}</div>`; }
+}
+
+const subFiles = () => (S.status ? S.status.files : []).filter((f) => f.kind === 'subtitle');
+/** "Filme.2024.1080p.mkv" -> "Filme 2024" for the subtitle search. */
+function guessTitle() {
+  if (!S.status || !S.status.playing) return '';
+  let n = S.status.playing.split('/').pop(); try { n = decodeURIComponent(n); } catch (e) { /* ignore */ }
+  n = n.replace(/\.[a-z0-9]{2,4}$/i, '').replace(/[._]+/g, ' ');
+  const m = n.match(/^(.*?\b(19|20)\d{2})\b/);
+  return (m ? m[1] : n.replace(/\b(1080p|720p|2160p|4k|web.?dl|bluray|x26[45]|hevc).*$/i, '')).trim();
+}
+async function useSubtitle(name) {
+  try { const r = await api('/api/v2/player/subtitle', { method: 'POST', json: { file: name } }); toast(r.message); } catch (e) { toast(e.message, false); }
+}
+function osKey() {
+  let k = store.get('osKey', '');
+  if (!k) {
+    k = (prompt('Chave da API do OpenSubtitles (grátis em opensubtitles.com → Perfil → API consumers). Fica salva só neste aparelho:') || '').trim();
+    if (k) store.set('osKey', k);
+  }
+  return k;
+}
+async function searchSubtitles(q) {
+  const box = $('#osList');
+  if (!q.trim()) { toast('Digite o nome do filme', false); return; }
+  const key = osKey();
+  if (!key) return;
+  box.innerHTML = '<div class="sub">Buscando…</div>';
+  try {
+    const r = await api('/api/v2/subtitles/search', { method: 'POST', json: { query: q, key, lang: 'pt-br,pt' }, timeout: 20000 });
+    box.innerHTML = r.results.length ? r.results.map((x, i) => `<div class="item"><div class="t"><b>${esc(x.release || x.name)}</b><small>${esc(x.language)} · ${x.downloads} downloads${x.title ? ' · ' + esc(x.title) + (x.year ? ' (' + x.year + ')' : '') : ''}</small></div>
+      <button class="btn small primary" data-os="${i}">Baixar</button></div>`).join('') : '<div class="empty">Nenhuma legenda em português encontrada.</div>';
+    $$('[data-os]', box).forEach((b) => b.onclick = async () => {
+      const x = r.results[+b.dataset.os];
+      b.disabled = true;
+      try { const d = await api('/api/v2/subtitles/download', { method: 'POST', json: { fileId: x.fileId, key, name: q.trim() || 'legenda' }, timeout: 30000 }); toast(d.message); refreshStatus(); }
+      catch (e) { toast(e.message, false); if (/recusada/.test(e.message)) store.del('osKey'); }
+      b.disabled = false;
+    });
+  } catch (e) { box.innerHTML = `<div class="sub">${esc(e.message)}</div>`; if (/recusada/.test(e.message)) store.del('osKey'); }
 }
 
 /* ---------------------------------------------------------------- TIMER */
@@ -1211,7 +1420,8 @@ function renderLibrary() {
       <p class="sub" style="margin-top:6px">Toca na TV em sequência, mesmo com o celular em outra tela. Arraste ⋮⋮ para reordenar.</p>
       <div class="list" id="qList"><div class="empty">Carregando…</div></div>
       <div class="row" style="margin-top:10px"><button class="btn small" data-qc="prev">${icon('prev')}Anterior</button><button class="btn small primary" data-qc="next">${icon('next')}Próximo</button>
-        <button class="btn small" id="qSave">Salvar como playlist</button><button class="btn small danger" id="qClear">Limpar</button></div></div>
+        <button class="btn small" id="qShuffle">${icon('shuffle')}Embaralhar</button><button class="btn small" id="qSave">Salvar como playlist</button><button class="btn small danger" id="qClear">Limpar</button></div>
+      <p class="sub" id="qTotal" style="margin:10px 0 0"></p></div>
     <div class="card"><h2>Playlists</h2><div class="list" id="plList"><div class="empty">Carregando…</div></div></div>
     <div class="card"><div class="row"><h2 class="grow" style="margin:0">Histórico</h2>
       <label class="slider-row" style="margin:0;flex:none"><input type="checkbox" id="hOn" style="width:20px;height:20px"> Ativado</label></div>
@@ -1223,6 +1433,7 @@ function renderLibrary() {
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
   $$('[data-qc]', main).forEach((b) => b.onclick = () => queueCmd(b.dataset.qc));
   $('#qRepeat').onchange = (e) => api('/api/v2/queue/repeat', { method: 'POST', json: { mode: e.target.value } }).then((r) => toast(r.message), (er) => toast(er.message, false));
+  $('#qShuffle').onclick = () => queueCmd('shuffle');
   $('#qClear').onclick = () => { if (confirm('Limpar a fila?')) api('/api/v2/queue/clear', { method: 'POST' }).then(drawLibrary, (e) => toast(e.message, false)); };
   $('#qSave').onclick = () => { const n = prompt('Nome da playlist:'); if (n) api('/api/v2/playlists/save', { method: 'POST', json: { name: n } }).then((r) => { toast(r.message); drawLibrary(); }, (e) => toast(e.message, false)); };
   $('#hClear').onclick = () => { if (confirm('Apagar todo o histórico?')) api('/api/v2/history/clear', { method: 'POST' }).then(drawLibrary, (e) => toast(e.message, false)); };
@@ -1238,13 +1449,15 @@ async function drawLibrary() {
     const ql = $('#qList');
     ql.innerHTML = q.items.length ? q.items.map((it, i) => `<div class="qrow ${i === q.current ? 'cur' : ''}" data-i="${i}">
         <div class="handle" aria-label="Arrastar para reordenar">${icon('drag')}</div>
-        <div class="t"><b>${i === q.current ? '▶ ' : ''}${esc(it.title)}</b><small>${esc(it.src.startsWith('inbox:') ? 'Arquivo na TV' : (it.src.match(/^https?:\/\/(\d+\.\d+\.\d+\.\d+):\d+\/s\//) ? 'Do celular' : 'Link'))}</small></div>
+        ${it.src.startsWith('inbox:') ? thumbOr(it.src, 'video') : ''}
+        <div class="t"><b>${i === q.current ? '▶ ' : ''}${esc(it.title)}</b><small><span data-dur="${i}"></span>${esc(it.src.startsWith('inbox:') ? 'Arquivo na TV' : (it.src.match(/^https?:\/\/(\d+\.\d+\.\d+\.\d+):\d+\/s\//) ? 'Do celular' : 'Link'))}</small></div>
         <button class="btn small primary" data-qp="${i}" aria-label="Tocar">${icon('play')}</button>
         <button class="btn small danger" data-qr="${i}" aria-label="Remover">${icon('x')}</button></div>`).join('')
       : '<div class="empty">A fila está vazia. Adicione itens em Transmitir (botão “+ Fila”).</div>';
     $$('[data-qp]', ql).forEach((b) => b.onclick = () => api('/api/v2/queue/play', { method: 'POST', json: { index: +b.dataset.qp } }).then((r) => { toast(r.message); drawLibrary(); setTimeout(refreshStatus, 600); }, (e) => toast(e.message, false)));
     $$('[data-qr]', ql).forEach((b) => b.onclick = () => api('/api/v2/queue/remove', { method: 'POST', json: { index: +b.dataset.qr } }).then(drawLibrary, (e) => toast(e.message, false)));
     setupDrag(ql);
+    queueDurations(q);
 
     const pll = $('#plList');
     pll.innerHTML = pl.playlists.length ? pl.playlists.map((p) => `<div class="item"><div class="fileicon">${icon('queue')}</div>
@@ -1260,6 +1473,7 @@ async function drawLibrary() {
     const hl = $('#hList');
     hl.innerHTML = !h.enabled ? '<div class="empty">Histórico desativado.</div>' : h.items.length ? h.items.map((e, i) => `<div class="item">
         <button class="star ${e.favorite ? 'on' : ''}" data-hfav="${i}" aria-label="Favoritar">${icon('star')}</button>
+        ${e.src.startsWith('inbox:') ? thumbOr(e.src, 'video') : ''}
         <div class="t"><b>${esc(e.title)}</b><small>${fmtDate(e.time)}${e.duration ? ' · ' + fmtTime(e.position) + ' de ' + fmtTime(e.duration) : ''}</small></div>
         ${e.resume ? `<button class="btn small primary" data-hres="${i}">Continuar</button>` : ''}
         <button class="btn small" data-hplay="${i}">${e.resume ? 'Do início' : 'Tocar'}</button>
@@ -1271,6 +1485,27 @@ async function drawLibrary() {
     $$('[data-hq]', hl).forEach((b) => b.onclick = () => { const e = item(b, 'hq'); queueAdd(e.src, e.title); });
     $$('[data-hfav]', hl).forEach((b) => b.onclick = () => api('/api/v2/history/favorite', { method: 'POST', json: { src: item(b, 'hfav').src } }).then(drawLibrary, (e) => toast(e.message, false)));
   } catch (e) { toast(e.message, false); }
+}
+
+/** Duration of each queue item (received files and direct links), and the total still to play. */
+const durCache = {};
+async function queueDurations(q) {
+  const total = $('#qTotal');
+  if (!total) return;
+  if (!q.items.length) { total.textContent = ''; return; }
+  let sum = 0, known = 0;
+  const rest = q.items.slice(Math.max(0, q.current));
+  await Promise.all(q.items.map(async (it, i) => {
+    if (!(it.src in durCache)) {
+      if (!it.src.startsWith('inbox:') && !/^https?:\/\/.*\.(mp4|mkv|webm|mov|m4v|mp3|m4a)(\?|$)/i.test(it.src)) { durCache[it.src] = -1; }
+      else { try { durCache[it.src] = (await api('/api/v2/media/info?src=' + encodeURIComponent(it.src), { timeout: 15000 })).duration; } catch (e) { durCache[it.src] = -1; } }
+    }
+    const d = durCache[it.src], el = $(`[data-dur="${i}"]`);
+    if (el && d > 0) el.textContent = fmtTime(d) + ' · ';
+  }));
+  rest.forEach((it) => { const d = durCache[it.src]; if (d > 0) { sum += d; known++; } });
+  if (!$('#qTotal')) return;
+  total.textContent = `${q.items.length} ${q.items.length === 1 ? 'item' : 'itens'}` + (known ? ` · faltam ${fmtTime(sum)}${known < rest.length ? ' (sem contar ' + (rest.length - known) + ' sem duração)' : ''}` : '');
 }
 
 /** Drag & drop by the handle (touch and mouse), then one "move" call. */
@@ -1603,6 +1838,8 @@ async function renderSettings() {
       <div class="row" style="margin-top:8px">${STANDALONE ? '<button class="btn small" id="setSwitch">Trocar de TV</button>' : ''}<button class="btn small" data-go="devices">Dispositivos e diagnóstico</button></div></div>
     <div class="card"><h2>Busca de filmes e séries</h2><p class="sub">${store.get('tmdbKey', '') ? 'Chave do TMDB salva neste aparelho.' : 'Sem chave do TMDB (configure em Apps → Buscar filmes e séries).'}</p>
       ${store.get('tmdbKey', '') ? '<button class="btn small" id="setTmdb">Remover chave</button>' : ''}</div>
+    <div class="card"><h2>Legendas (OpenSubtitles)</h2><p class="sub">${store.get('osKey', '') ? 'Chave salva neste aparelho.' : 'Sem chave. Ela é pedida na primeira busca de legenda (no player: Áudio, legenda e velocidade).'}</p>
+      ${store.get('osKey', '') ? '<button class="btn small" id="setOs">Remover chave</button>' : ''}</div>
     <div class="card"><h2>Sobre</h2><p class="sub" style="margin:0">TV Drop ${esc(S.info ? S.info.version : '')} na TV · Android ${esc(S.info ? S.info.android : '?')}${NATIVE && NATIVE.appVersion ? ' · app ' + esc(NATIVE.appVersion()) : ''}</p></div>`;
   renderConn();
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
@@ -1616,6 +1853,7 @@ async function renderSettings() {
   if ($('#setQr')) $('#setQr').onclick = () => NATIVE.scanQr();
   if ($('#setSwitch')) $('#setSwitch').onclick = showConnect;
   if ($('#setTmdb')) $('#setTmdb').onclick = () => { store.del('tmdbKey'); renderSettings(); };
+  if ($('#setOs')) $('#setOs').onclick = () => { store.del('osKey'); renderSettings(); };
   try {
     const h = await api('/api/v2/history');
     $('#setHistory').innerHTML = toggle('history', h.enabled, 'Guardar histórico de reprodução', 'Fica só na TV. Desligar apaga o histórico.');

@@ -109,6 +109,44 @@ public class TvDropAccessibility extends AccessibilityService {
         return false;
     }
 
+    // ---- screenshot (Android 11+) ----
+
+    /** JPEG of the screen, about 1280 px wide. Protected content (DRM) comes out black, by design. */
+    public byte[] screenshotJpeg() {
+        if (Build.VERSION.SDK_INT < 30) return null;
+        final byte[][] out = new byte[1][];
+        final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+        try {
+            takeScreenshot(android.view.Display.DEFAULT_DISPLAY, getMainExecutor(), new TakeScreenshotCallback() {
+                @Override
+                public void onSuccess(ScreenshotResult r) {
+                    try {
+                        android.graphics.Bitmap hw = android.graphics.Bitmap.wrapHardwareBuffer(r.getHardwareBuffer(), r.getColorSpace());
+                        if (hw != null) {
+                            android.graphics.Bitmap sw = hw.copy(android.graphics.Bitmap.Config.ARGB_8888, false);
+                            int w = Math.min(1280, sw.getWidth());
+                            android.graphics.Bitmap scaled = android.graphics.Bitmap.createScaledBitmap(sw, w, Math.round(sw.getHeight() * (w / (float) sw.getWidth())), true);
+                            java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
+                            scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 75, bo);
+                            out[0] = bo.toByteArray();
+                        }
+                        r.getHardwareBuffer().close();
+                    } catch (Exception ignored) {
+                    }
+                    done.countDown();
+                }
+
+                @Override
+                public void onFailure(int errorCode) {
+                    done.countDown();
+                }
+            });
+            done.await(4, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception ignored) {
+        }
+        return out[0];
+    }
+
     // ---- pointer (touchpad) ----
 
     /** move: relative movement; tap / longpress at the cursor; scroll: swipe by dy; hide. */

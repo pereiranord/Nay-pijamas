@@ -1,4 +1,4 @@
-# TV Drop 2.4
+# TV Drop 2.5
 
 Central multimídia e controle remoto para **Android TV / Google TV** (feito pensando na Philips 4K Google TV), com app para **celular Android** e versão **web**. O mesmo APK funciona nos dois aparelhos: na TV ele é o receptor; no celular, o controle e o transmissor.
 
@@ -8,14 +8,22 @@ Central multimídia e controle remoto para **Android TV / Google TV** (feito pen
 - **Arquivos**: vídeos, músicas, fotos, documentos e APKs, vários de uma vez, com progresso, cancelamento e categorias.
 - **Espelhar a tela** do celular (app Android): apresentações, fotos e jogos, com vídeo H.264 decodificado pelo hardware da TV.
 - **Compartilhar → TV Drop** com qualquer arquivo: tocar agora, adicionar à fila ou copiar para a TV.
+- **Slideshow de fotos** em tela cheia, com tempo por foto e música de fundo.
+- **Apresentar PDF** na TV, passando as páginas pelo celular, com a página atual na tela do celular.
+- **Legendas**: um `.srt` com o mesmo nome do vídeo entra sozinho; dá para carregar um `.srt` enviado ou buscar no OpenSubtitles (chave gratuita sua) sem parar o vídeo.
 
 **Biblioteca**
 - **Fila de reprodução** na TV (continua com o celular desligado), com arrastar e soltar, repetição e **playlists**.
 - **Histórico** com "continuar de onde parou" e favoritos (pode ser desligado). Áudio, legenda e velocidade pelo celular.
+- **Retomar sozinho**: abrir de novo um vídeo começa de onde parou (◀ volta 10 s).
+- **Miniaturas** e duração dos vídeos e fotos; fila com **embaralhar** e o tempo que falta.
+- **O que toca em outros apps** (Netflix, YouTube, Spotify…): título, capa e play/pausa/avançar no Início.
+- **Aviso de pouco espaço** na TV, e envio recusado antes de começar quando o arquivo não cabe.
 
 **Controlar**
 - **Segurar uma tecla = ação contínua**: o celular avisa "apertou/soltou" e a própria TV repete a tecla num ritmo constante (sem picotar com o Wi-Fi), parando ao soltar, se a conexão cair ou após 15 s.
 - **Controle remoto**: direcional circular (segure para repetir), modo deslizante (segure para continuar), **touchpad** com cursor e botões de clique e rolagem, volume e canal em botões de dois lados, mídia, Liga/Desliga, fonte (entrada), assistente do Google, teclado numérico, botões coloridos, guia, legendas e apps recentes.
+- **Ver a tela da TV** no celular (foto da tela, ou ao vivo a cada 2 s). Precisa da acessibilidade do TV Drop e Android 11+; apps protegidos aparecem pretos.
 - **Barra de estado**: o app aberto na TV, o volume atual com um controle deslizante e por qual caminho o controle está funcionando.
 - **Teclado** com "digitar ao vivo", **voz** (app Android) e comandos digitados. No computador, atalhos de teclado (setas, Enter, Esc, espaço, +/−, números).
 - **Apps**: lista dos apps instalados na TV com os ícones reais, abrir, favoritos organizáveis, loja e desinstalação.
@@ -44,6 +52,9 @@ adb shell appops set com.pereiranord.tvdrop SYSTEM_ALERT_WINDOW allow
 # Touchpad, Voltar/Início e digitação (acessibilidade do TV Drop), opcional:
 adb shell settings put secure enabled_accessibility_services com.pereiranord.tvdrop/.TvDropAccessibility
 adb shell settings put secure accessibility_enabled 1
+
+# "O que está tocando" em outros apps (Netflix, YouTube, Spotify…), opcional:
+adb shell cmd notification allow_listener com.pereiranord.tvdrop/com.pereiranord.tvdrop.MediaListener
 
 # Abre o app
 adb shell am start -n com.pereiranord.tvdrop/.MainActivity

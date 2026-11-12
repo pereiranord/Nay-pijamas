@@ -183,6 +183,7 @@ final class Http {
             case 413: return "Payload Too Large";
             case 429: return "Too Many Requests";
             case 501: return "Not Implemented";
+            case 507: return "Insufficient Storage";
             case 503: return "Service Unavailable";
             default: return "Error";
         }

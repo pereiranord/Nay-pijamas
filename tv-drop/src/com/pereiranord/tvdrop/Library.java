@@ -134,6 +134,16 @@ public class Library {
         saveQueue();
     }
 
+    /** Shuffles the items after the current one (the current item keeps playing). */
+    public synchronized void shuffle(java.util.Random rnd) {
+        int from = Math.max(0, current + 1);
+        if (queue.size() - from < 2) return;
+        java.util.List<Item> rest = new ArrayList<>(queue.subList(from, queue.size()));
+        java.util.Collections.shuffle(rest, rnd);
+        for (int i = 0; i < rest.size(); i++) queue.set(from + i, rest.get(i));
+        saveQueue();
+    }
+
     public synchronized void setRepeat(String mode) {
         if (!mode.matches("off|all|one")) throw new IllegalArgumentException("Repetição inválida");
         repeat = mode;

@@ -42,13 +42,13 @@ public final class Actions {
 
     /** Plays a URL (http/https/rtsp/HLS) or an absolute file path on the TV. */
     public static void play(Context ctx, String what) {
-        play(ctx, what, 0);
+        play(ctx, what, -1);
     }
 
     public static void play(Context ctx, String what, long startMs) {
         Intent i = new Intent(ctx, PlayerActivity.class);
         i.putExtra(PlayerActivity.EXTRA_SOURCE, what);
-        if (startMs > 0) i.putExtra(PlayerActivity.EXTRA_START, startMs);
+        if (startMs >= 0) i.putExtra(PlayerActivity.EXTRA_START, startMs); // -1 (absent) = continue where it stopped
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         ctx.startActivity(i);
         Events.add("Reproduzindo: " + shortName(what));
