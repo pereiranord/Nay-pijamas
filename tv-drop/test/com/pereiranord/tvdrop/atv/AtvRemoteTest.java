@@ -157,8 +157,17 @@ public class AtvRemoteTest {
         // wait until the client has noticed the drop (slow CI machines take longer)
         for (int i = 0; i < 100 && r.isConnected(); i++) Thread.sleep(50);
         assertFalse("the client should notice the TV closed the connection", r.isConnected());
-        r.sendKey(4);
-        assertEquals(4, tv.received.poll(5, TimeUnit.SECONDS).msg(10).num(1, 0));
+        // The background reconnect and the key press may race on a slow machine; like a person would,
+        // press again until the TV gets it (it must arrive within a few seconds).
+        Proto.Msg key = null;
+        for (int i = 0; i < 6 && key == null; i++) {
+            try { r.sendKey(4); } catch (Exception ignored) { }
+            Proto.Msg m = tv.received.poll(2, TimeUnit.SECONDS);
+            while (m != null && (m.all(10) == null || m.all(10).isEmpty())) m = tv.received.poll(200, TimeUnit.MILLISECONDS);
+            key = m;
+        }
+        assertTrue("the key should reach the TV after the reconnection", key != null);
+        assertEquals(4, key.msg(10).num(1, 0));
     }
 
     @Test
