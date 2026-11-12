@@ -49,7 +49,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
 .nav button[aria-current="page"] { color: var(--text); }
 .nav button[aria-current="page"] svg { color: var(--green); }
 main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 18px 16px calc(var(--nav-h) + 28px + env(safe-area-inset-bottom)); }
-@media (min-width: 900px) {
+@media (min-width: 900px) and (min-height: 600px) {
   .nav { position: sticky; top: 0; left: auto; right: auto; bottom: auto; height: 100vh; width: 108px; flex-direction: column; justify-content: flex-start; gap: 6px; padding: 24px 8px; border-top: 0; border-right: 1px solid var(--line); }
   .nav .brand { display: block; }
   main { padding-bottom: 40px; }
@@ -79,7 +79,7 @@ main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 18px 16p
 .btn:active { transform: scale(.97); }
 .btn.primary { background: var(--green); color: var(--green-ink); }
 .btn.danger { background: rgba(255, 107, 107, .12); color: var(--red); }
-.btn.small { min-height: 38px; padding: 0 12px; border-radius: 12px; font-size: 14px; }
+.btn.small { min-height: 40px; padding: 0 12px; border-radius: 12px; font-size: 14px; }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
 .field { width: 100%; min-height: 50px; padding: 0 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--key); outline: none; }
 .field:focus { border-color: var(--green); }
@@ -277,7 +277,7 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
 .switch:checked { background: var(--green); }
 .switch:checked::after { transform: translateX(20px); }
 .seg.mini { margin: 0; }
-.seg.mini button { min-height: 38px; font-size: 14px; }
+.seg.mini button { min-height: 40px; font-size: 14px; }
 :root[data-theme="light"] {
   --bg: #f3f5f7; --surface: #ffffff; --surface-2: #eceff3; --key: #e6e9ee; --key-hi: #d5dae1; --line: #e1e5ea;
   --text: #15181c; --muted: #5d6873; --dim: #8a949e; --green: #12a150; --green-ink: #ffffff; --red: #d64545; --amber: #b87400;
@@ -334,8 +334,21 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
 .vol-slider svg { width: 18px; height: 18px; color: var(--muted); }
 .seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .seg button svg { width: 18px; height: 18px; }
-.remote-grid { display: grid; gap: 8px; max-width: 440px; margin: 0 auto; }
-@media (min-width: 760px) { .remote-grid { grid-template-columns: 1fr 1fr; max-width: 900px; gap: 28px; align-items: start; } }
+/* ---------- remote: one layout per shape, not per width ---------- */
+/* upright (default): one column, fixed order — status, mode, top keys, direction pad, Back/Home/Menu, the rest */
+.rview { display: flex; flex-direction: column; max-width: 440px; margin: 0 auto; }
+.r-pad, .r-side { display: contents; }
+.r-side > * { order: 10; }
+.rview .rstatus { order: 1; } .rview .notice { order: 2; } .rview .seg { order: 3; } .rview .top4 { order: 4; }
+.rview #surface { order: 5; } .rview .nav3 { order: 6; } .rview .rockers { order: 7; } .rview .actionbar { order: 8; }
+.seg button { min-width: 0; padding: 0 6px; overflow: hidden; }
+.seg button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* wide and tall (tablet, computer): two columns side by side */
+@media (min-width: 760px) and (min-height: 600px) {
+  .rview { display: grid; grid-template-columns: minmax(300px, 1fr) 1fr; gap: 28px; max-width: 900px; align-items: start; }
+  .r-pad, .r-side { display: flex; flex-direction: column; min-width: 0; }
+  .r-side > * { order: 0 !important; }
+}
 .key-row.top4, .key-row.nav3 { justify-content: space-around; }
 .key { width: 58px; height: 58px; }
 .key.big { width: 74px; height: 64px; border-radius: 22px; }
@@ -383,6 +396,157 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
 :root[data-size="large"] .key.play-big { width: 96px; height: 96px; }
 :root[data-size="large"] .rockers { grid-template-columns: 72px 1fr 72px; gap: 10px; }
 .qa, .app-tile { color: #fff; }
+
+
+/* =====================================================================
+   Phone sizes (block 1). Everything below is about fitting real phones:
+   small screens upright, any phone on its side, notches, big fonts.
+   ===================================================================== */
+:root { --safe-l: env(safe-area-inset-left, 0px); --safe-r: env(safe-area-inset-right, 0px); --safe-t: env(safe-area-inset-top, 0px); --safe-b: env(safe-area-inset-bottom, 0px); }
+main { padding-left: calc(16px + var(--safe-l)); padding-right: calc(16px + var(--safe-r)); padding-top: calc(18px + var(--safe-t)); }
+.top h1 { font-size: clamp(20px, 6vw, 24px); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.top .conn { min-width: 0; }
+
+/* fluid key sizes: full size on normal phones, smaller on 320–360 px screens, never under 44 px */
+.key { width: clamp(46px, 14.5vw, 58px); height: clamp(46px, 14.5vw, 58px); }
+.key.big { width: clamp(60px, 19vw, 74px); height: clamp(52px, 16vw, 64px); }
+.key.small { width: clamp(44px, 12.5vw, 50px); height: clamp(44px, 12.5vw, 50px); }
+.key.play-big { width: clamp(72px, 22vw, 92px); height: clamp(72px, 22vw, 92px); }
+.rockers { grid-template-columns: clamp(58px, 18vw, 76px) minmax(0, 1fr) clamp(58px, 18vw, 76px); gap: clamp(8px, 3vw, 14px); }
+.rocker { height: clamp(160px, 46vw, 190px); }
+.media-row { gap: clamp(6px, 2vw, 10px); }
+.dpad { width: min(78vw, 300px); }
+:root[data-size="large"] .key { width: clamp(50px, 16vw, 70px); height: clamp(50px, 16vw, 70px); }
+:root[data-size="large"] .top4 .key { width: clamp(50px, 15.5vw, 64px); height: clamp(50px, 15.5vw, 64px); }
+:root[data-size="large"] .key.big { width: clamp(64px, 21vw, 88px); height: clamp(56px, 18vw, 76px); }
+:root[data-size="large"] .key.small { width: clamp(46px, 13.5vw, 54px); height: clamp(46px, 13.5vw, 54px); }
+:root[data-size="large"] .key.play-big { width: clamp(76px, 24vw, 96px); height: clamp(76px, 24vw, 96px); }
+:root[data-size="large"] .rockers { grid-template-columns: clamp(58px, 18vw, 72px) minmax(0, 1fr) clamp(58px, 18vw, 72px); gap: clamp(6px, 2.5vw, 10px); }
+:root[data-size="large"] .rocker { height: clamp(170px, 52vw, 220px); }
+:root[data-size="large"] .dpad { width: min(86vw, 360px); }
+@media (max-width: 374px) {
+  main { padding-left: calc(12px + var(--safe-l)); padding-right: calc(12px + var(--safe-r)); }
+  .seg button svg { display: none; }
+  .seg button { font-size: 13px; }
+  .abtn { font-size: 11px; padding: 10px 2px; min-height: 64px; }
+  .more-grid { gap: 10px 2px; }
+  .quick button { padding: 14px; gap: 12px; }
+}
+
+/* ---------- any phone on its side (short landscape screens) ---------- */
+@media (orientation: landscape) and (max-height: 540px) {
+  :root { --rail: 68px; }
+  /* the bottom bar becomes a thin rail on the left */
+  .nav { position: fixed; top: 0; bottom: 0; left: 0; right: auto; width: calc(var(--rail) + var(--safe-l)); height: auto;
+    flex-direction: column; justify-content: center; gap: 2px; padding: var(--safe-t) 0 var(--safe-b) var(--safe-l);
+    border-top: 0; border-right: 1px solid var(--line); }
+  .nav .brand { display: none; }
+  .nav button { width: 56px; min-width: 0; padding: 6px 0; gap: 1px; font-size: 9.5px; line-height: 1.1; }
+  .nav button svg { width: 22px; height: 22px; }
+  main { max-width: none; padding: calc(8px + var(--safe-t)) calc(14px + var(--safe-r)) calc(12px + var(--safe-b)) calc(var(--rail) + 14px + var(--safe-l)); }
+  .top { margin-bottom: 10px; gap: 10px; }
+  .top h1 { font-size: 19px; }
+  .conn { padding: 5px 10px 5px 8px; font-size: 12.5px; }
+  .toast { bottom: calc(16px + var(--safe-b)); left: calc(50% + var(--rail) / 2); }
+  .card { margin-bottom: 12px; }
+
+  /* the remote fills the screen: direction pad on the left (always visible), the rest scrolls on the right */
+  :root main[data-view="remote"] { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; padding-bottom: calc(8px + var(--safe-b)); }
+  :root main[data-view="remote"] .top { flex: none; margin-bottom: 8px; }
+  :root main[data-view="remote"] .rview { flex: 1; min-height: 0; max-width: none; width: 100%; display: grid;
+    grid-template-columns: auto minmax(0, 1fr); gap: clamp(12px, 2.5vw, 28px); margin: 0; }
+  :root main[data-view="remote"] .r-pad { display: flex; flex-direction: row; align-items: center; gap: 10px; min-height: 0; }
+  :root main[data-view="remote"] .r-side { display: block; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; -webkit-overflow-scrolling: touch; }
+  :root main[data-view="remote"] .r-side > * { order: 0; }
+  :root main[data-view="remote"] #surface { display: flex; flex-direction: column; justify-content: center; height: 100%; min-height: 0; }
+  :root main[data-view="remote"] .dpad { --pad-h: calc(100dvh - 64px - var(--safe-t) - var(--safe-b)); width: min(var(--pad-h), 44vw, 330px); margin: 0; }
+  :root main[data-view="remote"] .pad { height: auto; flex: 1; min-height: 120px; width: min(46vw, 440px); padding: 12px; }
+  :root main[data-view="remote"] .padbar { margin-top: 8px; }
+  :root main[data-view="remote"] #surface .slider-row { margin: 6px 0 0; }
+  :root main[data-view="remote"] .nav3 { flex-direction: column; margin: 0; gap: 10px; }
+  :root main[data-view="remote"] .nav3 .key.big { width: 64px; height: 56px; }
+  :root main[data-view="remote"] .rstatus { margin: 0 0 10px; }
+  :root main[data-view="remote"] .seg { margin-bottom: 12px; }
+  :root main[data-view="remote"] .top4 { margin: 4px 0 12px; }
+  :root main[data-view="remote"] .key { width: 52px; height: 52px; }
+  :root main[data-view="remote"] .rockers { grid-template-columns: 64px minmax(0, 1fr) 64px; gap: 12px; margin: 0 0 12px; }
+  :root main[data-view="remote"] .rocker { height: 170px; }
+  :root main[data-view="remote"] .key.play-big { width: 80px; height: 80px; }
+  :root main[data-view="remote"] .key.small { width: 46px; height: 46px; }
+  :root main[data-view="remote"] .dpad svg { width: 26px; height: 26px; }
+}
+/* very short (e.g. 640×320): the pad and the side column share the height even more tightly */
+@media (orientation: landscape) and (max-height: 380px) {
+  .nav button { font-size: 0; padding: 7px 0; gap: 0; }
+  :root main[data-view="remote"] .top h1 { font-size: 17px; }
+  :root main[data-view="remote"] .nav3 .key.big { width: 58px; height: 50px; }
+}
+
+/* the side column of the remote adapts to its own width (narrow on small phones lying down) */
+.r-side { container: rside / inline-size; }
+@media (orientation: landscape) and (max-height: 540px) {
+  .nav button { min-height: 44px; }
+  :root main[data-view="remote"] .dpad { width: min(var(--pad-h), 38vw, 330px); }
+}
+@media (orientation: landscape) and (max-height: 540px) and (max-width: 700px) {
+  :root main[data-view="remote"] .nav3 .key.big { width: 54px; height: 48px; }
+}
+@container rside (max-width: 340px) {
+  .seg button svg { display: none; }
+  .seg button { font-size: 12.5px; min-height: 40px; }
+  .rockers { grid-template-columns: 1fr 1fr !important; gap: 10px !important; }
+  .rockers .media-pad { grid-column: 1 / -1; order: -1; flex-direction: row; justify-content: center; gap: 10px; }
+  .rockers .media-row { gap: 6px; }
+  .rocker { height: 132px !important; }
+  .top4 { gap: 4px; }
+  .top4 .key { width: 46px !important; height: 46px !important; }
+  .actionbar { grid-template-columns: repeat(2, 1fr); }
+  .more-grid { grid-template-columns: repeat(3, 1fr); }
+  .numpad { gap: 8px; }
+}
+/* upright but short (320×568, 360×640): tighter spacing so the direction pad fits above the bottom bar */
+@media (orientation: portrait) and (max-height: 700px) {
+  .top { margin-bottom: 10px; }
+  main { padding-top: calc(12px + var(--safe-t)); }
+  .rstatus { margin: -4px 0 8px; }
+  .seg { margin-bottom: 10px; }
+  .seg button { min-height: 40px; }
+  .key-row.top4 { margin: 6px 0; }
+  :root main[id] .dpad { width: min(72vw, 300px, calc(100dvh - 330px)); margin: 6px auto 10px; }
+  .key-row.nav3 { margin: 8px 0; }
+}
+
+@media (orientation: portrait) { .pad { height: clamp(190px, calc(100dvh - 372px), 380px); } }
+.choice button { min-height: 40px; }
+@media (orientation: landscape) and (max-height: 540px) and (max-width: 700px) {
+  :root main[data-view="remote"] .pad { width: min(40vw, 440px); }
+}
+@container rside (max-width: 250px) {
+  .top4 { display: grid !important; grid-template-columns: repeat(2, 1fr); justify-items: center; gap: 8px; }
+  .seg { flex-direction: column; gap: 4px; }
+  .colors { grid-template-columns: repeat(2, 1fr); }
+  .rockers .media-pad { flex-wrap: wrap; }
+}
+
+@container rside (max-width: 340px) { .choice { grid-template-columns: repeat(2, 1fr); } }
+@media (orientation: landscape) and (max-height: 540px) {
+  :root main[data-view="remote"] #surface:has(.pad) { width: min(46vw, 440px); }
+  :root main[data-view="remote"] #surface .pad { width: 100%; }
+}
+@media (orientation: landscape) and (max-height: 540px) and (max-width: 700px) {
+  :root main[data-view="remote"] #surface:has(.pad) { width: min(38vw, 440px); }
+  :root main[data-view="remote"] .padbar .btn { padding: 0 8px; font-size: 12.5px; }
+}
+
+/* header: the title keeps its place; the connection chip gives up space first */
+.top h1 { flex: 1 0 auto; max-width: 62%; }
+.top .conn { flex: 0 1 auto; }
+.slider-row input[type="range"], .vol-slider input[type="range"] { min-width: 0; flex: 1 1 auto; }
+@media (max-width: 374px) {
+  .nav button { flex: 1 1 0; min-width: 0; font-size: 10px; letter-spacing: -.01em; padding: 8px 0; }
+  .nav button svg { width: 22px; height: 22px; }
+  .top .conn span:last-child { max-width: 34vw; }
+}
 
 </style>
 </head>
@@ -787,6 +951,7 @@ function go(view) {
   if (!VIEWS[view]) view = 'home';
   S.view = view;
   store.set('view', view);
+  $('#main').dataset.view = view;
   $$('.nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.view === view ? 'page' : 'false'));
   if (view !== 'remote') wsClose(); else wsConnect();
   VIEWS[view]();
@@ -1386,21 +1551,24 @@ function renderRemote() {
   const main = $('#main');
   const caps = S.caps && S.caps.remote;
   const limited = caps && !(caps.atv && caps.atv.paired) && !nativeAtvOk();
+  // Two regions: "r-pad" (the direction surface + Back/Home/Menu) and "r-side" (everything else).
+  // Upright phones show them as one column in a fixed order; a phone on its side shows them next to each
+  // other, with the direction pad always on screen and the rest scrolling on its own (see app.css).
   main.innerHTML = header('Controle') + `
-    <div class="rstatus" id="rstatus"></div>
-    ${limited ? `<div class="notice">${icon('info')}<div>Algumas teclas estão apagadas porque o controle ainda não foi pareado. <button class="btn small" data-go="devices" style="margin-top:8px">Parear controle</button></div></div>` : ''}
-    <div class="seg" role="group" aria-label="Modo do controle">
-      <button data-mode="dpad" aria-pressed="${S.remoteMode === 'dpad'}">${icon('remote')}Direcional</button>
-      <button data-mode="swipe" aria-pressed="${S.remoteMode === 'swipe'}">${icon('pulse')}Deslizante</button>
-      <button data-mode="pad" aria-pressed="${S.remoteMode === 'pad'}">${icon('grid')}Touchpad</button>
-    </div>
-    <div class="remote-grid">
-      <div class="rcol">
-        <div class="key-row top4">${rkey('power', 'power')}${rkey('input')}${rkey('assistant')}${rkey('settings')}</div>
+    <div class="rview">
+     <div class="r-pad">
         <div id="surface"></div>
         <div class="key-row nav3">${rkey('back', 'big')}${rkey('home', 'big')}${rkey('menu', 'big')}</div>
+     </div>
+     <div class="r-side">
+      <div class="rstatus" id="rstatus"></div>
+      ${limited ? `<div class="notice">${icon('info')}<div>Algumas teclas estão apagadas porque o controle ainda não foi pareado. <button class="btn small" data-go="devices" style="margin-top:8px">Parear controle</button></div></div>` : ''}
+      <div class="seg" role="group" aria-label="Modo do controle">
+        <button data-mode="dpad" aria-pressed="${S.remoteMode === 'dpad'}" aria-label="Direcional">${icon('remote')}<span>Direcional</span></button>
+        <button data-mode="swipe" aria-pressed="${S.remoteMode === 'swipe'}" aria-label="Deslizante">${icon('pulse')}<span>Deslizante</span></button>
+        <button data-mode="pad" aria-pressed="${S.remoteMode === 'pad'}" aria-label="Touchpad">${icon('grid')}<span>Touchpad</span></button>
       </div>
-      <div class="rcol">
+      <div class="key-row top4">${rkey('power', 'power')}${rkey('input')}${rkey('assistant')}${rkey('settings')}</div>
         <div class="rockers">
           <div class="rocker" aria-label="Volume">
             <button class="rk-up ${S.caps && !has('volup') ? 'off' : ''}" data-rk="volup" aria-label="Aumentar volume">${icon('plus')}</button>
@@ -1448,7 +1616,7 @@ function renderRemote() {
           <div class="msg" id="voiceMsg" style="text-align:center"></div><div class="row" id="voiceConfirm" hidden><button class="btn primary" data-yes>Executar</button><button class="btn" data-no>Cancelar</button></div></div>
         <div class="card" id="timerCard"></div>
         <div class="card kb-hint" id="kbHint"><h2>Atalhos do teclado</h2><p class="sub" style="margin:0">Setas · Enter = OK · Esc/Backspace = Voltar · H = Início · Espaço = Play/Pausa · + / − = Volume · M = Mudo · PgUp/PgDn = Canal · 0–9</p></div>
-      </div>
+     </div>
     </div>`;
   renderConn();
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
