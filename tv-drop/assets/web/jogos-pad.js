@@ -139,8 +139,8 @@
     switch (m.t) {
       case 'noroom': P.stop = true; showJoin('Sala não encontrada. Confira o código que aparece na TV.'); break;
       case 'full': P.stop = true; showJoin('A sala está cheia (6 jogadores).'); break;
-      case 'closed': P.stop = true; leaveGame(); showJoin('A sala foi encerrada na TV.'); break;
-      case 'kicked': P.stop = true; leaveGame(); showJoin('Você foi removido da sala pelo anfitrião. Pode entrar de novo com o código.'); break;
+      case 'closed': P.stop = true; leaveGame(); P.state = null; hostTab(); showJoin('A sala foi encerrada na TV.'); break;
+      case 'kicked': P.stop = true; leaveGame(); P.state = null; hostTab(); showJoin('Você foi removido da sala pelo anfitrião. Pode entrar de novo com o código.'); break;
       case 'host': P.hostOn = m.on; net(m.on ? '' : 'A TV saiu dos jogos. Aguardando…'); break;
       case 'lobby': onRoom(m); break;
       case 'game': if (m.mid) P.mid = m.mid; onGame(m); break;
@@ -200,8 +200,8 @@
     if (!P.me) return;
     document.documentElement.style.setProperty('--me', P.me.color);
     store.set('shape', P.me.shape);
-    if (m.state === 'lobby') { leaveGame(); renderLobby(); }
-    else if (m.state === 'catalog') { leaveGame(); renderBrowse(); }
+    hostTab();
+    if (m.state === 'lobby' || m.state === 'catalog') { leaveGame(); renderLobby(); } // catalog: the host can choose the game from here too
     else if (!P.me.active) { leaveGame(); renderWait(); }
     else if (m.state === 'results' && P.view === 'end') renderEndButtons();
   }
@@ -217,7 +217,7 @@
     app.innerHTML = `<section class="view">
       <div class="brand"><i></i><span>Sala ${esc(m.room)}</span></div>
       <div class="me"><span id="meBuddy"></span><div class="col"><input id="myName" maxlength="12" autocomplete="off" value="${esc(me.name)}" aria-label="Seu nome">
-        <small>${lead ? 'Você é o líder: escolha o jogo' : 'Toque no personagem para acenar na TV'}</small></div>
+        <small>${lead ? 'Você é o anfitrião: comanda tudo daqui' : 'Toque no personagem para acenar na TV'}</small></div>
         <button class="btn small" id="shape">Trocar</button></div>
       <div class="crew" id="crew"></div>
       <div class="scroll" id="list"></div>
@@ -231,20 +231,33 @@
       const b = buddy(P.me, 84); b.id = 'meBuddy'; b.onclick = () => { send({ t: 'wave' }); b.classList.remove('wave'); void b.offsetWidth; b.classList.add('wave'); vib(20); };
       $('#meBuddy').replaceWith(b);
       const crew = $('#crew'); crew.innerHTML = '';
-      mm.players.forEach((p) => { const sp = el('span', p.on ? '' : 'off'); sp.appendChild(buddy(p, 26)); sp.appendChild(document.createTextNode(p.name + (p.cups ? ' 🏆' + p.cups : ''))); crew.appendChild(sp); });
-      const list = $('#list');
-      if (isLead) {
-        list.innerHTML = `<div class="sect">Escolha o jogo</div>` + mm.games.map((g) => `<button class="gcard ${g.id === mm.sel ? 'sel' : ''} ${onNow < g.min ? 'dim' : ''}" data-g="${g.id}" style="--g:${g.grad}"><div class="ico">${icon(g)}</div><div class="t"><b>${esc(g.name)}</b><small>${esc(g.tagline)}</small></div><em>${g.min}–${g.max}</em></button>`).join('');
-        list.querySelectorAll('[data-g]').forEach((x) => { x.onclick = () => { send({ t: 'pick', g: x.dataset.g }); vib(15); }; });
+      mm.players.forEach((p) => {
+        const sp = el('span', p.on ? '' : 'off'); sp.appendChild(buddy(p, 26)); sp.appendChild(document.createTextNode(p.name + (p.cups ? ' 🏆' + p.cups : ''))); crew.appendChild(sp);
+        if (isLead && p.id !== ID) sp.onclick = () => sheet(`Remover ${p.name}?`, 'O celular sai da sala e pode entrar de novo com o código.', [['Remover', () => send({ t: 'kick', id: p.id })], ['Cancelar', null]]);
+      });
+      const list = $('#list'), inCat = mm.state === 'catalog', keep = list.scrollTop;
+      const card = (g, tag, sel) => `<${tag} class="gcard ${sel ? 'sel' : ''} ${onNow < g.min ? 'dim' : ''}" data-g="${g.id}" style="--g:${g.grad}"><div class="ico">${icon(g)}</div><div class="t"><b>${esc(g.name)}</b><small>${esc(g.tagline)}</small></div><em>${g.min}–${g.max}</em></${tag}>`;
+      const leadName = esc((mm.players.find((p) => p.id === mm.leader) || {}).name || 'O anfitrião');
+      if (isLead && inCat) {
+        // the TV is in its catalog: the host picks here and the TV opens the waiting room of that game
+        list.innerHTML = `<div class="sect">Escolha o jogo</div>` + mm.games.map((g) => card(g, 'button', false)).join('');
+        $('#bottom').innerHTML = `<p class="muted" style="text-align:center;font-size:14px">Toque em um jogo: a sala de espera abre na TV</p>`;
+      } else if (isLead) {
         const need = s.min - onNow;
-        list.insertAdjacentHTML('beforeend', cfgHtml(mm.cfg, true));
+        list.innerHTML = `<div class="sect">Jogo escolhido</div>` + card(s, 'div', true) + cfgHtml(mm.cfg, true)
+          + `<div class="sect">Trocar de jogo</div>` + mm.games.filter((g) => g.id !== s.id).map((g) => card(g, 'button', false)).join('');
         bindCfg(list);
         $('#bottom').innerHTML = `<button class="btn primary" id="start" ${need > 0 ? 'disabled' : ''}>${need > 0 ? `Faltam ${need} jogador${need > 1 ? 'es' : ''}` : 'Começar ' + esc(s.name)}</button>`;
         $('#start').onclick = () => { send({ t: 'start' }); vib(30); };
+      } else if (inCat) {
+        list.innerHTML = `<div class="sect">${leadName} está escolhendo o jogo</div><p class="muted" style="font-size:15px;line-height:1.4">Quem escolhe é o anfitrião, pelo celular ou pelo controle da TV. Assim que escolher, a sala de espera aparece aqui.</p>`;
+        $('#bottom').innerHTML = `<p class="muted" style="text-align:center;font-size:14px">${onNow} na sala</p>`;
       } else {
-        list.innerHTML = `<div class="sect">${esc((mm.players.find((p) => p.id === mm.leader) || {}).name || 'O líder')} está escolhendo</div><div class="gcard sel" style="--g:${s.grad}"><div class="ico">${icon(s)}</div><div class="t"><b>${esc(s.name)}</b><small>${esc(s.tagline)}</small></div><em>${s.min}–${s.max}</em></div>` + cfgHtml(mm.cfg, false);
-        $('#bottom').innerHTML = `<p class="muted" style="text-align:center;font-size:14px">${onNow} na sala · o jogo começa quando o líder tocar em Começar</p>`;
+        list.innerHTML = `<div class="sect">${leadName} escolheu</div>` + card(s, 'div', true) + cfgHtml(mm.cfg, false);
+        $('#bottom').innerHTML = `<p class="muted" style="text-align:center;font-size:14px">${onNow} na sala · o jogo começa quando ${leadName} tocar em Começar</p>`;
       }
+      list.querySelectorAll('button[data-g]').forEach((x) => { x.onclick = () => { send({ t: 'pick', g: x.dataset.g }); vib(15); list.scrollTop = 0; }; });
+      list.scrollTop = keep;
     }
     void on; void sel; void leaderName;
   }
@@ -254,35 +267,46 @@
     if (!c || !c.schema) return '';
     const preset = (c.presets.find((x) => x[0] === c.preset) || [0, ''])[1];
     if (!editable) {
-      return `<div class="sect">Partida · ${esc(preset)}</div><div class="cfgro">${c.schema.map((s) => { const o = s.options.find((x) => x[0] === c.values[s.id]); return `<span><small>${esc(s.label)}</small><b>${esc(o ? o[1] : '?')}</b></span>`; }).join('')}</div>`;
+      return `<div class="sect">Partida · ${esc(preset)}</div><div class="cfgro">${c.schema.map((s) => `<span><small>${esc(s.label)}</small><b>${esc(s.text)}</b></span>`).join('')}</div>`;
     }
+    const row = (s) => (s.multi
+      ? `<div class="cfgrow"><small>${esc(s.label)} · ${esc(s.text)}</small><div class="opts2 many"><button class="all ${c.values[s.id].length === s.options.length ? 'on' : ''}" data-mall="${s.id}">${esc(s.allLabel)}</button>${s.options.map(([v, l]) => `<button class="${c.values[s.id].includes(v) ? 'on' : ''}" data-mkey="${s.id}" data-v="${esc(v)}">${esc(l)}</button>`).join('')}</div></div>`
+      : `<div class="cfgrow"><small>${esc(s.label)}</small><div class="opts2">${s.options.map(([v, l]) => `<button class="${c.values[s.id] === v ? 'on' : ''}" data-key="${s.id}" data-v='${JSON.stringify(v)}'>${esc(l)}</button>`).join('')}</div></div>`);
     return `<div class="sect">Configurar a partida</div><div class="cfg">
       <div class="seg4">${c.presets.map(([k, l]) => `<button class="${c.preset === k ? 'on' : ''}" data-preset="${k}">${esc(l)}</button>`).join('')}</div>
-      ${c.schema.map((s) => `<div class="cfgrow"><small>${esc(s.label)}</small><div class="opts2">${s.options.map(([v, l]) => `<button class="${c.values[s.id] === v ? 'on' : ''}" data-key="${s.id}" data-v='${JSON.stringify(v)}'>${esc(l)}</button>`).join('')}</div></div>`).join('')}</div>`;
+      ${c.schema.map(row).join('')}</div>`;
   }
   function bindCfg(box) {
     box.querySelectorAll('[data-preset]').forEach((b) => { b.onclick = () => { if (b.dataset.preset !== 'custom') send({ t: 'cfg', preset: b.dataset.preset }); vib(12); }; });
     box.querySelectorAll('[data-key]').forEach((b) => { b.onclick = () => { send({ t: 'cfg', key: b.dataset.key, v: JSON.parse(b.dataset.v) }); vib(12); }; });
+    const c = P.state.cfg;
+    box.querySelectorAll('[data-mkey]').forEach((b) => { b.onclick = () => {
+      const s = c.schema.find((x) => x.id === b.dataset.mkey), cur = c.values[s.id], v = b.dataset.v;
+      const next = cur.length === s.options.length ? [v] : cur.includes(v) ? cur.filter((x) => x !== v) : cur.concat(v); // from "everything", a tap chooses only that one
+      if (next.length < s.min) { toast(s.min > 1 ? `Escolha pelo menos ${s.min}` : 'Deixe pelo menos uma'); return; }
+      send({ t: 'cfg', key: s.id, v: next }); vib(12);
+    }; });
+    box.querySelectorAll('[data-mall]').forEach((b) => { b.onclick = () => { const s = c.schema.find((x) => x.id === b.dataset.mall); send({ t: 'cfg', key: s.id, v: s.options.map((o) => o[0]) }); vib(12); }; });
   }
 
-  /** The TV is in the catalog (choosing a game): this phone waits, and can still change name and character. */
-  function renderBrowse() {
-    if (P.view === 'browse') { const c = $('#crewB'); if (c) drawCrew(c); return; }
-    P.view = 'browse';
-    app.innerHTML = `<section class="view centered"><div class="brand"><i></i><span>Sala ${esc(P.state.room)}</span></div>
-      <div id="bb"></div><div class="big">A TV está escolhendo o jogo</div>
-      <p class="muted" style="font-size:16px;max-width:300px">Fique por aqui: quando alguém tocar em <b style="color:#fff">Jogar</b> na TV, a sala de espera aparece neste celular.</p>
-      <div class="crew" id="crewB" style="justify-content:center"></div>
-      <button class="btn small" id="shapeB">Trocar personagem</button></section>`;
-    const b = buddy(P.me, 120); b.onclick = () => { send({ t: 'wave' }); vib(20); };
-    $('#bb').replaceWith(b);
-    drawCrew($('#crewB'));
-    $('#shapeB').onclick = () => { send({ t: 'shape' }); vib(20); P.view = ''; };
+  /** A question over the screen: sheet(title, text, [[label, fn], ...]). */
+  function sheet(title, text, buttons) {
+    document.querySelectorAll('.sheet').forEach((x) => x.remove());
+    const sh = el('div', 'sheet', `<div class="card"><h3>${esc(title)}</h3><p>${esc(text)}</p>${buttons.map(([label], i) => `<button class="btn ${i === 0 ? 'danger' : ''}" data-i="${i}">${esc(label)}</button>`).join('')}</div>`);
+    document.body.appendChild(sh);
+    sh.onclick = (e) => { const b = e.target.closest('[data-i]'); if (!b && e.target !== sh) return; sh.remove(); if (b && buttons[+b.dataset.i][1]) buttons[+b.dataset.i][1](); };
   }
-  function drawCrew(crew) {
-    crew.innerHTML = '';
-    P.state.players.forEach((p) => { const sp = el('span', p.on ? '' : 'off'); sp.appendChild(buddy(p, 26)); sp.appendChild(document.createTextNode(p.name)); crew.appendChild(sp); });
+  /** During a match the host has a small tab at the top to end it from the phone. */
+  function hostTab() {
+    let t = $('#hostTab');
+    const show = P.state && P.state.leader === ID && (P.state.state === 'play' || P.state.state === 'intro');
+    if (!show) { if (t) t.remove(); return; }
+    if (t) return;
+    t = el('button', '', '<i></i>'); t.id = 'hostTab'; t.setAttribute('aria-label', 'Opções do anfitrião');
+    t.onclick = () => sheet('Encerrar esta partida?', 'Todos voltam para a escolha de jogos e ninguém pontua.', [['Encerrar partida', () => send({ t: 'quit' })], ['Continuar jogando', null]]);
+    document.body.appendChild(t);
   }
+
 
   function renderWait() {
     if (P.view === 'wait') return;
@@ -378,8 +402,8 @@
     P.view = 'end'; P.lastEnd = m;
     const mood = m.win ? 'happy' : m.place === m.n && m.n > 2 ? 'sad' : 'wow';
     app.innerHTML = `<section class="view centered"><div class="brand"><i></i><span>${esc(m.game)}</span></div>
-      <div id="eb"></div><div class="place">${m.place}º</div>
-      <div class="big">${m.win ? 'Você venceu!' : m.place === 2 ? 'Quase!' : 'Fim de jogo'}</div>
+      <div id="eb"></div>${m.team ? '' : `<div class="place">${m.place}º</div>`}
+      <div class="big">${m.title ? esc(m.title) : m.win ? (m.team ? 'Vocês venceram!' : 'Você venceu!') : m.team ? 'Não foi dessa vez' : m.place === 2 ? 'Quase!' : 'Fim de jogo'}</div>
       <p class="muted" style="font-size:18px">${J.fmtPts(m.pts)} ${esc(J.unit(m.pts, m.unit || 'pontos'))}${m.note ? ' · ' + esc(m.note) : ''}</p>
       <div class="bottom" id="endBtns" style="width:100%"></div></section>`;
     $('#eb').appendChild(buddy(P.me, 130, mood));

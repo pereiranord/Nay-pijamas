@@ -192,9 +192,63 @@ const J = (() => {
   if (typeof CanvasRenderingContext2D !== 'undefined' && !CanvasRenderingContext2D.prototype.roundRect) { // older TV WebViews
     CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) { r = Math.min(r, w / 2, h / 2); this.moveTo(x + r, y); this.arcTo(x + w, y, x + w, y + h, r); this.arcTo(x + w, y + h, x, y + h, r); this.arcTo(x, y + h, x, y, r); this.arcTo(x, y, x + w, y, r); this.closePath(); };
   }
+  /** n items of `pool` that were not drawn recently (remembered on this device under `key`), so words don't repeat
+      from one match to the next. When everything was used, the oldest come back first. */
+  function fresh(key, pool, n = 1) {
+    let used = [];
+    try { used = JSON.parse(localStorage.getItem('tvdrop.used.' + key) || '[]'); } catch (e) { used = []; }
+    if (!Array.isArray(used)) used = [];
+    const inPool = new Set(pool), cap = Math.min(1500, Math.floor(pool.length * 0.7));
+    used = used.filter((w) => inPool.has(w));
+    const usedSet = new Set(used);
+    const out = shuffle(pool.filter((w) => !usedSet.has(w))).slice(0, n);
+    for (let i = 0; out.length < n && i < used.length; i++) if (!out.includes(used[i])) out.push(used[i]); // oldest first
+    used = used.filter((w) => !out.includes(w)).concat(out).slice(-cap);
+    try { localStorage.setItem('tvdrop.used.' + key, JSON.stringify(used)); } catch (e) { /* private mode */ }
+    return out;
+  }
+  /* ---------- pieces most games repeat ---------- */
+  /** TV: a countdown on the top bar's timer. Returns { stop(), left() }; `each(left)` runs once per second. */
+  function clock(api, bar, secs, done, each) {
+    const deadline = Date.now() + secs * 1000;
+    let lastWhole = 1e9, live = true;
+    const stop = () => { if (!live) return; live = false; api.cancel(id); bar.time(null); };
+    const id = api.every(200, () => {
+      if (!live) return;
+      const left = (deadline - Date.now()) / 1000; bar.time(left);
+      const w = Math.ceil(left);
+      if (w !== lastWhole) { lastWhole = w; if (w <= 5 && w > 0) api.sfx('tick'); if (each) each(left); }
+      if (left <= 0) { stop(); done(); }
+    });
+    return { stop, left: () => Math.max(0, (deadline - Date.now()) / 1000) };
+  }
+  /** TV: one face per player, marked when `done[id]` is set (who already answered). */
+  function waiters(api, box, done, players) {
+    if (!box) return;
+    box.innerHTML = '';
+    (players || api.players).forEach((p) => { const ok = done[p.id] != null && done[p.id] !== false; const w = el('div', 'waiter' + (ok ? ' done' : '')); w.appendChild(api.buddy(p, 4.6, ok ? 'happy' : 'wow')); w.appendChild(el('span', '', esc(p.name))); box.appendChild(w); });
+  }
+  /** Phone: the usual top line (character, name, clock, points) and a box for the game.
+      Returns { box, time(secs | 0), pts(text), wait(title, sub, player, mood), by(id) }. */
+  function padHud(api) {
+    const { root, me } = api;
+    root.insertAdjacentHTML('beforeend', `<div class="hud"><span id="hudB"></span><span class="name">${esc(me.name)}</span><span class="pillv" id="hudClock" hidden></span><span class="pillv" id="hudPts" hidden></span></div><div class="gbox" id="box"></div>`);
+    root.querySelector('#hudB').replaceWith(api.buddy(me, 40));
+    const box = root.querySelector('#box'), clockEl = root.querySelector('#hudClock'), ptsEl = root.querySelector('#hudPts');
+    let end = 0;
+    api.every(250, () => { const left = Math.ceil((end - Date.now()) / 1000); const on = end && left > 0; clockEl.hidden = !on; if (on) { clockEl.textContent = left + ' s'; clockEl.style.color = left <= 10 ? '#ff4d6d' : ''; } });
+    const by = (id) => api.players.find((p) => p.id === id) || { id, name: '?', color: '#888888', shape: 'bola' };
+    return {
+      box, by,
+      time(secs) { end = secs ? Date.now() + secs * 1000 : 0; },
+      pts(text) { ptsEl.hidden = text == null; ptsEl.textContent = text; },
+      wait(title, sub, p, mood) { end = 0; box.innerHTML = `<div class="centered"><span id="wb"></span><div class="big">${esc(title)}</div><p class="muted" style="font-size:16px;max-width:320px">${esc(sub || '')}</p></div>`; box.querySelector('#wb').replaceWith(api.buddy(p || me, 110, mood)); },
+    };
+  }
+
   /** "1 ponto", "2 pontos". */
   const unit = (n, u) => (Math.abs(n) === 1 ? String(u).replace(/s$/, '') : u);
   const fmtPts = (n) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
-  return { COLORS, COLOR_NAMES, SHAPES, GAMES, ORDER, define, clamp, lerp, rand, irand, pick, shuffle, esc, norm, el, ordinal, distance, shade, rgba, shapePath, drawBuddy, buddyEl, Sfx, Particles, fmtPts, unit };
+  return { COLORS, COLOR_NAMES, SHAPES, GAMES, ORDER, define, clamp, lerp, rand, irand, pick, shuffle, esc, norm, el, ordinal, distance, shade, rgba, shapePath, drawBuddy, buddyEl, Sfx, Particles, fmtPts, unit, fresh, clock, waiters, padHud };
 })();

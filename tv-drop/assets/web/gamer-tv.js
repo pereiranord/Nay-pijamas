@@ -70,7 +70,9 @@
     if (!T.cfg[id]) {
       const saved = store.get('cfg.' + id, null);
       const base = { preset: 'normal', values: { ...(g.presets && g.presets.normal) } };
-      if (saved && saved.values && g.settings.every((s) => s.options.some((o) => o[0] === saved.values[s.id]))) T.cfg[id] = { preset: saved.preset, values: { ...saved.values } };
+      g.settings.filter((s) => s.multi).forEach((s) => { base.values[s.id] = (s.def || s.options.map((o) => o[0])).slice(); });
+      const okValue = (s, v) => (s.multi ? Array.isArray(v) && v.length >= (s.min || 1) && v.every((x) => s.options.some((o) => o[0] === x)) : s.options.some((o) => o[0] === v));
+      if (saved && saved.values && g.settings.every((s) => okValue(s, saved.values[s.id]))) T.cfg[id] = { preset: saved.preset, values: { ...saved.values } };
       else T.cfg[id] = base;
     }
     return T.cfg[id];
@@ -82,30 +84,47 @@
     const c = cfgOf(id);
     if (change.preset) {
       if (change.preset === 'custom') { c.preset = 'custom'; }
-      else if (g.presets && g.presets[change.preset]) { c.preset = change.preset; c.values = { ...g.presets[change.preset] }; }
+      else if (g.presets && g.presets[change.preset]) { c.preset = change.preset; c.values = { ...c.values, ...g.presets[change.preset] }; }
       else return false;
     } else {
       const s = g.settings.find((x) => x.id === change.key);
-      if (!s || !s.options.some((o) => o[0] === change.v)) return false;
-      c.values[s.id] = change.v;
-      // back to a preset's name when the values match one exactly
-      const match = Object.keys(g.presets || {}).find((k) => g.settings.every((x) => g.presets[k][x.id] === c.values[x.id]));
-      c.preset = match || 'custom';
+      if (!s) return false;
+      if (s.multi) { // a list (categories): any subset of the options, at least s.min of them; it doesn't change the preset
+        if (!Array.isArray(change.v)) return false;
+        const v = s.options.map((o) => o[0]).filter((x) => change.v.includes(x));
+        if (v.length < (s.min || 1)) return false;
+        c.values[s.id] = v;
+      } else {
+        if (!s.options.some((o) => o[0] === change.v)) return false;
+        c.values[s.id] = change.v;
+        // back to a preset's name when the values match one exactly
+        const single = g.settings.filter((x) => !x.multi);
+        const match = Object.keys(g.presets || {}).find((k) => single.every((x) => g.presets[k][x.id] === c.values[x.id]));
+        c.preset = match || 'custom';
+      }
     }
     store.set('cfg.' + id, c);
     return true;
   }
+  /** "Tudo misturado", "Animais, Comidas" or "5 de 14" for a list setting. */
+  function multiText(s, v) {
+    v = v || [];
+    if (v.length === s.options.length) return s.allLabel || 'Todas';
+    if (v.length <= 2) return s.options.filter((o) => v.includes(o[0])).map((o) => o[1]).join(', ');
+    return `${v.length} de ${s.options.length}`;
+  }
+  const valueText = (s, v) => { if (s.multi) return multiText(s, v); const o = s.options.find((x) => x[0] === v); return o ? o[1] : '?'; };
   function cfgSummary(id, values) {
     const g = GAMES[id];
     if (!g || !g.settings) return '';
-    return g.settings.map((s) => { const o = s.options.find((x) => x[0] === values[s.id]); return `${s.label}: ${o ? o[1] : '?'}`; }).join(' · ');
+    return g.settings.map((s) => `${s.label}: ${valueText(s, values[s.id])}`).join(' · ');
   }
   function cfgState() {
     const g = GAMES[T.gameId];
     if (!g || !g.settings) return null;
     const c = cfgOf(T.gameId);
     return { game: T.gameId, preset: c.preset, values: c.values, locked: T.screen !== 'lobby', presets: PRESETS,
-      schema: g.settings.map((s) => ({ id: s.id, label: s.label, options: s.options })) };
+      schema: g.settings.map((s) => ({ id: s.id, label: s.label, options: s.options, multi: !!s.multi, min: s.min || 1, allLabel: s.allLabel || 'Todas', text: valueText(s, c.values[s.id]) })) };
   }
 
   /* ================================================================ what the phones see */
@@ -137,7 +156,10 @@
       case 'shape': if (quiet()) { const used = new Set(T.players.filter((x) => x !== p).map((x) => x.shape)); let i = SHAPES.indexOf(p.shape); for (let k = 0; k < 6; k++) { i = (i + 1) % 6; if (!used.has(SHAPES[i])) break; } p.shape = SHAPES[i]; p.fresh = true; Sfx.play('pop'); changed(); } break;
       case 'name': { const n = cleanName(d.name); if (n && n !== p.name) { p.name = n; changed(); } break; }
       case 'wave': { const s = $(`.pcard[data-id="${p.id}"]`); if (s) { s.classList.remove('new'); void s.offsetWidth; s.classList.add('new'); Sfx.play('pop'); } break; }
-      case 'pick': if (lead && T.screen === 'lobby' && playable(d.g) && d.g !== T.gameId) { T.gameId = d.g; Sfx.play('move'); renderLobby(); all(roomState()); } break;
+      // the host's phone can do what the TV remote does: choose the game (from the catalog too), end a match, remove someone
+      case 'pick': if (lead && quiet() && playable(d.g) && (T.screen !== 'lobby' || d.g !== T.gameId)) { if (T.modal) T.modal.close(); T.gameId = d.g; Sfx.play('move'); renderLobby(); } break;
+      case 'quit': if (lead && (T.screen === 'play' || T.screen === 'intro' || T.screen === 'count')) { if (T.modal) T.modal.close(); toast(`${p.name} encerrou a partida`); toCatalog(); } break;
+      case 'kick': if (lead && quiet()) { const x = byId(String(d.id)); if (x && x !== p) kick(x); } break;
       case 'cfg':
         if (lead && setCfg(T.gameId, d.preset ? { preset: String(d.preset) } : { key: String(d.key), v: d.v })) { Sfx.play('move'); updateSettings(); all(roomState()); }
         else send(p, roomState()); // refused (not the host, too late, unknown value): show the phone the real settings again
@@ -386,10 +408,10 @@
     if (!g || !g.settings) { box.hidden = true; return [[], []]; }
     const c = cfgOf(T.gameId);
     box.innerHTML = `<div class="cfg-head">${svg(IC.gear)}<b>Partida</b><div class="cfg-presets">${PRESETS.map(([k, l]) => `<button class="gpill ${c.preset === k ? 'on' : ''}" data-k="preset:${k}">${l}</button>`).join('')}</div></div>
-      <div class="cfg-chips">${g.settings.map((st) => { const o = st.options.find((x) => x[0] === c.values[st.id]); return `<button class="gset" data-k="set:${st.id}"><small>${esc(st.label)}</small><b>${esc(o ? o[1] : '?')}</b><i>${st.options.map((x) => `<span class="${x[0] === c.values[st.id] ? 'on' : ''}"></span>`).join('')}</i></button>`; }).join('')}</div>`;
+      <div class="cfg-chips">${g.settings.map((st) => `<button class="gset ${st.multi ? 'multi' : ''}" data-k="set:${st.id}"><small>${esc(st.label)}</small><b>${esc(valueText(st, c.values[st.id]))}</b><i>${st.multi ? '<em>OK escolhe</em>' : st.options.map((x) => `<span class="${x[0] === c.values[st.id] ? 'on' : ''}"></span>`).join('')}</i></button>`).join('')}</div>`;
     const presets = $$('.gpill', box), chips = $$('.gset', box);
     presets.forEach((b) => { const k = b.dataset.k.split(':')[1]; b._act = () => { if (k === 'custom') { if (chips[0]) { F.r = 1; F.c = 0; paint(); } return; } if (setCfg(T.gameId, { preset: k })) { updateLobby(); all(roomState()); } }; });
-    chips.forEach((b) => { const id = b.dataset.k.split(':')[1]; b._act = () => { const st = g.settings.find((x) => x.id === id); const i = st.options.findIndex((x) => x[0] === c.values[id]); if (setCfg(T.gameId, { key: id, v: st.options[(i + 1) % st.options.length][0] })) { updateLobby(); all(roomState()); } }; });
+    chips.forEach((b) => { const id = b.dataset.k.split(':')[1]; b._act = () => { const st = g.settings.find((x) => x.id === id); if (st.multi) { pickBox(st); return; } const i = st.options.findIndex((x) => x[0] === c.values[id]); if (setCfg(T.gameId, { key: id, v: st.options[(i + 1) % st.options.length][0] })) { updateLobby(); all(roomState()); } }; });
     return [presets, chips];
   }
   const updateSettings = () => { if (T.screen === 'lobby') updateLobby(); };
@@ -398,6 +420,7 @@
   function updateLobby(first) {
     const box = $('.pgrid');
     if (!box) return;
+    if (T.modal && !first) { T.lobbyDirty = true; return; } // a question is on the screen: redraw when it closes
     const run = GAMES[T.gameId];
     const l = leader();
     const before = cur();
@@ -461,7 +484,7 @@
     T.game = g; T.gameId = id;
     T.matchId++;
     // the settings of this match, locked until it ends
-    T.cfgRun = Object.freeze({ ...cfgOf(id).values });
+    T.cfgRun = Object.freeze(JSON.parse(JSON.stringify(cfgOf(id).values)));
     T.active = online().slice(0, g.max);
     T.players.forEach((p) => { p.active = T.active.includes(p); });
     T.screen = 'intro'; T.last = {};
@@ -546,23 +569,25 @@
         };
       },
       banner(text, small) { const b = el('div', 'banner', esc(text) + (small ? `<small>${esc(small)}</small>` : '')); stage.appendChild(b); setTimeout(() => b.remove(), 2300); },
-      end: (scores) => finish(scores),
+      end: (scores, opts) => finish(scores, opts),
     };
   }
 
   /* ================================================================ results */
-  function finish(scores) {
+  /** opts: { title } for team/cooperative games; { lost: true } when the whole team lost (nobody gets a trophy). */
+  function finish(scores, opts) {
+    opts = opts || {};
     const g = T.game;
     stopGame();
     T.screen = 'results';
     const rows = scores.map((s) => ({ p: byId(s.id), pts: Math.round(s.pts || 0), note: s.note || '' })).filter((r) => r.p).sort((a, b) => b.pts - a.pts);
     rows.forEach((r) => { r.place = 1 + rows.filter((x) => x.pts > r.pts).length; });
     const winners = rows.filter((r) => r.place === 1);
-    winners.forEach((r) => { r.p.cups++; });
+    if (!opts.lost) winners.forEach((r) => { r.p.cups++; });
     const unit = g.unit || 'pontos';
-    const col = (r, cls, h) => r ? `<div class="pcol ${cls}" style="--c:${r.p.color}"><div class="crown">${r.place === 1 ? '👑' : ''}</div><span data-buddy="${r.p.id}" data-mood="${r.place === 1 ? 'happy' : r.place === rows.length && rows.length > 2 ? 'sad' : 'wow'}"></span><b>${esc(r.p.name)}</b><span class="pts">${J.fmtPts(r.pts)} ${esc(J.unit(r.pts, unit))}${r.note ? ' · ' + esc(r.note) : ''}</span><div class="bar" style="height:${h}rem">${r.place}º</div></div>` : '';
+    const col = (r, cls, h) => r ? `<div class="pcol ${cls}" style="--c:${r.p.color}"><div class="crown">${r.place === 1 && !opts.lost ? '👑' : ''}</div><span data-buddy="${r.p.id}" data-mood="${opts.lost ? 'sad' : r.place === 1 ? 'happy' : r.place === rows.length && rows.length > 2 ? 'sad' : 'wow'}"></span><b>${esc(r.p.name)}</b><span class="pts">${J.fmtPts(r.pts)} ${esc(J.unit(r.pts, unit))}${r.note ? ' · ' + esc(r.note) : ''}</span><div class="bar" style="height:${h}rem">${r.place}º</div></div>` : '';
     const rest = rows.slice(3).map((r) => `<span class="chip"><span data-buddy="${r.p.id}"></span>${r.place}º ${esc(r.p.name)}<em>${J.fmtPts(r.pts)}</em></span>`).join('');
-    const title = winners.length > 1 ? 'Empate!' : `${esc(winners[0] ? winners[0].p.name : '')} venceu!`;
+    const title = opts.title ? esc(opts.title) : winners.length > 1 ? 'Empate!' : `${esc(winners[0] ? winners[0].p.name : '')} venceu!`;
     app.innerHTML = `<section class="screen results"><div class="gbrand"><i></i>${esc(C.byId[g.id] ? C.byId[g.id].name : g.name)}</div>
       <h1 class="t-display">${title}</h1><div class="sub">Placar da noite: ${T.players.filter((p) => p.cups).sort((a, b) => b.cups - a.cups).map((p) => `${esc(p.name)} 🏆${p.cups}`).join(' · ')}</div>
       <div class="podium">${col(rows[1], '', 12)}${col(rows[0], 'first', 17)}${col(rows[2], '', 8.5)}</div>
@@ -575,9 +600,8 @@
     back._act = () => toCatalog();
     F.onMove = null;
     setRows([[again, back]]);
-    Sfx.play('drum'); setTimeout(() => Sfx.play('win'), 950);
-    confetti();
-    rows.forEach((r) => { T.last[r.p.id] = { t: 'end', place: r.place, n: rows.length, pts: r.pts, unit, win: r.place === 1, game: g.name, note: r.note }; send(r.p, T.last[r.p.id]); });
+    if (opts.lost) Sfx.play('bad'); else { Sfx.play('drum'); setTimeout(() => Sfx.play('win'), 950); confetti(); }
+    rows.forEach((r) => { T.last[r.p.id] = { t: 'end', place: r.place, n: rows.length, pts: r.pts, unit, win: r.place === 1 && !opts.lost, game: g.name, note: r.note, title: opts.padTitle || (opts.lost ? opts.title : '') || '', team: !!opts.title }; send(r.p, T.last[r.p.id]); });
     all(roomState());
   }
   function confetti() {
@@ -611,11 +635,37 @@
     m.hidden = false;
     const saved = { rows: F.rows, r: F.r, c: F.c, onMove: F.onMove };
     const btns = $$('.gbtn', m);
-    const close = () => { m.hidden = true; T.modal = null; F.rows = saved.rows; F.r = saved.r; F.c = saved.c; F.onMove = saved.onMove; paint(); };
+    const close = () => closeModal(m, saved);
     btns.forEach((b, i) => { b._act = () => { close(); if (buttons[i][1]) buttons[i][1](); }; });
     T.modal = { close };
     F.onMove = null;
     setRows([btns], 0, buttons.length > 1 ? 1 : 0); // the safe choice is focused first
+  }
+  function closeModal(m, saved) {
+    m.hidden = true; m.classList.remove('wide'); T.modal = null; F.rows = saved.rows; F.r = saved.r; F.c = saved.c; F.onMove = saved.onMove; paint();
+    if (T.lobbyDirty) { T.lobbyDirty = false; if (T.screen === 'lobby') updateLobby(); }
+  }
+  /** A list setting (categories) on the TV: a grid of on/off choices, changed right away. */
+  function pickBox(st) {
+    const m = $('#modal');
+    const c = cfgOf(T.gameId);
+    const saved = { rows: F.rows, r: F.r, c: F.c, onMove: F.onMove };
+    m.classList.add('wide');
+    m.innerHTML = `<div class="glass"><h2>${esc(st.label)}</h2><p>OK liga ou desliga. Vale para a próxima partida.</p><div class="pick-grid">${st.options.map((o) => `<button class="gpill tog" data-v="${esc(o[0])}">${esc(o[1])}</button>`).join('')}</div><div class="acts"><button class="gbtn">${esc(st.allLabel || 'Todas')}</button><button class="gbtn primary">Pronto</button></div></div>`;
+    m.hidden = false;
+    const togs = $$('.tog', m), [allB, okB] = $$('.acts .gbtn', m);
+    const paintTogs = () => togs.forEach((b) => b.classList.toggle('on', c.values[st.id].includes(b.dataset.v)));
+    const apply = (v) => { if (setCfg(T.gameId, { key: st.id, v })) { paintTogs(); all(roomState()); T.lobbyDirty = true; Sfx.play('move'); } else Sfx.play('bad'); };
+    togs.forEach((b) => { b._act = () => { const v = c.values[st.id]; apply(v.includes(b.dataset.v) ? v.filter((x) => x !== b.dataset.v) : v.concat(b.dataset.v)); }; });
+    allB._act = () => apply(st.options.map((o) => o[0]));
+    const close = () => closeModal(m, saved);
+    okB._act = close;
+    T.modal = { close };
+    F.onMove = null;
+    paintTogs();
+    const rows = []; for (let i = 0; i < togs.length; i += 4) rows.push(togs.slice(i, i + 4));
+    rows.push([allB, okB]);
+    setRows(rows, rows.length - 1, 1);
   }
 
   window.tvKey = (k) => {

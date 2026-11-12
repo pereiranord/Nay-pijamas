@@ -86,6 +86,17 @@ input { font: inherit; color: inherit; -webkit-user-select: text; user-select: t
 .cfgro span { background: var(--panel); border-radius: 14px; padding: 8px 12px; }
 .cfgro b { font-size: 16px; }
 
+.opts2.many button { min-height: 38px; min-width: 0; font-size: 13px; padding: 0 10px; }
+.opts2.many button.all { border-style: dashed; }
+/* a question over the screen, and the host's tab during a match */
+.sheet { position: fixed; inset: 0; z-index: 70; background: rgba(5, 4, 14, .72); display: flex; align-items: flex-end; justify-content: center; padding: 16px 16px calc(16px + var(--sb)); animation: viewIn .2s both; }
+.sheet .card { width: 100%; max-width: 440px; background: #1b1736; border: 1px solid var(--line); border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.sheet h3 { font-size: 22px; } .sheet p { color: var(--muted); font-size: 15px; line-height: 1.35; margin-bottom: 4px; }
+.btn.danger { background: #ff4d6d; color: #fff; border: 0; }
+#hostTab { position: fixed; z-index: 45; top: var(--st); left: 50%; transform: translateX(-50%); width: 76px; height: 20px; display: grid; place-items: start center; padding-top: 5px; }
+#hostTab i { width: 44px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .38); }
+@media (orientation: landscape) { .sheet { align-items: center; } }
+
 /* ---------- shared controller pieces ---------- */
 .hud { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 .hud .name { font-weight: 900; font-size: 16px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -107,3 +118,35 @@ input { font: inherit; color: inherit; -webkit-user-select: text; user-select: t
 .abtn.dash { background: linear-gradient(160deg, #3dc9ff, #2460c9); box-shadow: inset 0 -6px 0 rgba(0, 0, 0, .25); }
 .abtn .cool { position: absolute; inset: 0; background: rgba(8, 6, 20, .72); transform-origin: bottom; transform: scaleY(0); }
 @media (orientation: landscape) { #app { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); } .actions { width: 32%; flex-direction: row; max-width: none; } }
+
+.gbox { flex: 1; display: flex; flex-direction: column; gap: 10px; min-height: 0; margin-top: 8px; }
+.gbox .centered { gap: 12px; }
+@media (orientation: landscape) and (max-height: 540px) { .gbox .big { font-size: 22px; } .gbox .centered .buddy { width: 64px !important; height: 64px !important; } .statusbig { font-size: 12vh; } }
+
+/* ---------- the drawing board (gamer/sketch.js): upright the tools go under the paper, on its side they go beside it ---------- */
+.sk { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.sk-head { flex: none; }
+.sk-head .word { font-size: 20px; font-weight: 900; text-align: center; text-transform: uppercase; background: rgba(255, 255, 255, .08); border-radius: 14px; padding: 8px 10px; line-height: 1.15; }
+.sk-head .word small { display: block; font-size: 11px; letter-spacing: .14em; color: var(--muted); }
+.sk-cv { flex: 1; min-height: 0; min-width: 0; display: grid; place-items: center; }
+.sk-cv canvas { background: #fff; border-radius: 16px; touch-action: none; display: block; box-shadow: 0 0 0 3px rgba(255, 255, 255, .14); }
+.sk-tools { flex: none; display: flex; flex-direction: column; gap: 8px; }
+.sk-inks { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }
+.sk .ink { aspect-ratio: 1; width: 100%; max-width: 40px; justify-self: center; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .2); }
+.sk .ink.on { border-color: #fff; transform: scale(1.14); }
+.sk-row { display: flex; gap: 6px; align-items: stretch; }
+.sk .sz, .sk .tool { flex: 1; min-width: 0; height: 46px; border-radius: 13px; background: rgba(255, 255, 255, .08); display: grid; place-items: center; }
+.sk .sz i { display: block; border-radius: 50%; background: #fff; }
+.sk .sz.on, .sk .tool.on { background: rgba(61, 245, 167, .22); box-shadow: inset 0 0 0 2px var(--accent); }
+.sk .tool { flex: 1; grid-auto-flow: column; gap: 4px; font-size: 12px; font-weight: 800; padding: 0 6px; }
+.sk .tool span { display: none; } .sk #skEraser { flex: 2.1; } .sk #skEraser span { display: inline; }
+.sk .tool svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 380px) { .sk .tool span { display: none; } }
+@media (orientation: landscape) and (max-height: 560px) {
+  .sk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(170px, 34%); grid-template-rows: auto minmax(0, 1fr); gap: 8px 12px; }
+  .sk-cv { grid-row: 1 / 3; grid-column: 1; }
+  .sk-head { grid-column: 2; } .sk-tools { grid-column: 2; align-self: end; }
+  .sk-inks { grid-template-columns: repeat(5, 1fr); }
+  .sk-row { flex-wrap: wrap; } .sk .sz { flex: 1 1 20%; } .sk .tool { flex: 1 1 28%; } .sk .tool span { display: none; }
+  .sk-head .word { font-size: 16px; }
+}

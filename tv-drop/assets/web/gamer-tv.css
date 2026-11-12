@@ -180,3 +180,11 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-ui); cur
 .lob-game h1 { font-size: 2.5rem; }
 .lob-game img { width: 12rem; }
 .intro2-body .cfg-sum { font: 500 .95rem/1.4 var(--font-mono); letter-spacing: .04em; color: var(--fg-2); background: rgba(0, 0, 0, .35); padding: .55rem 1.1rem; border-radius: 999px; }
+
+/* list settings (categories) picked on the TV */
+#modal.wide .glass { max-width: 62rem; width: 62rem; }
+.pick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; margin: 1.2rem 0 1.4rem; }
+.gpill.tog { min-height: 3.2rem; border-radius: .9rem; background: rgba(255, 255, 255, .06); border: .12rem solid rgba(255, 255, 255, .12); color: var(--muted); font-size: 1.05rem; padding: 0 .6rem; }
+.gpill.tog.on { background: rgba(255, 200, 87, .2); border-color: #ffc857; color: #fff; }
+.gpill.tog.is-focus { transform: scale(1.06); box-shadow: 0 0 0 .2rem #fff; }
+.gset.multi i em { font-style: normal; font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
