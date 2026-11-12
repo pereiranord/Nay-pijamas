@@ -61,6 +61,16 @@ const ICONS = {
   pulse: '<path d="M3 12h4l3-8 4 16 3-8h4"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   enter: '<path d="M9 10l-5 5 5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/>', del: '<path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/><path d="M18 9l-6 6M12 9l6 6"/>',
   info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>',
+  library: '<path d="M4 4v16M8 4v16"/><path d="M12 4l4 16"/><path d="M17 4h3v16h-3z"/>',
+  next: '<path d="M5 4l10 8-10 8z"/><path d="M19 5v14"/>', prev: '<path d="M19 20L9 12l10-8z"/><path d="M5 19V5"/>',
+  repeat: '<path d="M17 2l4 4-4 4"/><path d="M3 11V9a3 3 0 0 1 3-3h15"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a3 3 0 0 1-3 3H3"/>',
+  drag: '<path d="M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01"/>',
+  star: '<path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',
+  queue: '<path d="M3 6h13M3 12h13M3 18h9"/><path d="M17 15l4 3-4 3z"/>',
+  bolt: '<path d="M13 2L3 14h8l-1 8 10-12h-8z"/>', cc: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10 10a2 2 0 1 0 0 4M17 10a2 2 0 1 0 0 4"/>',
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+  play2: '<circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4z"/>',
 };
 const icon = (n) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 const fillIcons = (root = document) => $$('[data-icon]', root).forEach((el) => { el.innerHTML = icon(el.dataset.icon); });
@@ -146,7 +156,7 @@ async function doPair(pin) {
 }
 
 /* ---------------------------------------------------------------- shell */
-const VIEWS = { home: renderHome, cast: renderCast, remote: renderRemote, apps: renderApps, devices: renderDevices };
+const VIEWS = { home: renderHome, cast: renderCast, remote: renderRemote, apps: renderApps, library: renderLibrary, devices: renderDevices };
 
 function go(view) {
   if (!VIEWS[view]) view = 'home';
@@ -171,7 +181,27 @@ function renderConn() {
   else { c.className = 'conn wait'; c.lastChild.textContent = 'Conectando…'; }
 }
 
-const has = (key) => !!(S.caps && S.caps.remote && (S.caps.remote.keys || []).includes(key));
+const receiverHas = (key) => !!(S.caps && S.caps.remote && (S.caps.remote.keys || []).includes(key));
+/** Phone-direct Android TV Remote (app only): used when the TV can't reach its own remote service. */
+const NATIVE_KEYS = ['up', 'down', 'left', 'right', 'ok', 'back', 'home', 'menu', 'settings', 'search', 'info', 'guide', 'captions', 'playpause', 'play', 'pause', 'stop', 'next', 'prev', 'ff', 'rew', 'volup', 'voldown', 'mute', 'power', 'del', 'enter', 'space'];
+const nativeAtvOk = () => !!(S.nativeAtv && S.nativeAtv.paired);
+const has = (key) => receiverHas(key) || (nativeAtvOk() && NATIVE_KEYS.includes(key));
+const nativeWaiters = {};
+let nativeSeq = 0;
+window.tvdropNative = (id, r) => { const w = nativeWaiters[id]; if (w) { delete nativeWaiters[id]; w(r); } };
+function nativeAtv(action, arg = '') {
+  if (!NATIVE || !NATIVE.atv) return Promise.resolve({ ok: false, message: 'Só no app Android' });
+  const id = 'n' + (++nativeSeq);
+  return new Promise((resolve) => {
+    nativeWaiters[id] = resolve;
+    NATIVE.atv(action, typeof arg === 'string' ? arg : JSON.stringify(arg), id);
+    setTimeout(() => { if (nativeWaiters[id]) { delete nativeWaiters[id]; resolve({ ok: false, message: 'O celular não respondeu.' }); } }, 25000);
+  });
+}
+async function loadNativeAtv() {
+  if (!NATIVE || !NATIVE.atv) return;
+  S.nativeAtv = await nativeAtv('state');
+}
 
 async function loadCaps() {
   try { S.caps = await api('/api/v2/capabilities'); } catch (e) { /* keep last */ }
@@ -217,13 +247,25 @@ function wsSend(obj, wantAck) {
 async function sendKey(key, el) {
   buzz();
   if (el) { el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 140); }
+  const native = async () => { const r = await nativeAtv('key', key); if (!r.ok) toast(r.message || 'A TV recusou o comando', false); return r.ok; };
+  if (!receiverHas(key) && nativeAtvOk()) return native();
   const viaWs = wsSend({ t: 'key', k: key }, true);
-  if (viaWs) { const r = await viaWs; if (!r.ok) toast(r.message || 'A TV recusou o comando', false); return r.ok; }
-  try { await api('/api/v2/remote/key', { method: 'POST', json: { key } }); return true; } catch (e) { toast(e.message, false); return false; }
+  if (viaWs) {
+    const r = await viaWs;
+    if (r.ok) return true;
+    if (nativeAtvOk() && NATIVE_KEYS.includes(key)) return native();
+    toast(r.message || 'A TV recusou o comando', false); return false;
+  }
+  try { await api('/api/v2/remote/key', { method: 'POST', json: { key } }); return true; }
+  catch (e) { if (nativeAtvOk() && NATIVE_KEYS.includes(key)) return native(); toast(e.message, false); return false; }
 }
 
 async function sendText(text, opts = {}) {
-  try { await api('/api/v2/remote/text', { method: 'POST', json: { text, replace: !!opts.replace, submit: !!opts.submit } }); return true; } catch (e) { toast(e.message, false); return false; }
+  const receiverText = S.caps && S.caps.remote && S.caps.remote.text;
+  const native = async () => { const r = await nativeAtv('text', { text, submit: !!opts.submit }); if (!r.ok) toast(r.message, false); return r.ok; };
+  if (!receiverText && nativeAtvOk() && !opts.replace) return native();
+  try { await api('/api/v2/remote/text', { method: 'POST', json: { text, replace: !!opts.replace, submit: !!opts.submit } }); return true; }
+  catch (e) { if (nativeAtvOk() && !opts.replace) return native(); toast(e.message, false); return false; }
 }
 
 function pointer(t, dx = 0, dy = 0) {
@@ -243,6 +285,8 @@ function renderHome() {
       <button id="findTv">${icon('bell')}Encontrar TV</button>
     </div>
     <div class="card" id="npCard"></div>
+    <div class="card" id="continueCard" hidden></div>
+    <div class="card" id="timerCard"></div>
     <div class="card"><h2>${esc(S.info ? S.info.name : 'TV')}</h2>
       <p class="sub">Android ${esc(S.info ? S.info.android : '?')} · TV Drop ${esc(S.info ? S.info.version : '')}</p>
       <div class="row"><button class="btn" data-go="devices">${icon('tv')}Dispositivo e diagnóstico</button></div>
@@ -251,6 +295,24 @@ function renderHome() {
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
   $('#findTv').onclick = findTv;
   updateNowPlaying();
+  drawTimer();
+  drawContinue();
+}
+
+/** "Continuar assistindo": the latest history entries with a resume point. */
+async function drawContinue() {
+  const box = $('#continueCard');
+  if (!box) return;
+  try {
+    const h = await api('/api/v2/history');
+    const items = h.items.filter((e) => e.resume).slice(0, 3);
+    if (!items.length) return;
+    box.hidden = false;
+    box.innerHTML = `<h2>Continuar assistindo</h2><div class="list">${items.map((e, i) => `<div class="item"><div class="fileicon">${icon('history')}</div>
+      <div class="t"><b>${esc(e.title)}</b><small>Parou em ${fmtTime(e.resume)}${e.duration ? ' de ' + fmtTime(e.duration) : ''}</small></div>
+      <button class="btn small primary" data-cont="${i}">Continuar</button></div>`).join('')}</div>`;
+    $$('[data-cont]', box).forEach((b) => b.onclick = () => api('/api/v2/history/play', { method: 'POST', json: { src: items[+b.dataset.cont].src, resume: true } }).then((r) => { toast(r.message); setTimeout(refreshStatus, 700); }, (e) => toast(e.message, false)));
+  } catch (e) { /* no history route on old TVs */ }
 }
 
 async function findTv() {
@@ -275,17 +337,21 @@ function updateNowPlaying() {
       <input class="seek" id="npSeek" type="range" min="0" max="1" value="0" aria-label="Posição">
       <div class="times"><span id="npPos">0:00</span><span id="npDur">--:--</span></div>
       <div class="transport">
+        <button class="key" data-q="prev" aria-label="Anterior da fila">${icon('prev')}</button>
         <button class="key" data-ctl="back" aria-label="Voltar 10 segundos">${icon('rew')}</button>
         <button class="key" data-ctl="toggle" id="npToggle" aria-label="Pausar ou continuar">${icon('pause')}</button>
         <button class="key" data-ctl="fwd" aria-label="Avançar 30 segundos">${icon('ff')}</button>
-        <button class="key" data-ctl="stop" aria-label="Parar">${icon('stop')}</button>
+        <button class="key" data-q="next" aria-label="Próximo da fila">${icon('next')}</button>
       </div>
       <div class="transport">
         <button class="key" data-vol="down" aria-label="Diminuir volume">${icon('voldown')}</button>
         <button class="key" data-vol="mute" aria-label="Silenciar">${icon('mute')}</button>
         <button class="key" data-vol="up" aria-label="Aumentar volume">${icon('volup')}</button>
       </div>
-      <div class="row" style="margin-top:12px"><button class="btn small" id="npExt"></button></div>`;
+      <div class="row" style="margin-top:12px"><button class="btn small" id="npTracks">${icon('cc')}Áudio, legenda e velocidade</button><button class="btn small" data-ctl="stop">${icon('stop')}Parar</button><button class="btn small" id="npExt"></button></div>
+      <div class="tracks" id="tracksBox" hidden></div>`;
+    $$('[data-q]', card).forEach((b) => b.onclick = () => queueCmd(b.dataset.q));
+    $('#npTracks', card).onclick = toggleTracks;
     $$('[data-ctl]', card).forEach((b) => b.onclick = () => playerCtl(b.dataset.ctl));
     $$('[data-vol]', card).forEach((b) => b.onclick = () => { buzz(); api('/api/v2/volume', { method: 'POST', json: { action: b.dataset.vol } }).catch((e) => toast(e.message, false)); });
     const seek = $('#npSeek', card);
@@ -312,9 +378,13 @@ function renderCast() {
   const main = $('#main');
   main.innerHTML = header('Transmitir') + `
     ${NATIVE ? `<div class="card"><h2>Do celular, sem copiar</h2><p class="sub">A TV toca o vídeo direto do celular, em qualidade original.</p>
-      <button class="btn primary" style="width:100%" id="nativeCast">${icon('phone')}Escolher vídeo do celular</button></div>` : ''}
+      <button class="btn primary" style="width:100%" id="nativeCast">${icon('phone')}Escolher vídeo do celular</button>
+      <button class="btn" style="width:100%;margin-top:10px" id="nativeQueue">${icon('queue')}Adicionar vídeos do celular à fila</button></div>
+      <div class="card"><h2>Espelhar a tela</h2><p class="sub">Mostra a tela do celular na TV (apresentações, fotos, jogos). Apps protegidos (bancos, Netflix…) aparecem pretos, e o som continua no celular.</p>
+      <button class="btn" style="width:100%" id="nativeMirror">${icon('cast')}${NATIVE.mirroring && NATIVE.mirroring() ? 'Parar espelhamento' : 'Espelhar a tela do celular'}</button></div>` : ''}
+    <div class="card" id="mirrorCard" hidden><h2>Espelhamento ativo</h2><p class="sub">Um celular está espelhando a tela nesta TV.</p><button class="btn danger" id="mirrorStop">Encerrar espelhamento</button></div>
     <div class="card"><h2>Enviar para a TV</h2><p class="sub">Link de vídeo (.mp4, .m3u8), YouTube ou qualquer página.</p>
-      <div class="row"><input class="field grow" id="linkIn" type="url" inputmode="url" placeholder="https://…" autocomplete="off"><button class="btn primary" id="linkBtn">${icon('link')}Enviar</button></div>
+      <div class="row"><input class="field grow" id="linkIn" type="url" inputmode="url" placeholder="https://…" autocomplete="off"><button class="btn primary" id="linkBtn">${icon('link')}Enviar</button><button class="btn" id="linkQueue">+ Fila</button></div>
       <div class="msg" id="linkMsg"></div></div>
     <div class="card"><h2>Enviar arquivos</h2><p class="sub">Vídeos, músicas, fotos, documentos e APKs. Vários de uma vez.</p>
       <div class="drop" id="drop" role="button" tabindex="0">${icon('upload')}<br>Toque para escolher<br><small>ou arraste para cá</small></div>
@@ -327,8 +397,19 @@ function renderCast() {
       <div class="list" id="files"><div class="empty">Carregando…</div></div></div>
     <div class="card"><h2>Atividade</h2><pre class="log" id="log"></pre></div>`;
   renderConn();
-  if (NATIVE) $('#nativeCast').onclick = () => NATIVE.pickAndCast();
+  if (NATIVE) {
+    $('#nativeCast').onclick = () => NATIVE.pickAndCast();
+    $('#nativeQueue').onclick = () => (NATIVE.pickToQueue ? NATIVE.pickToQueue() : toast('Atualize o app do celular', false));
+    $('#nativeMirror').onclick = () => (NATIVE.mirror ? NATIVE.mirror() : toast('Atualize o app do celular', false));
+  }
+  if (S.caps && S.caps.mirror && S.caps.mirror.active) $('#mirrorCard').hidden = false;
+  $('#mirrorStop').onclick = () => api('/api/v2/mirror/stop', { method: 'POST' }).then((r) => { toast(r.message); $('#mirrorCard').hidden = true; }, (e) => toast(e.message, false));
   $('#linkBtn').onclick = sendLink;
+  $('#linkQueue').onclick = () => {
+    const url = $('#linkIn').value.trim(), c = classifyLink(url);
+    if (!c || c.kind !== 'media') { $('#linkMsg').textContent = 'Só links diretos de vídeo/áudio entram na fila (o player do TV Drop toca eles).'; $('#linkMsg').className = 'msg err'; return; }
+    queueAdd(url);
+  };
   $('#linkIn').onkeydown = (e) => { if (e.key === 'Enter') sendLink(); };
   const drop = $('#drop'), pick = $('#pick');
   drop.onclick = () => pick.click();
@@ -424,11 +505,12 @@ function updateFiles(force) {
   const ic = { video: 'video', audio: 'music', image: 'image', apk: 'apk', document: 'file', other: 'file' };
   box.innerHTML = files.length ? files.map((f) => `<div class="item"><div class="fileicon">${icon(ic[f.kind] || 'file')}</div>
       <div class="t"><b>${esc(f.name)}</b><small>${fmtSize(f.size)} · ${esc(f.name.split('.').pop().toUpperCase())}${f.modified ? ' · ' + fmtDate(f.modified) : ''}</small></div>
-      ${f.kind === 'video' || f.kind === 'audio' ? `<button class="btn small primary" data-play="${esc(f.name)}">Tocar</button>` : ''}
+      ${f.kind === 'video' || f.kind === 'audio' ? `<button class="btn small primary" data-play="${esc(f.name)}">Tocar</button><button class="btn small" data-fq="${esc(f.name)}" aria-label="Adicionar ${esc(f.name)} à fila">+ Fila</button>` : ''}
       ${f.kind === 'apk' ? `<button class="btn small primary" data-install="${esc(f.name)}">Instalar</button>` : ''}
       <button class="btn small danger" data-del="${esc(f.name)}" aria-label="Apagar ${esc(f.name)}">${icon('trash')}</button></div>`).join('')
     : '<div class="empty">Nenhum arquivo nesta categoria.</div>';
   $$('[data-play]', box).forEach((b) => b.onclick = () => api('/api/play?file=' + encodeURIComponent(b.dataset.play), { method: 'POST' }).then(() => { toast('Tocando na TV'); setTimeout(refreshStatus, 600); }, (e) => toast(e.message, false)));
+  $$('[data-fq]', box).forEach((b) => b.onclick = () => queueAdd('inbox:' + b.dataset.fq, b.dataset.fq));
   $$('[data-install]', box).forEach((b) => b.onclick = () => api('/api/install?file=' + encodeURIComponent(b.dataset.install), { method: 'POST' }).then((r) => toast(r.message), (e) => toast(e.message, false)));
   $$('[data-del]', box).forEach((b) => b.onclick = () => { if (confirm('Apagar ' + b.dataset.del + ' da TV?')) api('/api/delete?file=' + encodeURIComponent(b.dataset.del), { method: 'POST' }).then(refreshStatus, (e) => toast(e.message, false)); });
   $('#log').textContent = (S.status.log || []).join('\n') || 'Nada ainda.';
@@ -441,7 +523,7 @@ function renderRemote() {
   const atvPaired = caps && caps.atv && caps.atv.paired;
   const k = (name, ico, label, extra = '') => `<div class="key-wrap"><button class="key ${extra}" data-key="${name}" aria-label="${label}" ${S.caps && !has(name) ? 'disabled' : ''}>${icon(ico)}</button><div class="key-label">${label}</div></div>`;
   main.innerHTML = header('Controle') + `
-    ${caps && !atvPaired ? `<div class="notice">${icon('info')}<div>Teclas desativadas precisam do pareamento do controle. <button class="btn small" data-go="devices" style="margin-top:8px">Parear controle</button></div></div>` : ''}
+    ${caps && !atvPaired && !nativeAtvOk() ? `<div class="notice">${icon('info')}<div>Teclas desativadas precisam do pareamento do controle. <button class="btn small" data-go="devices" style="margin-top:8px">Parear controle</button></div></div>` : ''}
     <div class="seg" role="group" aria-label="Modo do controle">
       <button data-mode="dpad" aria-pressed="${S.remoteMode === 'dpad'}">Direcional</button>
       <button data-mode="swipe" aria-pressed="${S.remoteMode === 'swipe'}">Deslizante</button>
@@ -451,8 +533,8 @@ function renderRemote() {
       <div class="key-row">${k('power', 'power', 'Ligar', 'power')}${k('settings', 'settings', 'Ajustes')}${k('menu', 'menu', 'Menu')}</div>
       <div id="surface"></div>
       <div class="key-row">${k('back', 'back', 'Voltar')}${k('home', 'home', 'Início')}
-        <div class="key-wrap"><button class="key" id="kbdBtn" aria-label="Teclado" ${S.caps && caps && !caps.text ? 'disabled' : ''}>${icon('keyboard')}</button><div class="key-label">Teclado</div></div>
-        <div class="key-wrap"><button class="key" id="micBtn" aria-label="Voz">${icon('mic')}</button><div class="key-label">Voz</div></div></div>
+        <div class="key-wrap"><button class="key" id="kbdBtn" aria-label="Teclado" ${S.caps && caps && !caps.text && !nativeAtvOk() ? 'disabled' : ''}>${icon('keyboard')}</button><div class="key-label">Teclado</div></div>
+        <div class="key-wrap"><button class="key" id="micBtn" aria-label="Voz e comandos">${icon('mic')}</button><div class="key-label">Voz</div></div></div>
       <div class="key-row">${k('rew', 'rew', 'Voltar')}${k('playpause', 'playpause', 'Play/Pausa')}${k('ff', 'ff', 'Avançar')}</div>
       <div class="key-row">${k('voldown', 'voldown', 'Volume −')}${k('mute', 'mute', 'Mudo')}${k('volup', 'volup', 'Volume +')}</div>
       <div class="card kbd" id="kbd" hidden><h2>Teclado</h2><p class="sub">Selecione um campo de busca na TV e digite aqui.</p>
@@ -463,7 +545,9 @@ function renderRemote() {
           <button class="btn small" id="kbdDel">${icon('del')}Apagar</button><button class="btn small" id="kbdEnter">${icon('enter')}Enter</button><button class="btn small" id="kbdSpace">Espaço</button><button class="btn small" id="kbdClear">Limpar campo</button></div></div>
       <div class="card" id="voice" hidden><h2>Comando de voz</h2><p class="sub" id="voiceHint">Fale, por exemplo: “abrir YouTube”, “aumentar volume”, “voltar”, “pesquisar filmes de ação”.</p>
         <button class="mic" id="voiceGo" aria-label="Falar">${icon('mic')}</button>
-        <div class="msg" id="voiceMsg" style="text-align:center"></div><div class="row" id="voiceConfirm" hidden><button class="btn primary" id="voiceYes">Executar</button><button class="btn" id="voiceNo">Cancelar</button></div></div>
+        <div class="row" style="margin-top:14px"><input class="field grow" id="cmdText" placeholder="Ou digite: abrir Netflix, volume em 20…" autocomplete="off"><button class="btn primary" id="cmdGo">${icon('bolt')}</button></div>
+        <div class="msg" id="voiceMsg" style="text-align:center"></div><div class="row" id="voiceConfirm" hidden><button class="btn primary" data-yes>Executar</button><button class="btn" data-no>Cancelar</button></div></div>
+      <div class="card" id="timerCard"></div>
     </div>`;
   renderConn();
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
@@ -478,6 +562,7 @@ function renderRemote() {
   $('#kbdClear').onclick = () => sendText('', { replace: true }).then((ok) => ok && toast('Campo limpo'));
   setupVoice();
   renderSurface();
+  drawTimer();
   wsConnect();
 }
 
@@ -583,11 +668,14 @@ function setupVoice() {
     $('#kbd').hidden = true;
     const card = $('#voice'); card.hidden = !card.hidden;
     if (!mode) {
-      $('#voiceHint').textContent = 'Neste navegador o microfone não está disponível: navegadores só liberam o microfone em páginas seguras (https), e a página da TV é http. Use o app TV Drop no Android, que tem reconhecimento de voz.';
+      $('#voiceHint').textContent = 'Neste navegador o microfone não está disponível (só em páginas https; a da TV é http). Digite o comando abaixo, ou use o app TV Drop no Android para falar.';
       $('#voiceGo').disabled = true;
     }
   };
   $('#voiceGo').onclick = () => listen(mode);
+  const runTyped = () => { const v = $('#cmdText').value.trim(); if (v) { runCommand(v, 1, $('#voiceMsg'), $('#voiceConfirm')); $('#cmdText').value = ''; } };
+  $('#cmdGo').onclick = runTyped;
+  $('#cmdText').onkeydown = (e) => { if (e.key === 'Enter') runTyped(); };
 }
 
 function listen(mode) {
@@ -609,58 +697,80 @@ window.tvdropVoiceResult = (text) => { $('#voiceGo') && $('#voiceGo').classList.
 window.tvdropVoiceError = (m) => { if ($('#voiceGo')) { $('#voiceGo').classList.remove('on'); $('#voiceMsg').textContent = m; $('#voiceMsg').className = 'msg err'; } };
 
 function onVoiceText(text, confidence) {
-  const msg = $('#voiceMsg');
-  const cmd = interpret(text);
-  if (!cmd) { msg.innerHTML = `Ouvi “${esc(text)}”, mas não entendi o comando.`; msg.className = 'msg err'; return; }
-  msg.innerHTML = `Ouvi “${esc(text)}” → <b>${esc(cmd.label)}</b>`;
+  runCommand(text, confidence, $('#voiceMsg'), $('#voiceConfirm'));
+}
+
+/* ---------------------------------------------------------------- ASSISTANT: interpret -> check -> execute -> confirm */
+function assistantContext() {
+  const apps = [];
+  for (const c of S.catalog) if (c.installed) apps.push({ name: c.name, pkg: c.installed });
+  for (const a of S.apps) if (!apps.some((x) => x.pkg === a.pkg)) apps.push({ name: a.label, pkg: a.pkg });
+  return { apps, shortcuts: getShortcuts().map((x) => x.name) };
+}
+
+/** Why an intent can't run on this TV right now (null = it can). */
+function incompatible(cmd) {
+  const k = (key) => (has(key) ? null : 'esta TV não aceita a tecla "' + key + '" agora (pareie o controle em Dispositivos)');
+  switch (cmd.intent) {
+    case 'key': return k(cmd.args.key);
+    case 'keys': return k(cmd.args.key);
+    case 'power': return k('power');
+    case 'search': return k('search') || (S.caps && S.caps.remote && !S.caps.remote.text ? 'digitar na TV não está disponível' : null);
+    case 'text': return S.caps && S.caps.remote && !S.caps.remote.text && !nativeAtvOk() ? 'digitar na TV não está disponível' : null;
+    case 'app': return cmd.args.missing ? '"' + cmd.args.missing + '" não está instalado na TV' : null;
+    case 'volumeSet': { const a = S.caps && S.caps.remote && S.caps.remote.atv; return a && a.volumeMax > 0 && a.volumeLevel >= 0 ? null : 'a TV não informou o volume atual (pareie o controle)'; }
+    default: return null;
+  }
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function execute(cmd) {
+  const a = cmd.args || {};
+  switch (cmd.intent) {
+    case 'app': return launchApp(a.pkg, a.name);
+    case 'key': return sendKey(a.key);
+    case 'keys': for (let i = 0; i < a.times; i++) { await sendKey(a.key); await sleep(140); } return true;
+    case 'volumeStep': for (let i = 0; i < a.steps; i++) { await api('/api/v2/volume', { method: 'POST', json: { action: a.dir } }); await sleep(120); } return true;
+    case 'volumeSet': {
+      const atv = S.caps.remote.atv;
+      const target = Math.max(0, Math.min(atv.volumeMax, a.level));
+      const diff = target - atv.volumeLevel;
+      for (let i = 0; i < Math.abs(diff); i++) { await sendKey(diff > 0 ? 'volup' : 'voldown'); await sleep(120); }
+      return true;
+    }
+    case 'search': if (await sendKey('search')) { await sleep(1500); return sendText(a.query, { submit: true }); } return false;
+    case 'text': return sendText(a.text);
+    case 'timer':
+      if (a.action === 'power' && !has('power')) { toast('Sem o controle pareado a TV não desliga sozinha: no fim, a reprodução será encerrada.', false); await sleep(1800); }
+      return setTimer(a.minutes, a.action);
+    case 'timerCancel': return cancelTimer();
+    case 'shortcut': { const sc = getShortcuts().find((x) => x.name === a.name); return sc ? runShortcut(sc) : false; }
+    case 'queueNext': return queueCmd('next');
+    case 'queuePrev': return queueCmd('prev');
+    case 'playerToggle':
+      if (S.status && S.status.playing) { if ((a.want === 'pause') !== !!S.status.paused) return playerCtl('toggle'); return true; }
+      return sendKey(a.want === 'pause' ? 'pause' : 'play');
+    case 'power': return sendKey('power');
+    case 'go': go(a.view); return true;
+    default: return false;
+  }
+}
+
+/** Interprets a sentence and runs it; important or uncertain commands wait for a tap. */
+function runCommand(text, confidence, msg, confirmBox) {
+  const cmd = window.TVDropAssistant ? TVDropAssistant.interpret(text, assistantContext()) : null;
+  if (!cmd) { msg.innerHTML = `“${esc(text)}”: não entendi o comando.`; msg.className = 'msg err'; return; }
+  const why = incompatible(cmd);
+  if (why) { msg.innerHTML = `“${esc(text)}” → ${esc(cmd.label)}: <b>${esc(why)}</b>.`; msg.className = 'msg err'; return; }
+  msg.innerHTML = `“${esc(text)}” → <b>${esc(cmd.label)}</b>`;
   msg.className = 'msg ok';
-  // Low confidence or important actions wait for a tap.
+  const go_ = async () => { const ok = await execute(cmd); if (ok === false) { msg.innerHTML += ' — <span style="color:var(--red)">não foi executado</span>'; } };
   if (cmd.confirm || (confidence && confidence < 0.6)) {
-    $('#voiceConfirm').hidden = false;
-    $('#voiceYes').onclick = () => { $('#voiceConfirm').hidden = true; cmd.run(); };
-    $('#voiceNo').onclick = () => { $('#voiceConfirm').hidden = true; msg.textContent = 'Cancelado.'; };
-  } else cmd.run();
-}
-
-/** Turns a sentence into a TV command. Recognition, interpretation and execution are kept apart. */
-function interpret(raw) {
-  const t = raw.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.!?,]/g, '').trim();
-  const times = (s) => { const m = s.match(/(\d+)\s*(vezes|x)?/); return m ? Math.min(10, +m[1]) : 1; };
-  const repeat = (key, n) => async () => { for (let i = 0; i < n; i++) { await sendKey(key); await new Promise((r) => setTimeout(r, 120)); } };
-  let m;
-  if ((m = t.match(/^(abr(ir|a|e)|abrir o|abra o|inicia(r)?|entra(r)? no?)\s+(o |a |no |na )?(.+)$/))) {
-    const name = m[6].trim();
-    const app = findApp(name);
-    if (!app) return { label: `abrir “${name}” (não encontrei esse app na TV)`, run: () => toast('App não encontrado na TV: ' + name, false) };
-    return { label: 'abrir ' + app.label, run: () => launchApp(app.pkg, app.label) };
-  }
-  if (/(aumenta|aumentar|sobe|subir|mais alto).*(volume|som)|volume.*(mais|alto|aumenta)/.test(t)) { const n = times(t); return { label: `aumentar volume${n > 1 ? ' ' + n + 'x' : ''}`, run: repeat('volup', n) }; }
-  if (/(diminui|diminuir|abaixa|abaixar|desce|baixar|mais baixo).*(volume|som)|volume.*(menos|baixo|diminui)/.test(t)) { const n = times(t); return { label: `diminuir volume${n > 1 ? ' ' + n + 'x' : ''}`, run: repeat('voldown', n) }; }
-  if (/^(mudo|silencia(r)?|tira(r)? o som|sem som)/.test(t)) return { label: 'silenciar', run: () => sendKey('mute') };
-  if (/^(volta(r)?|voltar tela|anterior)$/.test(t)) return { label: 'voltar', run: () => sendKey('back') };
-  if (/(inicio|tela inicial|home|menu principal)/.test(t)) return { label: 'ir para o início', run: () => sendKey('home') };
-  if (/^(pausa(r)?|para(r)?( o video)?|pausar video)/.test(t)) return { label: 'pausar', run: () => (S.status && S.status.playing ? playerCtl('toggle') : sendKey('pause')) };
-  if (/^(continua(r)?|reproduzi(r)?|toca(r)?|play|retoma(r)?)/.test(t)) return { label: 'reproduzir', run: () => (S.status && S.status.playing && S.status.paused ? playerCtl('toggle') : sendKey('play')) };
-  if ((m = t.match(/^(pesquisa(r)?|procura(r)?|busca(r)?)\s+(por\s+)?(.+)$/))) {
-    const q = raw.replace(/^\s*\S+\s+(por\s+)?/i, '').trim();
-    return { label: `pesquisar “${q}”`, run: async () => { if (await sendKey('search')) { await new Promise((r) => setTimeout(r, 1500)); sendText(q, { submit: true }); } } };
-  }
-  if ((m = t.match(/^(cima|sobe|baixo|desce|esquerda|direita)( (\d+))?/))) {
-    const map = { cima: 'up', sobe: 'up', baixo: 'down', desce: 'down', esquerda: 'left', direita: 'right' };
-    const n = m[3] ? Math.min(10, +m[3]) : 1;
-    return { label: `${m[1]}${n > 1 ? ' ' + n + 'x' : ''}`, run: repeat(map[m[1]], n) };
-  }
-  if (/^(ok|seleciona(r)?|confirma(r)?|entra(r)?)$/.test(t)) return { label: 'OK', run: () => sendKey('ok') };
-  if (/(desliga(r)?|apaga(r)?)( a)? (tv|televisao)|^desligar$/.test(t) && !/ em /.test(t)) return { label: 'desligar a TV', confirm: true, run: () => sendKey('power') };
-  return null;
-}
-
-function findApp(name) {
-  const n = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '');
-  const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9+]/g, '');
-  for (const c of S.catalog) if (c.installed && (norm(c.name).includes(n) || n.includes(norm(c.name)) || norm(c.id) === n)) return { pkg: c.installed, label: c.name };
-  for (const a of S.apps) if (norm(a.label).includes(n) || n.includes(norm(a.label))) return { pkg: a.pkg, label: a.label };
-  return null;
+    confirmBox.hidden = false;
+    $('[data-yes]', confirmBox).onclick = () => { confirmBox.hidden = true; go_(); };
+    $('[data-no]', confirmBox).onclick = () => { confirmBox.hidden = true; msg.textContent = 'Cancelado.'; };
+  } else go_();
 }
 
 /* ---------------------------------------------------------------- APPS */
@@ -722,8 +832,12 @@ function drawApps() {
         <div class="t"><b>${esc(a.label)}</b><br><small class="sub mono">${esc(a.pkg)}</small></div>
         <button class="btn small" data-fav="${esc(a.pkg)}" aria-label="Adicionar aos favoritos">${icon('plus')}</button>
         <button class="btn small primary" data-open="${esc(a.pkg)}">Abrir</button></div>`).join('') || '<div class="empty">Nenhum app encontrado.</div>'}</div>
-      <div class="row" style="margin-top:10px"><button class="btn small" id="reloadApps">Atualizar lista</button></div></div>`;
+      <div class="row" style="margin-top:10px"><button class="btn small" id="reloadApps">Atualizar lista</button></div></div>
+    <div class="card"><h2>Meus atalhos</h2><p class="sub">Sequências de comandos com um toque. Os passos são conferidos antes de rodar.</p><div id="scBox"></div></div>
+    <div class="card"><h2>Buscar filmes e séries</h2><div id="searchBox"></div></div>`;
   renderConn();
+  drawShortcuts();
+  drawSearch();
   $('#editFavs').onclick = () => { S.editApps = !S.editApps; drawApps(); };
   $('#reloadApps').onclick = async () => { await loadApps(true); drawApps(); };
   const search = $('#appSearch');
@@ -751,6 +865,373 @@ function drawApps() {
   });
 }
 
+/* ---------------------------------------------------------------- QUEUE + PLAYER EXTRAS */
+async function queueCmd(what) {
+  buzz();
+  try { const r = await api('/api/v2/queue/' + what, { method: 'POST' }); toast(r.message); setTimeout(refreshStatus, 600); if (S.view === 'library') drawLibrary(); return true; }
+  catch (e) { toast(e.message, false); return false; }
+}
+
+async function queueAdd(src, title, mode = 'end') {
+  try { const r = await api('/api/v2/queue/add', { method: 'POST', json: { src, title, mode } }); toast(r.message); if (mode === 'now') setTimeout(refreshStatus, 600); return true; }
+  catch (e) { toast(e.message, false); return false; }
+}
+
+async function toggleTracks() {
+  const box = $('#tracksBox');
+  if (!box) return;
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = '<div class="sub">Carregando faixas…</div>';
+  try {
+    const t = await api('/api/v2/player/tracks');
+    const opt = (list, none) => (none ? `<option value="-1:-1">Sem legenda</option>` : '') + list.map((x) => `<option value="${x.group}:${x.track}" ${x.selected ? 'selected' : ''} ${x.supported === false ? 'disabled' : ''}>${esc(x.label)}${x.supported === false ? ' (sem suporte)' : ''}</option>`).join('');
+    const anyText = t.text.some((x) => x.selected);
+    box.innerHTML = `
+      <label>Áudio<select class="field" id="trAudio">${opt(t.audio) || '<option>Única faixa</option>'}</select></label>
+      <label>Legenda<select class="field" id="trText">${t.text.length ? opt(t.text, true) : '<option>Sem legendas no arquivo</option>'}</select></label>
+      <label>Velocidade<select class="field" id="trSpeed">${[0.5, 0.75, 1, 1.25, 1.5, 2].map((v) => `<option value="${v}" ${Math.abs(t.speed - v) < 0.01 ? 'selected' : ''}>${v}x</option>`).join('')}</select></label>`;
+    if (!anyText && t.text.length) $('#trText').value = '-1:-1';
+    const pick = (type, sel) => { const [g, k] = sel.value.split(':').map(Number); api('/api/v2/player/track', { method: 'POST', json: { type, group: g, track: k } }).then((r) => toast(r.message), (e) => toast(e.message, false)); };
+    $('#trAudio').onchange = (e) => pick('audio', e.target);
+    if (t.text.length) $('#trText').onchange = (e) => pick('text', e.target);
+    $('#trSpeed').onchange = (e) => api('/api/v2/player/speed', { method: 'POST', json: { speed: +e.target.value } }).then((r) => toast(r.message), (er) => toast(er.message, false));
+  } catch (e) { box.innerHTML = `<div class="sub">${esc(e.message)}</div>`; }
+}
+
+/* ---------------------------------------------------------------- TIMER */
+let timerTick = 0;
+async function setTimer(minutes, action) {
+  try { const r = await api('/api/v2/timer', { method: 'POST', json: { minutes, action } }); toast(r.message); drawTimer(r); return true; }
+  catch (e) { toast(e.message, false); return false; }
+}
+async function cancelTimer() {
+  try { const r = await api('/api/v2/timer/cancel', { method: 'POST' }); toast(r.message); drawTimer(r); return true; }
+  catch (e) { toast(e.message, false); return false; }
+}
+
+/** Timer card: countdown when active, quick choices otherwise. */
+async function drawTimer(state) {
+  const box = $('#timerCard');
+  if (!box) return;
+  if (!state) { try { state = await api('/api/v2/timer'); } catch (e) { return; } }
+  clearInterval(timerTick);
+  const powerOk = has('power');
+  const labels = { pause: 'pausar', mute: 'silenciar', stop: 'encerrar a reprodução', power: 'desligar a TV' };
+  if (state.active) {
+    const end = Date.now() + state.remainingMs;
+    box.innerHTML = `<h2>Temporizador</h2><div class="timer-big" id="tLeft"></div><p class="sub" style="text-align:center">para ${esc(labels[state.action] || state.action)}</p>
+      <button class="btn danger" style="width:100%" id="tCancel">Cancelar</button>`;
+    const upd = () => { const ms = Math.max(0, end - Date.now()); const el = $('#tLeft'); if (!el) { clearInterval(timerTick); return; } el.textContent = fmtTime(ms); if (!ms) { clearInterval(timerTick); setTimeout(() => drawTimer(), 1500); } };
+    upd(); timerTick = setInterval(upd, 1000);
+    $('#tCancel').onclick = cancelTimer;
+    return;
+  }
+  const sel = store.get('timerAction', 'pause');
+  box.innerHTML = `<h2>Temporizador</h2><p class="sub">Roda na TV: funciona mesmo com o celular desligado.</p>
+    <label class="sub" style="display:block">Ao terminar:</label>
+    <select class="field" id="tAction"><option value="pause">Pausar</option><option value="mute">Silenciar</option><option value="stop">Encerrar a reprodução</option>
+      <option value="power" ${powerOk ? '' : 'disabled'}>Desligar a TV${powerOk ? '' : ' (pareie o controle)'}</option></select>
+    <div class="choice">${[15, 30, 45, 60].map((m) => `<button data-min="${m}">${m < 60 ? m + ' min' : '1 h'}</button>`).join('')}</div>
+    <div class="row"><input class="field grow" id="tCustom" type="number" min="1" max="720" inputmode="numeric" placeholder="Minutos"><button class="btn" id="tGo">Iniciar</button></div>`;
+  $('#tAction').value = sel === 'power' && !powerOk ? 'pause' : sel;
+  $('#tAction').onchange = (e) => store.set('timerAction', e.target.value);
+  $$('[data-min]', box).forEach((b) => b.onclick = () => setTimer(+b.dataset.min, $('#tAction').value));
+  $('#tGo').onclick = () => { const m = +$('#tCustom').value; if (m > 0) setTimer(m, $('#tAction').value); else toast('Digite os minutos', false); };
+}
+
+/* ---------------------------------------------------------------- LIBRARY */
+function renderLibrary() {
+  const main = $('#main');
+  main.innerHTML = header('Biblioteca') + `
+    <div class="card"><div class="row"><h2 class="grow" style="margin:0">Fila de reprodução</h2>
+      <select class="field" id="qRepeat" style="max-width:150px;min-height:40px" aria-label="Repetição"><option value="off">Sem repetir</option><option value="all">Repetir fila</option><option value="one">Repetir item</option></select></div>
+      <p class="sub" style="margin-top:6px">Toca na TV em sequência, mesmo com o celular em outra tela. Arraste ⋮⋮ para reordenar.</p>
+      <div class="list" id="qList"><div class="empty">Carregando…</div></div>
+      <div class="row" style="margin-top:10px"><button class="btn small" data-qc="prev">${icon('prev')}Anterior</button><button class="btn small primary" data-qc="next">${icon('next')}Próximo</button>
+        <button class="btn small" id="qSave">Salvar como playlist</button><button class="btn small danger" id="qClear">Limpar</button></div></div>
+    <div class="card"><h2>Playlists</h2><div class="list" id="plList"><div class="empty">Carregando…</div></div></div>
+    <div class="card"><div class="row"><h2 class="grow" style="margin:0">Histórico</h2>
+      <label class="slider-row" style="margin:0;flex:none"><input type="checkbox" id="hOn" style="width:20px;height:20px"> Ativado</label></div>
+      <p class="sub" style="margin-top:6px">Guardado só na TV. "Continuar" retoma de onde parou no player do TV Drop.</p>
+      <div class="list" id="hList"><div class="empty">Carregando…</div></div>
+      <div class="row" style="margin-top:10px"><button class="btn small danger" id="hClear">Limpar histórico</button></div></div>
+    <div class="card"><h2>Arquivos recebidos</h2><p class="sub">Fotos, vídeos, músicas, documentos e APKs enviados para a TV.</p><button class="btn" data-go="cast">${icon('file')}Ver arquivos recebidos</button></div>`;
+  renderConn();
+  $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
+  $$('[data-qc]', main).forEach((b) => b.onclick = () => queueCmd(b.dataset.qc));
+  $('#qRepeat').onchange = (e) => api('/api/v2/queue/repeat', { method: 'POST', json: { mode: e.target.value } }).then((r) => toast(r.message), (er) => toast(er.message, false));
+  $('#qClear').onclick = () => { if (confirm('Limpar a fila?')) api('/api/v2/queue/clear', { method: 'POST' }).then(drawLibrary, (e) => toast(e.message, false)); };
+  $('#qSave').onclick = () => { const n = prompt('Nome da playlist:'); if (n) api('/api/v2/playlists/save', { method: 'POST', json: { name: n } }).then((r) => { toast(r.message); drawLibrary(); }, (e) => toast(e.message, false)); };
+  $('#hClear').onclick = () => { if (confirm('Apagar todo o histórico?')) api('/api/v2/history/clear', { method: 'POST' }).then(drawLibrary, (e) => toast(e.message, false)); };
+  $('#hOn').onchange = (e) => api('/api/v2/history/enabled', { method: 'POST', json: { enabled: e.target.checked } }).then(drawLibrary, (er) => toast(er.message, false));
+  drawLibrary();
+}
+
+async function drawLibrary() {
+  if (S.view !== 'library') return;
+  try {
+    const [q, pl, h] = await Promise.all([api('/api/v2/queue'), api('/api/v2/playlists'), api('/api/v2/history')]);
+    $('#qRepeat').value = q.repeat;
+    const ql = $('#qList');
+    ql.innerHTML = q.items.length ? q.items.map((it, i) => `<div class="qrow ${i === q.current ? 'cur' : ''}" data-i="${i}">
+        <div class="handle" aria-label="Arrastar para reordenar">${icon('drag')}</div>
+        <div class="t"><b>${i === q.current ? '▶ ' : ''}${esc(it.title)}</b><small>${esc(it.src.startsWith('inbox:') ? 'Arquivo na TV' : (it.src.match(/^https?:\/\/(\d+\.\d+\.\d+\.\d+):\d+\/s\//) ? 'Do celular' : 'Link'))}</small></div>
+        <button class="btn small primary" data-qp="${i}" aria-label="Tocar">${icon('play')}</button>
+        <button class="btn small danger" data-qr="${i}" aria-label="Remover">${icon('x')}</button></div>`).join('')
+      : '<div class="empty">A fila está vazia. Adicione itens em Transmitir (botão “+ Fila”).</div>';
+    $$('[data-qp]', ql).forEach((b) => b.onclick = () => api('/api/v2/queue/play', { method: 'POST', json: { index: +b.dataset.qp } }).then((r) => { toast(r.message); drawLibrary(); setTimeout(refreshStatus, 600); }, (e) => toast(e.message, false)));
+    $$('[data-qr]', ql).forEach((b) => b.onclick = () => api('/api/v2/queue/remove', { method: 'POST', json: { index: +b.dataset.qr } }).then(drawLibrary, (e) => toast(e.message, false)));
+    setupDrag(ql);
+
+    const pll = $('#plList');
+    pll.innerHTML = pl.playlists.length ? pl.playlists.map((p) => `<div class="item"><div class="fileicon">${icon('queue')}</div>
+        <div class="t"><b>${esc(p.name)}</b><small>${p.count} ${p.count === 1 ? 'item' : 'itens'}</small></div>
+        <button class="btn small primary" data-pplay="${esc(p.name)}">Tocar</button><button class="btn small" data-pload="${esc(p.name)}">Para a fila</button>
+        <button class="btn small danger" data-pdel="${esc(p.name)}" aria-label="Apagar">${icon('trash')}</button></div>`).join('')
+      : '<div class="empty">Nenhuma playlist. Monte uma fila e toque em “Salvar como playlist”.</div>';
+    $$('[data-pplay]', pll).forEach((b) => b.onclick = () => api('/api/v2/playlists/load', { method: 'POST', json: { name: b.dataset.pplay, play: true } }).then((r) => { toast('Tocando a playlist'); drawLibrary(); }, (e) => toast(e.message, false)));
+    $$('[data-pload]', pll).forEach((b) => b.onclick = () => api('/api/v2/playlists/load', { method: 'POST', json: { name: b.dataset.pload } }).then((r) => { toast(r.message); drawLibrary(); }, (e) => toast(e.message, false)));
+    $$('[data-pdel]', pll).forEach((b) => b.onclick = () => { if (confirm('Apagar a playlist ' + b.dataset.pdel + '?')) api('/api/v2/playlists/delete', { method: 'POST', json: { name: b.dataset.pdel } }).then(drawLibrary, (e) => toast(e.message, false)); });
+
+    $('#hOn').checked = h.enabled;
+    const hl = $('#hList');
+    hl.innerHTML = !h.enabled ? '<div class="empty">Histórico desativado.</div>' : h.items.length ? h.items.map((e, i) => `<div class="item">
+        <button class="star ${e.favorite ? 'on' : ''}" data-hfav="${i}" aria-label="Favoritar">${icon('star')}</button>
+        <div class="t"><b>${esc(e.title)}</b><small>${fmtDate(e.time)}${e.duration ? ' · ' + fmtTime(e.position) + ' de ' + fmtTime(e.duration) : ''}</small></div>
+        ${e.resume ? `<button class="btn small primary" data-hres="${i}">Continuar</button>` : ''}
+        <button class="btn small" data-hplay="${i}">${e.resume ? 'Do início' : 'Tocar'}</button>
+        <button class="btn small" data-hq="${i}" aria-label="Adicionar à fila">+ Fila</button></div>`).join('')
+      : '<div class="empty">Nada assistido ainda.</div>';
+    const item = (b, k) => h.items[+b.dataset[k]];
+    $$('[data-hres]', hl).forEach((b) => b.onclick = () => api('/api/v2/history/play', { method: 'POST', json: { src: item(b, 'hres').src, resume: true } }).then((r) => { toast(r.message); setTimeout(refreshStatus, 600); }, (e) => toast(e.message, false)));
+    $$('[data-hplay]', hl).forEach((b) => b.onclick = () => api('/api/v2/history/play', { method: 'POST', json: { src: item(b, 'hplay').src } }).then((r) => { toast(r.message); setTimeout(refreshStatus, 600); }, (e) => toast(e.message, false)));
+    $$('[data-hq]', hl).forEach((b) => b.onclick = () => { const e = item(b, 'hq'); queueAdd(e.src, e.title); });
+    $$('[data-hfav]', hl).forEach((b) => b.onclick = () => api('/api/v2/history/favorite', { method: 'POST', json: { src: item(b, 'hfav').src } }).then(drawLibrary, (e) => toast(e.message, false)));
+  } catch (e) { toast(e.message, false); }
+}
+
+/** Drag & drop by the handle (touch and mouse), then one "move" call. */
+function setupDrag(list) {
+  $$('.handle', list).forEach((h) => {
+    h.onpointerdown = (e) => {
+      const row = h.closest('.qrow');
+      const rows = $$('.qrow', list);
+      const from = rows.indexOf(row);
+      const startY = e.clientY;
+      const heights = rows.map((r) => r.getBoundingClientRect());
+      let to = from;
+      h.setPointerCapture(e.pointerId);
+      row.classList.add('dragging');
+      h.onpointermove = (ev) => {
+        const dy = ev.clientY - startY;
+        row.style.transform = `translateY(${dy}px)`;
+        const y = heights[from].top + heights[from].height / 2 + dy;
+        to = rows.length - 1;
+        for (let i = 0; i < rows.length; i++) if (y < heights[i].top + heights[i].height / 2) { to = i; break; }
+        rows.forEach((r, i) => { if (r === row) return; let shift = 0; if (from < to && i > from && i <= to) shift = -heights[from].height; if (from > to && i < from && i >= to) shift = heights[from].height; r.style.transform = shift ? `translateY(${shift}px)` : ''; });
+      };
+      h.onpointerup = h.onpointercancel = () => {
+        h.onpointermove = h.onpointerup = h.onpointercancel = null;
+        rows.forEach((r) => { r.style.transform = ''; });
+        row.classList.remove('dragging');
+        if (to !== from) api('/api/v2/queue/move', { method: 'POST', json: { from, to } }).then(drawLibrary, (er) => toast(er.message, false));
+      };
+    };
+  });
+}
+
+/* ---------------------------------------------------------------- SHORTCUTS ("Meus Atalhos") */
+const STEP_TYPES = { app: 'Abrir app', key: 'Tecla', volume: 'Volume', text: 'Digitar texto', wait: 'Esperar', timer: 'Temporizador', link: 'Abrir link' };
+const DEFAULT_SHORTCUTS = [
+  { name: 'Modo filme', steps: [{ type: 'app', value: 'netflix' }, { type: 'volume', dir: 'up', value: 2 }] },
+  { name: 'Modo música', steps: [{ type: 'app', value: 'youtube' }, { type: 'volume', dir: 'up', value: 3 }] },
+  { name: 'Modo descanso', steps: [{ type: 'key', value: 'pause' }, { type: 'timer', value: 30, action: 'stop' }] },
+];
+const getShortcuts = () => store.get('shortcuts', DEFAULT_SHORTCUTS);
+const setShortcuts = (v) => store.set('shortcuts', v);
+
+function appByRef(ref) {
+  const c = S.catalog.find((x) => x.id === ref);
+  if (c) return c.installed ? { pkg: c.installed, name: c.name } : { missing: c.name };
+  const a = S.apps.find((x) => x.pkg === ref);
+  return a ? { pkg: a.pkg, name: a.label } : { missing: ref };
+}
+
+function stepLabel(st) {
+  switch (st.type) {
+    case 'app': { const a = appByRef(st.value); return 'Abrir ' + (a.name || a.missing); }
+    case 'key': return 'Tecla ' + st.value;
+    case 'volume': return 'Volume ' + (st.dir === 'down' ? '−' : '+') + st.value;
+    case 'text': return 'Digitar “' + st.value + '”';
+    case 'wait': return 'Esperar ' + st.value + ' s';
+    case 'timer': return 'Temporizador ' + st.value + ' min (' + ({ pause: 'pausar', mute: 'silenciar', stop: 'encerrar', power: 'desligar' }[st.action] || st.action) + ')';
+    case 'link': return 'Abrir ' + st.value;
+    default: return st.type;
+  }
+}
+
+/** Problems that would stop a shortcut, checked before running anything. */
+function shortcutProblems(sc) {
+  const out = [];
+  for (const st of sc.steps) {
+    if (st.type === 'app') { const a = appByRef(st.value); if (a.missing) out.push(a.missing + ' não está instalado'); }
+    if (st.type === 'key' && !has(st.value)) out.push('a tecla ' + st.value + ' não está disponível');
+    if (st.type === 'text' && S.caps && S.caps.remote && !S.caps.remote.text) out.push('digitar não está disponível');
+    if (st.type === 'timer' && st.action === 'power' && !has('power')) out.push('desligar exige o controle pareado');
+  }
+  return out;
+}
+
+async function runShortcut(sc) {
+  const problems = shortcutProblems(sc);
+  if (problems.length && !confirm('O atalho "' + sc.name + '" tem passos que não vão funcionar:\n• ' + problems.join('\n• ') + '\n\nExecutar os outros passos mesmo assim?')) return false;
+  toast('Executando ' + sc.name);
+  for (const st of sc.steps) {
+    try {
+      if (st.type === 'app') { const a = appByRef(st.value); if (a.pkg) { await api('/api/v2/apps/launch', { method: 'POST', json: { pkg: a.pkg } }); await sleep(2500); } }
+      else if (st.type === 'key') { if (has(st.value)) await sendKey(st.value); }
+      else if (st.type === 'volume') for (let i = 0; i < +st.value; i++) { await api('/api/v2/volume', { method: 'POST', json: { action: st.dir === 'down' ? 'down' : 'up' } }); await sleep(120); }
+      else if (st.type === 'text') await sendText(st.value);
+      else if (st.type === 'wait') await sleep(Math.min(60, +st.value) * 1000);
+      else if (st.type === 'timer') await api('/api/v2/timer', { method: 'POST', json: { minutes: +st.value, action: st.action || 'pause' } });
+      else if (st.type === 'link') await api('/api/v2/remote/link', { method: 'POST', json: { link: st.value } });
+    } catch (e) { toast(sc.name + ': ' + e.message, false); return false; }
+    await sleep(200);
+  }
+  toast(sc.name + ' concluído');
+  return true;
+}
+
+function drawShortcuts() {
+  const box = $('#scBox');
+  if (!box) return;
+  const list = getShortcuts();
+  box.innerHTML = list.map((sc, i) => {
+    const p = shortcutProblems(sc);
+    return `<div class="sc"><div class="fileicon">${icon('bolt')}</div><div class="t"><b>${esc(sc.name)}</b><small>${esc(sc.steps.map(stepLabel).join(' → ') || 'Sem passos')}</small>${p.length ? `<br><span class="pill warn">${esc(p[0])}</span>` : ''}</div>
+      <button class="btn small primary" data-scrun="${i}">Executar</button><button class="btn small" data-scedit="${i}" aria-label="Editar">${icon('edit')}</button></div>`;
+  }).join('') + `<div class="row" style="margin-top:8px"><button class="btn small" id="scNew">${icon('plus')}Novo atalho</button></div><div id="scEditor"></div>`;
+  $$('[data-scrun]', box).forEach((b) => b.onclick = () => runShortcut(getShortcuts()[+b.dataset.scrun]));
+  $$('[data-scedit]', box).forEach((b) => b.onclick = () => editShortcut(+b.dataset.scedit));
+  $('#scNew').onclick = () => editShortcut(-1);
+}
+
+function editShortcut(index) {
+  const list = getShortcuts();
+  const sc = index >= 0 ? JSON.parse(JSON.stringify(list[index])) : { name: '', steps: [] };
+  const ed = $('#scEditor');
+  const appOpts = () => S.catalog.map((c) => `<option value="${esc(c.id)}">${esc(c.name)}${c.installed ? '' : ' (não instalado)'}</option>`).join('')
+    + S.apps.filter((a) => !S.catalog.some((c) => c.installed === a.pkg)).map((a) => `<option value="${esc(a.pkg)}">${esc(a.label)}</option>`).join('');
+  const keyOpts = Object.entries({ home: 'Início', back: 'Voltar', ok: 'OK', up: 'Cima', down: 'Baixo', left: 'Esquerda', right: 'Direita', playpause: 'Play/Pausa', play: 'Play', pause: 'Pausa', mute: 'Mudo', menu: 'Menu', settings: 'Ajustes', power: 'Liga/Desliga', search: 'Pesquisar' })
+    .map(([k, l]) => `<option value="${k}">${l}${has(k) ? '' : ' (indisponível)'}</option>`).join('');
+  const draw = () => {
+    ed.innerHTML = `<div class="card" style="background:var(--surface-2);margin-top:12px"><h2>${index >= 0 ? 'Editar atalho' : 'Novo atalho'}</h2>
+      <input class="field" id="scName" placeholder="Nome (ex.: Modo filme)" value="${esc(sc.name)}" style="margin:8px 0">
+      <div class="list">${sc.steps.map((st, i) => `<div class="step"><span class="pill">${i + 1}</span><span class="grow">${esc(stepLabel(st))}</span>
+        <button class="btn small" data-up="${i}" aria-label="Subir">${icon('up')}</button><button class="btn small danger" data-del="${i}" aria-label="Remover">${icon('x')}</button></div>`).join('') || '<div class="empty">Nenhum passo ainda.</div>'}</div>
+      <div class="row" style="margin-top:10px"><select class="field" id="stType">${Object.entries(STEP_TYPES).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></div>
+      <div class="row" style="margin-top:8px" id="stArgs"></div>
+      <div class="row" style="margin-top:8px"><button class="btn small" id="stAdd">${icon('plus')}Adicionar passo</button></div>
+      <div class="row" style="margin-top:14px"><button class="btn primary" id="scSave">Salvar</button>${index >= 0 ? '<button class="btn danger" id="scDel">Excluir</button>' : ''}<button class="btn" id="scCancel">Cancelar</button></div></div>`;
+    const args = () => {
+      const t = $('#stType').value, a = $('#stArgs');
+      a.innerHTML = t === 'app' ? `<select class="field" id="stV">${appOpts()}</select>`
+        : t === 'key' ? `<select class="field" id="stV">${keyOpts}</select>`
+          : t === 'volume' ? `<select class="field" id="stDir"><option value="up">Aumentar</option><option value="down">Diminuir</option></select><input class="field" id="stV" type="number" min="1" max="20" value="2">`
+            : t === 'wait' ? `<input class="field" id="stV" type="number" min="1" max="60" value="3" placeholder="segundos">`
+              : t === 'timer' ? `<input class="field" id="stV" type="number" min="1" max="720" value="30" placeholder="minutos"><select class="field" id="stAct"><option value="pause">Pausar</option><option value="mute">Silenciar</option><option value="stop">Encerrar</option><option value="power">Desligar</option></select>`
+                : `<input class="field" id="stV" placeholder="${t === 'link' ? 'https://…' : 'texto'}">`;
+    };
+    $('#stType').onchange = args; args();
+    $('#stAdd').onclick = () => {
+      const t = $('#stType').value, v = $('#stV').value.trim();
+      if (!v) { toast('Preencha o passo', false); return; }
+      if (t === 'link' && !/^https?:\/\//i.test(v)) { toast('O link precisa começar com http(s)://', false); return; }
+      const st = { type: t, value: ['volume', 'wait', 'timer'].includes(t) ? +v : v };
+      if (t === 'volume') st.dir = $('#stDir').value;
+      if (t === 'timer') st.action = $('#stAct').value;
+      sc.name = $('#scName').value; sc.steps.push(st); draw();
+    };
+    $$('[data-del]', ed).forEach((b) => b.onclick = () => { sc.name = $('#scName').value; sc.steps.splice(+b.dataset.del, 1); draw(); });
+    $$('[data-up]', ed).forEach((b) => b.onclick = () => { const i = +b.dataset.up; if (i > 0) { [sc.steps[i - 1], sc.steps[i]] = [sc.steps[i], sc.steps[i - 1]]; } sc.name = $('#scName').value; draw(); });
+    $('#scSave').onclick = () => {
+      sc.name = $('#scName').value.trim();
+      if (!sc.name || !sc.steps.length) { toast('Dê um nome e adicione pelo menos um passo', false); return; }
+      const l = getShortcuts(); if (index >= 0) l[index] = sc; else l.push(sc); setShortcuts(l); toast('Atalho salvo'); drawShortcuts();
+    };
+    if ($('#scDel')) $('#scDel').onclick = () => { if (confirm('Excluir o atalho?')) { const l = getShortcuts(); l.splice(index, 1); setShortcuts(l); drawShortcuts(); } };
+    $('#scCancel').onclick = () => { ed.innerHTML = ''; };
+  };
+  draw();
+  ed.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/* ---------------------------------------------------------------- CONTENT SEARCH (TMDB, needs the user's key) */
+const PROVIDER_TO_APP = { 8: 'netflix', 1796: 'netflix', 119: 'prime', 337: 'disney', 350: 'appletv', 1899: 'max', 384: 'max', 307: 'globoplay', 300: 'pluto', 531: 'paramount', 15: 'hulu', 73: 'tubi' };
+
+function drawSearch() {
+  const box = $('#searchBox');
+  if (!box) return;
+  const key = store.get('tmdbKey', '');
+  if (!key) {
+    box.innerHTML = `<p class="sub">Para buscar filmes e séries e ver onde estão disponíveis, use uma chave gratuita do TMDB (themoviedb.org → Configurações → API). A chave fica só neste aparelho.</p>
+      <div class="row"><input class="field grow" id="tmdbKey" placeholder="Chave da API (v3) ou token de leitura (v4)" autocomplete="off"><button class="btn primary" id="tmdbSave">Salvar</button></div>`;
+    $('#tmdbSave').onclick = () => { const v = $('#tmdbKey').value.trim(); if (v) { store.set('tmdbKey', v); drawSearch(); } };
+    return;
+  }
+  box.innerHTML = `<div class="row"><input class="field grow" id="sq" placeholder="Nome do filme ou série" autocomplete="off"><button class="btn primary" id="sGo">${icon('search')}</button></div>
+    <div class="list" id="sRes"></div><div class="row" style="margin-top:8px"><button class="btn small" id="tmdbForget">Remover chave</button></div>
+    <p class="sub" style="margin-top:8px">Disponibilidade no Brasil segundo o TMDB (dados do JustWatch). Pode não estar completa.</p>`;
+  $('#tmdbForget').onclick = () => { store.del('tmdbKey'); drawSearch(); };
+  const run = () => tmdbSearch($('#sq').value.trim());
+  $('#sGo').onclick = run;
+  $('#sq').onkeydown = (e) => { if (e.key === 'Enter') run(); };
+}
+
+async function tmdb(path, params = {}) {
+  const key = store.get('tmdbKey', '');
+  const u = new URL('https://api.themoviedb.org/3' + path);
+  const headers = {};
+  if (key.length > 60) headers.Authorization = 'Bearer ' + key; else u.searchParams.set('api_key', key);
+  u.searchParams.set('language', 'pt-BR');
+  for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+  const r = await fetch(u, { headers });
+  if (r.status === 401) throw new Error('Chave do TMDB recusada. Confira a chave.');
+  if (!r.ok) throw new Error('TMDB respondeu ' + r.status);
+  return r.json();
+}
+
+async function tmdbSearch(q) {
+  const box = $('#sRes');
+  if (!q) return;
+  box.innerHTML = '<div class="empty">Buscando…</div>';
+  try {
+    const data = await tmdb('/search/multi', { query: q, include_adult: 'false', region: 'BR' });
+    const items = (data.results || []).filter((x) => x.media_type === 'movie' || x.media_type === 'tv').slice(0, 8);
+    if (!items.length) { box.innerHTML = '<div class="empty">Nada encontrado.</div>'; return; }
+    box.innerHTML = items.map((x, i) => `<div class="result"><img alt="" src="${x.poster_path ? 'https://image.tmdb.org/t/p/w154' + esc(x.poster_path) : ''}" onerror="this.style.visibility='hidden'">
+      <div class="t"><b>${esc(x.title || x.name)}</b> <small class="sub">${esc((x.release_date || x.first_air_date || '').slice(0, 4))} · ${x.media_type === 'tv' ? 'Série' : 'Filme'}</small>
+      <p>${esc(x.overview || 'Sem descrição.')}</p><div class="providers" id="prov${i}"><span class="sub">Verificando onde assistir…</span></div></div></div>`).join('');
+    items.forEach(async (x, i) => {
+      const el = $('#prov' + i);
+      try {
+        const p = await tmdb(`/${x.media_type}/${x.id}/watch/providers`);
+        const br = (p.results || {}).BR || {};
+        const offers = [...(br.flatrate || []), ...(br.free || []), ...(br.ads || [])];
+        if (!offers.length) { el.innerHTML = '<span class="sub">Sem streaming confirmado no Brasil.</span>'; return; }
+        const seen = new Set();
+        el.innerHTML = offers.filter((o) => !seen.has(o.provider_id) && seen.add(o.provider_id)).map((o) => {
+          const app = PROVIDER_TO_APP[o.provider_id] ? appByRef(PROVIDER_TO_APP[o.provider_id]) : null;
+          return app && app.pkg ? `<button class="btn small primary" data-open="${esc(app.pkg)}" data-name="${esc(app.name)}">Abrir ${esc(o.provider_name)}</button>`
+            : `<span class="pill">${esc(o.provider_name)}${app && app.missing ? ' (não instalado)' : ''}</span>`;
+        }).join('');
+        $$('[data-open]', el).forEach((b) => b.onclick = () => launchApp(b.dataset.open, b.dataset.name));
+      } catch (e) { el.innerHTML = `<span class="sub">${esc(e.message)}</span>`; }
+    });
+  } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
 /* ---------------------------------------------------------------- DEVICES */
 async function renderDevices() {
   const main = $('#main');
@@ -772,6 +1253,11 @@ async function renderDevices() {
         : '<button class="btn primary" id="atvStart">Parear controle</button>'}</div>
       <div class="msg" id="atvMsg"></div></div>
 
+    ${NATIVE && NATIVE.atv ? `<div class="card"><h2>Controle direto pelo celular</h2>
+      <p class="sub">Alternativa: o próprio app fala com o serviço de controle da TV. Use se o pareamento acima não funcionar.</p>
+      <p>${nativeAtvOk() ? '<span class="pill ok">Pareado</span>' : S.nativeAtv && S.nativeAtv.available ? '<span class="pill warn">Não pareado</span>' : '<span class="pill warn">Serviço não encontrado</span>'}</p>
+      <div id="natPair">${nativeAtvOk() ? '<button class="btn small danger" id="natUnpair">Remover</button>' : '<button class="btn" id="natStart">Parear pelo celular</button>'}</div>
+      <div class="msg" id="natMsg"></div></div>` : ''}
     <div class="card"><h2>Touchpad (acessibilidade)</h2>
       <p class="sub">O cursor na tela da TV precisa do serviço de acessibilidade do TV Drop${acc.dpad ? '' : '. Nesta TV ele também faz Voltar e Início'}.</p>
       <p>${acc.enabled ? '<span class="pill ok">Ativado</span>' : '<span class="pill warn">Desativado</span>'}</p>
@@ -792,6 +1278,20 @@ async function renderDevices() {
   if ($('#atvStart')) $('#atvStart').onclick = atvPairStart;
   if ($('#atvUnpair')) $('#atvUnpair').onclick = async () => { if (!confirm('Remover o pareamento do controle?')) return; try { await api('/api/v2/remote/unpair', { method: 'POST' }); await renderDevices(); } catch (e) { toast(e.message, false); } };
   $('#diagBtn').onclick = runDiagnostics;
+  if ($('#natStart')) $('#natStart').onclick = async () => {
+    const msg = $('#natMsg');
+    msg.textContent = 'Pedindo o código à TV…'; msg.className = 'msg';
+    const r = await nativeAtv('pairStart');
+    if (!r.ok) { msg.textContent = r.message; msg.className = 'msg err'; return; }
+    $('#natPair').innerHTML = `<p class="sub">Digite o código que apareceu na TV:</p><div class="row"><input class="field grow mono" id="natCode" maxlength="6" autocapitalize="characters" style="text-transform:uppercase;font-size:20px;letter-spacing:.2em"><button class="btn primary" id="natFinish">Confirmar</button></div>`;
+    msg.textContent = '';
+    $('#natFinish').onclick = async () => {
+      const f = await nativeAtv('pairFinish', $('#natCode').value.trim());
+      if (!f.ok) { msg.textContent = f.message; msg.className = 'msg err'; return; }
+      toast('Controle pareado pelo celular!'); await loadNativeAtv(); renderDevices();
+    };
+  };
+  if ($('#natUnpair')) $('#natUnpair').onclick = async () => { await nativeAtv('unpair'); await loadNativeAtv(); renderDevices(); };
   $('#classic').onclick = () => { location.href = '/classic.html'; };
   $('#logout').onclick = async () => {
     if (!confirm('Desconectar este aparelho da TV? Você vai precisar do código de novo.')) return;
@@ -868,6 +1368,7 @@ async function start() {
   fillIcons();
   try { S.info = await api('/api/v2/info'); } catch (e) { /* offline banner */ }
   await loadCaps();
+  await loadNativeAtv();
   loadApps();
   go(store.get('view', 'home'));
   refreshStatus();

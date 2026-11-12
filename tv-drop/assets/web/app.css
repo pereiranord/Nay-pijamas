@@ -35,7 +35,7 @@ svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width:
   display: flex; justify-content: space-around; align-items: center;
   background: rgba(18, 20, 23, 0.94); backdrop-filter: blur(14px); border-top: 1px solid var(--line); z-index: 20;
 }
-.nav button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px; min-width: 60px; color: var(--dim); font-size: 11.5px; border-radius: 14px; }
+.nav button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px; min-width: 52px; color: var(--dim); font-size: 11.5px; border-radius: 14px; }
 .nav button[aria-current="page"] { color: var(--text); }
 .nav button[aria-current="page"] svg { color: var(--green); }
 main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 18px 16px calc(var(--nav-h) + 28px + env(safe-area-inset-bottom)); }
@@ -191,3 +191,35 @@ pre.log { margin: 0; white-space: pre-wrap; color: var(--muted); font-size: 12.5
 .diag small { color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---------- 2.1: library, queue drag, timer, tracks, shortcuts, search ---------- */
+.qrow { display: flex; align-items: center; gap: 10px; padding: 10px 0; background: var(--surface); position: relative; transition: transform .12s; }
+.qrow.cur .t b { color: var(--green); }
+.qrow.dragging { z-index: 5; box-shadow: 0 10px 30px rgba(0,0,0,.5); transition: none; border-radius: 12px; }
+.handle { width: 36px; height: 40px; display: grid; place-items: center; color: var(--dim); touch-action: none; cursor: grab; flex: none; }
+.qrow .t { flex: 1; min-width: 0; }
+.qrow .t b { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.qrow .t small { color: var(--muted); }
+.star { color: var(--dim); } .star.on { color: var(--amber); }
+.timer-big { font-size: 40px; font-weight: 750; letter-spacing: .02em; text-align: center; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.choice { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+.choice button { min-height: 46px; border-radius: 14px; background: var(--surface-2); font-weight: 650; }
+.choice button[aria-pressed="true"] { background: var(--green); color: var(--green-ink); }
+select.field { appearance: none; padding-right: 36px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 20px) 50%, calc(100% - 14px) 50%; background-size: 6px 6px; background-repeat: no-repeat; }
+.tracks { display: grid; gap: 10px; margin-top: 12px; }
+.tracks label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.sc { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.sc .t { flex: 1; min-width: 0; }
+.sc .t b { display: block; }
+.sc .t small { color: var(--muted); }
+.step { display: flex; gap: 8px; align-items: center; padding: 8px 0; }
+.step .grow { min-width: 0; }
+.result { display: flex; gap: 12px; padding: 12px 0; }
+.result img { width: 64px; height: 96px; object-fit: cover; border-radius: 10px; background: var(--surface-2); flex: none; }
+.result .t { flex: 1; min-width: 0; }
+.result .t p { margin: 4px 0 8px; font-size: 13px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.providers { display: flex; flex-wrap: wrap; gap: 6px; }
+/* rows with several buttons: the title keeps at least ~140px; buttons wrap below on narrow phones */
+.item { flex-wrap: wrap; }
+.item .t { flex: 1 1 140px; }
+.qrow .t { flex: 1 1 120px; }

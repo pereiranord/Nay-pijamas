@@ -24,6 +24,8 @@ public interface TvHost {
     // ---- files and the built-in player (TV Drop 1.0) ----
     File inbox();
     void play(String src);
+    /** Plays from {@code startMs} (resume). */
+    void play(String src, long startMs);
     void install(File apk) throws IOException;
     boolean canInstall();
     boolean canOverlay();
@@ -34,6 +36,11 @@ public interface TvHost {
     String audioInfo();
     boolean playerControl(String cmd, long arg);
     String externalPlayerName();
+    /** Audio and subtitle tracks of what is playing, plus speed: {"audio":[..],"text":[..],"speed":1.0}, or null. */
+    JSONObject playerTracks();
+    /** type "audio" or "text"; track -1 turns subtitles off. */
+    boolean playerSelectTrack(String type, int group, int track);
+    boolean playerSpeed(float speed);
 
     /** System volume: "up", "down" or "mute". */
     void volume(String action);
@@ -48,6 +55,10 @@ public interface TvHost {
     boolean launchApp(String pkg);
     boolean uninstallApp(String pkg);
     boolean openStorePage(String pkg);
+
+    /** Screen mirroring from a phone (TV Drop 2.1). */
+    boolean mirrorActive();
+    boolean mirrorStop();
 
     /** Plays a short sound so the TV can be found. */
     void beep();

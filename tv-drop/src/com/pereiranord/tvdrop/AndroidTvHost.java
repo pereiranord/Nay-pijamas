@@ -16,6 +16,8 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 
+import org.json.JSONObject;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -70,7 +72,11 @@ final class AndroidTvHost implements TvHost {
     // ---- files and player ----
 
     @Override public File inbox() { return Actions.inbox(ctx); }
-    @Override public void play(String src) { Actions.play(ctx, src); }
+    @Override public void play(String src) { Actions.play(ctx, src, 0); }
+    @Override public void play(String src, long startMs) { Actions.play(ctx, src, startMs); }
+    @Override public JSONObject playerTracks() { return PlayerActivity.tracks(); }
+    @Override public boolean playerSelectTrack(String type, int group, int track) { return PlayerActivity.selectTrack(type, group, track); }
+    @Override public boolean playerSpeed(float speed) { return PlayerActivity.speed(speed); }
     @Override public void install(File apk) throws IOException { Actions.install(ctx, apk); }
     @Override public boolean canInstall() { return Actions.canInstall(ctx); }
     @Override public boolean canOverlay() { return Actions.canOverlay(ctx); }
@@ -190,6 +196,9 @@ final class AndroidTvHost implements TvHost {
             return false;
         }
     }
+
+    @Override public boolean mirrorActive() { return MirrorServer.isActive(); }
+    @Override public boolean mirrorStop() { return MirrorServer.stopActive(); }
 
     @Override
     public void beep() {

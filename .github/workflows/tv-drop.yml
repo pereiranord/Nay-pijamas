@@ -29,10 +29,13 @@ jobs:
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0" "platforms;android-35" > /dev/null
 
+      - name: Assistant tests
+        run: node tv-drop/test/assistant.test.js
+
       - name: Build
         env:
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 2.0.${{ github.run_number }}
+          VERSION_NAME: 2.1.${{ github.run_number }}
         run: ./tv-drop/build.sh
 
       - uses: actions/upload-artifact@v4
@@ -43,8 +46,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: tv-drop-v2.0.${{ github.run_number }}
-          name: TV Drop 2.0.${{ github.run_number }}
+          tag_name: tv-drop-v2.1.${{ github.run_number }}
+          name: TV Drop 2.1.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           make_latest: true
           files: tv-drop/build/TV-Drop.apk

@@ -51,7 +51,8 @@ public class PhoneActivity extends Activity {
     private SharedPreferences prefs;
     private String tv;       // "host:port" when connected
     private String tvName;
-    private Uri pending;     // video shared from another app, waiting for a TV
+    private java.util.List<Uri> pendingShare; // files shared from another app, waiting for a TV
+    private final java.util.Set<String> online = new java.util.HashSet<>();
     private boolean userSeeking;
     private boolean pollQueued;
 
@@ -97,7 +98,9 @@ public class PhoneActivity extends Activity {
     private void startDiscovery() {
         if (discovery != null) discovery.stop();
         tvs.clear();
+        online.clear();
         renderTvs();
+        probeSaved();
         status.setText("Procurando a TV na rede…");
         discovery = new Discovery(this, (name, host, port) -> ui.post(() -> onFound(name, host, port)));
         discovery.start();
@@ -111,10 +114,12 @@ public class PhoneActivity extends Activity {
         String key = host + ":" + port;
         if (tvs.containsKey(key)) return;
         tvs.put(key, name);
+        online.add(key);
         renderTvs();
         if (tv != null) return;
         String last = prefs.getString("last", null);
-        if (key.equals(last) || tvs.size() == 1) connect(key, name);
+        String fav = favourite();
+        if (key.equals(fav) || (fav == null && (key.equals(last) || tvs.size() == 1))) connect(key, name);
     }
 
     private void connectByCode() {
@@ -212,13 +217,130 @@ public class PhoneActivity extends Activity {
         status.setText("Conectado: " + name);
         status.setTextColor(ACCENT);
         controls.setVisibility(View.VISIBLE);
+        rememberTv(key, name);
         renderTvs();
         say("", true);
-        if (pending != null) {
-            Uri u = pending;
-            pending = null;
-            castVideo(u);
+        if (pendingShare != null) {
+            java.util.List<Uri> l = pendingShare;
+            pendingShare = null;
+            offerShare(l);
         }
+    }
+
+    // ---------- saved TVs ("Minhas TVs") ----------
+
+    private JSONObject saved() {
+        try {
+            return new JSONObject(prefs.getString("saved", "{}"));
+        } catch (Exception e) {
+            return new JSONObject();
+        }
+    }
+
+    private void putSaved(JSONObject o) {
+        prefs.edit().putString("saved", o.toString()).apply();
+    }
+
+    private void rememberTv(String key, String name) {
+        try {
+            JSONObject all = saved();
+            JSONObject e = all.optJSONObject(key);
+            if (e == null) e = new JSONObject();
+            e.put("name", name).put("lastSeen", System.currentTimeMillis());
+            all.put(key, e);
+            putSaved(all);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private String favourite() {
+        JSONObject all = saved();
+        java.util.Iterator<String> it = all.keys();
+        while (it.hasNext()) {
+            String k = it.next();
+            if (all.optJSONObject(k) != null && all.optJSONObject(k).optBoolean("fav")) return k;
+        }
+        return null;
+    }
+
+    private String label(String key, String fallback) {
+        JSONObject e = saved().optJSONObject(key);
+        if (e == null) return fallback;
+        String nick = e.optString("nick", "");
+        return nick.isEmpty() ? e.optString("name", fallback) : nick;
+    }
+
+    /** "Online" only after the TV answered: a saved address alone proves nothing. */
+    private void probeSaved() {
+        JSONObject all = saved();
+        java.util.Iterator<String> it = all.keys();
+        while (it.hasNext()) {
+            final String k = it.next();
+            io.execute(() -> {
+                boolean up = Net.status("http://" + k + "/api/hello", 1500) == 200;
+                ui.post(() -> {
+                    if (up) online.add(k); else online.remove(k);
+                    renderTvs();
+                });
+            });
+        }
+    }
+
+    private void tvMenu(String key, String name) {
+        boolean fav = key.equals(favourite());
+        String[] items = {"Renomear", fav ? "Deixar de ser a favorita" : "Tornar favorita (conecta sozinha)", "Encontrar (tocar um som)", "Remover"};
+        new android.app.AlertDialog.Builder(this).setTitle(label(key, name)).setItems(items, (d, which) -> {
+            JSONObject all = saved();
+            try {
+                JSONObject e = all.optJSONObject(key);
+                if (e == null) { e = new JSONObject().put("name", name); all.put(key, e); }
+                switch (which) {
+                    case 0: {
+                        EditText in = new EditText(this);
+                        in.setText(label(key, name));
+                        final JSONObject entry = e;
+                        new android.app.AlertDialog.Builder(this).setTitle("Apelido (ex.: Sala, Quarto)").setView(in)
+                                .setPositiveButton("Salvar", (d2, w2) -> {
+                                    try { entry.put("nick", in.getText().toString().trim()); all.put(key, entry); putSaved(all); } catch (Exception ignored) {}
+                                    renderTvs();
+                                }).setNegativeButton("Cancelar", null).show();
+                        return;
+                    }
+                    case 1: {
+                        java.util.Iterator<String> it = all.keys();
+                        while (it.hasNext()) { JSONObject o = all.optJSONObject(it.next()); if (o != null) o.remove("fav"); }
+                        if (!fav) e.put("fav", true);
+                        break;
+                    }
+                    case 2: findTv(key); return;
+                    default:
+                        all.remove(key);
+                        prefs.edit().remove("token:" + key).apply();
+                        break;
+                }
+                putSaved(all);
+            } catch (Exception ignored) {
+            }
+            renderTvs();
+        }).show();
+    }
+
+    /** Plays a sound on the TV (needs this phone to be paired with it). */
+    private void findTv(String key) {
+        String token = prefs.getString("token:" + key, null);
+        io.execute(() -> {
+            String old = Net.token;
+            try {
+                Net.token = token;
+                String r = Net.post("http://" + key + "/api/v2/beep", "");
+                boolean ok = Net.bool(r, "ok");
+                ui.post(() -> say(ok ? "A TV está tocando um som." : "A TV não respondeu: " + Net.str(r, "message"), ok));
+            } catch (Exception e) {
+                ui.post(() -> say("A TV não está acessível agora (desligada ou fora da rede).", false));
+            } finally {
+                if (tv == null || !tv.equals(key)) Net.token = old;
+            }
+        });
     }
 
     private void disconnect() {
@@ -230,13 +352,27 @@ public class PhoneActivity extends Activity {
 
     private void renderTvs() {
         tvList.removeAllViews();
-        for (Map.Entry<String, String> e : tvs.entrySet()) {
+        Map<String, String> all = new LinkedHashMap<>();
+        String fav = favourite();
+        JSONObject sv = saved();
+        if (fav != null && sv.optJSONObject(fav) != null) all.put(fav, sv.optJSONObject(fav).optString("name", fav));
+        java.util.Iterator<String> it = sv.keys();
+        while (it.hasNext()) { String k = it.next(); if (!all.containsKey(k)) all.put(k, sv.optJSONObject(k).optString("name", k)); }
+        for (Map.Entry<String, String> e : tvs.entrySet()) if (!all.containsKey(e.getKey())) all.put(e.getKey(), e.getValue());
+        for (Map.Entry<String, String> e : all.entrySet()) {
             final String key = e.getKey(), name = e.getValue();
             boolean on = key.equals(tv);
-            Button b = button((on ? "✓ " : "📺 ") + name + "  (" + key.split(":")[0] + ")", on);
+            String state = on ? "✓ " : online.contains(key) ? "🟢 " : sv.has(key) ? "⚪ " : "📺 ";
+            String extra = key.equals(fav) ? "  ★" : "";
+            JSONObject entry = sv.optJSONObject(key);
+            String seen = entry != null && !online.contains(key) && !on && entry.optLong("lastSeen") > 0
+                    ? "\nVista por último: " + new java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.ROOT).format(new java.util.Date(entry.optLong("lastSeen"))) : "";
+            Button b = button(state + label(key, name) + extra + "  (" + key.split(":")[0] + ")" + seen, on);
             b.setOnClickListener(v -> connect(key, name));
+            b.setOnLongClickListener(v -> { tvMenu(key, name); return true; });
             tvList.addView(b);
         }
+        if (!all.isEmpty()) tvList.addView(text("Toque para conectar · toque e segure para apelido, favorita, encontrar ou remover.", 12, MUTED));
     }
 
     // ---------- actions ----------
@@ -244,6 +380,12 @@ public class PhoneActivity extends Activity {
     private void handleShare(Intent i) {
         if (i == null) return;
         Uri u = null;
+        if (Intent.ACTION_SEND_MULTIPLE.equals(i.getAction())) {
+            @SuppressWarnings("deprecation")
+            java.util.ArrayList<Uri> list = i.getParcelableArrayListExtra(Intent.EXTRA_STREAM);
+            if (list != null && !list.isEmpty()) shareFiles(list);
+            return;
+        }
         if (Intent.ACTION_SEND.equals(i.getAction())) {
             @SuppressWarnings("deprecation")
             Uri s = i.getParcelableExtra(Intent.EXTRA_STREAM);
@@ -261,11 +403,47 @@ public class PhoneActivity extends Activity {
             u = i.getData();
         }
         if (u == null) return;
-        if (tv != null) castVideo(u);
+        shareFiles(java.util.Collections.singletonList(u));
+    }
+
+    private void shareFiles(java.util.List<Uri> uris) {
+        if (tv != null) offerShare(uris);
         else {
-            pending = u;
-            say("Assim que conectar à TV, o vídeo começa.", true);
+            pendingShare = new java.util.ArrayList<>(uris);
+            say("Assim que conectar a uma TV, você escolhe o que fazer com " + (uris.size() == 1 ? "o arquivo" : uris.size() + " arquivos") + ".", true);
         }
+    }
+
+    /** Videos/music: play now or queue (served from the phone, no copy) or copy. Other files: copy to the TV. */
+    private void offerShare(java.util.List<Uri> uris) {
+        boolean media = true;
+        for (Uri u : uris) {
+            String t = getContentResolver().getType(u);
+            if (t == null || !(t.startsWith("video/") || t.startsWith("audio/"))) media = false;
+        }
+        final String target = tv;
+        String title = uris.size() == 1 ? displayName(uris.get(0)) : uris.size() + " arquivos";
+        String[] items = media
+                ? new String[]{"Tocar agora na TV (sem copiar)", "Adicionar à fila da TV (sem copiar)", "Copiar para a TV (arquivos recebidos)"}
+                : new String[]{"Enviar para a TV (arquivos recebidos)", "Enviar e abrir na TV (APK: instalar)"};
+        final boolean isMedia = media;
+        new android.app.AlertDialog.Builder(this).setTitle(title).setItems(items, (d, which) -> io.execute(() -> {
+            int ok = 0;
+            String err = null;
+            for (int k = 0; k < uris.size(); k++) {
+                Uri u = uris.get(k);
+                String e;
+                if (isMedia && which == 0) e = k == 0 ? PhoneCast.cast(this, target, u) : PhoneCast.queue(this, target, u, "end");
+                else if (isMedia && which == 1) e = PhoneCast.queue(this, target, u, "end");
+                else e = PhoneCast.upload(this, target, u, !isMedia && which == 1);
+                if (e == null) ok++; else err = e;
+                final int done = k + 1;
+                ui.post(() -> say("Enviando… " + done + "/" + uris.size(), true));
+            }
+            final int n = ok;
+            final String last = err;
+            ui.post(() -> say(n + " de " + uris.size() + " concluído(s)." + (last != null ? " Último erro: " + last : ""), last == null));
+        })).setNegativeButton("Cancelar", null).show();
     }
 
     private void pick(int req, String type) {

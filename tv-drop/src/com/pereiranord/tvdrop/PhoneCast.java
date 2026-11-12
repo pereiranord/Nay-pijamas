@@ -25,6 +25,41 @@ final class PhoneCast {
         }
     }
 
+    /** Adds a phone file to the TV's queue, served from the phone (mode: end | next | now). */
+    static String queue(Context ctx, String tv, Uri u, String mode) {
+        try {
+            String name = displayName(ctx, u);
+            int port = StreamService.ensure(ctx, u);
+            String[] hp = tv.split(":");
+            String me = Net.localAddressTowards(hp[0], Integer.parseInt(hp[1]));
+            String path = StreamService.server().serve(u, ctx.getContentResolver().getType(u), name);
+            org.json.JSONObject body = new org.json.JSONObject().put("src", "http://" + me + ":" + port + path)
+                    .put("title", name).put("mode", mode);
+            String r = Net.post("http://" + tv + "/api/v2/queue/add", body.toString());
+            return Net.bool(r, "ok") ? null : Net.str(r, "message");
+        } catch (Exception e) {
+            return e.getMessage();
+        }
+    }
+
+    /** Copies a file to the TV's "received files" (photos, documents, APKs...). */
+    static String upload(Context ctx, String tv, Uri u, boolean autoOpen) {
+        String name = displayName(ctx, u);
+        long size = -1;
+        try (android.database.Cursor c = ctx.getContentResolver().query(u, new String[]{OpenableColumns.SIZE}, null, null, null)) {
+            if (c != null && c.moveToFirst() && !c.isNull(0)) size = c.getLong(0);
+        } catch (Exception ignored) {
+        }
+        if (size <= 0) return "Tamanho do arquivo desconhecido: " + name;
+        try (java.io.InputStream in = ctx.getContentResolver().openInputStream(u)) {
+            String url = "http://" + tv + "/api/upload?name=" + java.net.URLEncoder.encode(name, "UTF-8") + (autoOpen ? "&auto=1" : "");
+            String r = Net.upload(url, in, size, null);
+            return Net.bool(r, "ok") ? null : Net.str(r, "message");
+        } catch (Exception e) {
+            return e.getMessage();
+        }
+    }
+
     static String displayName(Context ctx, Uri u) {
         try (Cursor c = ctx.getContentResolver().query(u, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
             if (c != null && c.moveToFirst() && c.getString(0) != null) return c.getString(0);

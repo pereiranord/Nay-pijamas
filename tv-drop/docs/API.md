@@ -46,8 +46,20 @@ O 2.0 trouxe dois acréscimos compatíveis: o campo `modified` em `files` e o ti
 | `POST /api/v2/devices/revoke` | `{id}` | — |
 | `POST /api/v2/settings` | `{legacyOpen}` | — |
 | `POST /api/v2/beep` | — | "Encontrar minha TV" |
+| `GET /api/v2/queue` | — | `items[{src,title}]`, `current`, `repeat` (`off/all/one`), `active` |
+| `POST /api/v2/queue/add` | `{src, title?, mode?}` | `src`: URL `http(s)/rtsp` ou `inbox:<arquivo>`; `mode`: `end` (padrão), `next`, `now` (toca já) |
+| `POST /api/v2/queue/remove` · `/move` · `/clear` · `/play` · `/next` · `/prev` · `/repeat` | `{index}` · `{from,to}` · — · `{index}` · — · — · `{mode}` | a fila avança sozinha quando um item termina |
+| `GET /api/v2/playlists` · `POST /api/v2/playlists/save` · `/load` · `/delete` | `{name, play?}` | salvas na TV |
+| `GET /api/v2/history` · `POST /api/v2/history/play` · `/favorite` · `/clear` · `/enabled` | `{src, resume?}` · `{src}` · — · `{enabled}` | `resume` = posição para continuar (0 se perto do início ou do fim) |
+| `GET /api/v2/player/tracks` · `POST /api/v2/player/track` · `/speed` | `{type: audio\|text, group, track}` (`track:-1` desliga a legenda) · `{speed}` (0,25–3) | só para o player do TV Drop |
+| `GET /api/v2/timer` · `POST /api/v2/timer` · `/timer/cancel` | `{minutes, action: pause\|mute\|stop\|power}` | roda na TV; `power` sem o controle pareado vira `stop` |
+| `POST /api/v2/mirror/stop` | — | encerra o espelhamento |
 | `GET /api/v2/ping` | — | latência |
 | `GET /api/v2/speed?bytes=` / `POST /api/v2/speed` | bytes | velocidade TV ↔ aparelho |
+
+## Espelhamento (TCP 8100)
+
+O celular abre TCP na porta 8100 e manda `TVDROP-MIRROR 1 <token>\n`. A TV responde `OK` (aparelho pareado) ou `NO <motivo>`. Depois chegam pacotes `[tipo:1][tamanho:4][ptsUs:8][dados]`: `1` = configuração (largura, altura, SPS/PPS), `2`/`3` = quadro H.264 (3 = quadro-chave), `0` = fim. Veja `MirrorProtocol.java`.
 
 ## WebSocket `GET /api/v2/ws?token=`
 

@@ -27,13 +27,22 @@ Um único APK roda nos dois aparelhos: na **TV** ele é o receptor; no **celular
 | `Pairing` | PIN de 6 dígitos (2 min, uso único, 5 tentativas), tokens (só o hash é salvo), aparelhos | não |
 | `Keys` | catálogo de teclas: código Android, ação de acessibilidade, se é tecla de mídia | não |
 | `AppCatalog` | apps de streaming conhecidos e seus pacotes | não |
+| `Library` | fila (avança sozinha), playlists, histórico com retomada e favoritos | não |
+| `SleepTimer` | temporizador que roda na TV | não |
+| `MirrorProtocol`, `MirrorServer`, `MirrorActivity` | espelhamento: protocolo, servidor TCP 8100 (só pareados), decodificador H.264 de baixa latência | protocolo não; resto sim |
+| `MirrorService` | celular: MediaProjection → H.264 → TV | sim |
 | `atv/Proto`, `atv/AtvCert`, `atv/AtvRemote` | cliente do protocolo de controle do Google TV (pareamento + sessão) | não |
 | `TvHost` | interface: tudo que o servidor pede à TV | — |
 | `AndroidTvHost`, `AndroidRemote`, `TvDropAccessibility` | implementações reais na TV | sim |
 | `PhoneActivity`, `RemoteActivity`, `PhoneCast`, `StreamServer`, `StreamService`, `Discovery` | lado do celular | sim |
 | `assets/web/` | interface compartilhada (web + app) e a página clássica 1.0 | — |
+| `assets/web/assistant.js` | assistente: frase → intenção (sem efeitos). O `app.js` confere a compatibilidade, executa e mostra o resultado | — |
 
-Tudo que não depende de Android tem testes JVM (`tv-drop/test`).
+Tudo que não depende de Android tem testes JVM (`tv-drop/test`). O assistente tem testes em Node (`test/assistant.test.js`).
+
+## Controle direto pelo celular (alternativa)
+
+Se o serviço de controle da TV não aceitar a conexão vinda do próprio receptor, o app Android pareia **ele mesmo** com a TV (outro certificado, mesmo protocolo). A interface usa esse caminho para as teclas e o texto que o receptor não consegue enviar (`window.TVDropNative.atv`). Na web isso não existe, porque o navegador não abre conexões TLS diretas.
 
 ## Como um comando chega à TV
 

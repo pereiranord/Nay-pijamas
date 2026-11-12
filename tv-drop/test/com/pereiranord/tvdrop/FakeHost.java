@@ -42,6 +42,24 @@ class FakeHost implements TvHost {
 
     @Override public File inbox() { return inbox; }
     @Override public void play(String src) { played.add(src); playing = src; }
+    @Override public void play(String src, long startMs) { play(src + (startMs > 0 ? "@" + startMs : "")); }
+    float speed = 1f;
+    String selected;
+
+    @Override
+    public JSONObject playerTracks() {
+        if (playing == null) return null;
+        try {
+            return new JSONObject().put("speed", speed)
+                    .put("audio", new JSONArray().put(new JSONObject().put("group", 0).put("track", 0).put("label", "DTS 5.1").put("selected", true)))
+                    .put("text", new JSONArray().put(new JSONObject().put("group", 1).put("track", 0).put("label", "Português").put("selected", false)));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override public boolean playerSelectTrack(String type, int group, int track) { if (playing == null) return false; selected = type + ":" + group + ":" + track; return true; }
+    @Override public boolean playerSpeed(float s) { if (playing == null) return false; speed = s; return true; }
     @Override public void install(File apk) { installed.add(apk.getName()); }
     @Override public boolean canInstall() { return true; }
     @Override public boolean canOverlay() { return false; }
@@ -79,6 +97,9 @@ class FakeHost implements TvHost {
     @Override public boolean uninstallApp(String pkg) { uninstalled.add(pkg); return true; }
     @Override public boolean openStorePage(String pkg) { return true; }
     @Override public void beep() { beeps++; }
+    boolean mirroring;
+    @Override public boolean mirrorActive() { return mirroring; }
+    @Override public boolean mirrorStop() { boolean was = mirroring; mirroring = false; return was; }
 
     /** Remote that accepts the D-pad and refuses power (like a TV without remote pairing). */
     static class FakeRemote implements RemoteControl {

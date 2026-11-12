@@ -31,9 +31,13 @@ public class StreamServer extends Thread {
     private final ContentResolver resolver;
     private ServerSocket socket;
     private volatile boolean running = true;
-    private volatile Uri uri;
-    private volatile String mime = "video/mp4";
-    private volatile String token = "";
+    /** Files being served, by secret token (the newest 50, so a queue of phone videos keeps working). */
+    private final java.util.LinkedHashMap<String, Object[]> files = new java.util.LinkedHashMap<String, Object[]>() {
+        @Override
+        protected boolean removeEldestEntry(java.util.Map.Entry<String, Object[]> e) {
+            return size() > 50;
+        }
+    };
 
     public StreamServer(ContentResolver resolver) {
         super("tvdrop-stream");
@@ -51,17 +55,17 @@ public class StreamServer extends Thread {
         return socket.getLocalPort();
     }
 
-    /** Switches to a new file and returns its secret path, e.g. "/s/AbC123.../video.mp4". */
+    /** Adds a file and returns its secret path, e.g. "/s/ab12.../video.mp4". */
     public String serve(Uri u, String type, String name) {
         byte[] b = new byte[12];
         new SecureRandom().nextBytes(b);
         StringBuilder t = new StringBuilder();
         for (byte x : b) t.append(String.format(Locale.ROOT, "%02x", x));
-        uri = u;
-        mime = type == null ? "video/mp4" : type;
-        token = t.toString();
+        synchronized (files) {
+            files.put(t.toString(), new Object[]{u, type == null ? "video/mp4" : type});
+        }
         String safe = name == null ? "video" : name.replaceAll("[^A-Za-z0-9._-]", "_");
-        return "/s/" + token + "/" + safe;
+        return "/s/" + t + "/" + safe;
     }
 
     public void shutdown() {
@@ -99,9 +103,17 @@ public class StreamServer extends Thread {
             while ((h = readLine(in)) != null && !h.isEmpty()) {
                 if (h.toLowerCase(Locale.ROOT).startsWith("range:")) range = h.substring(6).trim();
             }
-            Uri u = uri;
-            String tok = token;
-            if (u == null || tok.isEmpty() || !path.startsWith("/s/" + tok + "/")) {
+            Uri u = null;
+            String mime = "video/mp4";
+            if (path.startsWith("/s/")) {
+                int end = path.indexOf('/', 3);
+                String tok = end > 3 ? path.substring(3, end) : "";
+                synchronized (files) {
+                    Object[] f = files.get(tok);
+                    if (f != null) { u = (Uri) f[0]; mime = (String) f[1]; }
+                }
+            }
+            if (u == null) {
                 head(out, "404 Not Found", "text/plain", 0, null);
                 return;
             }

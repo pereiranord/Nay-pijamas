@@ -41,13 +41,26 @@ public class HttpServer extends Thread {
     private final TvHost host;
     private final Pairing pairing;
     private final ApiV2 v2;
+    final Library library;
+    final SleepTimer timer;
     private ServerSocket socket;
     private volatile boolean running = true;
 
+    /** For tests: in-memory library. */
     public HttpServer(TvHost host, Pairing pairing) {
+        this(host, pairing, new Library(new KeyValueStore.Memory()));
+    }
+
+    public HttpServer(TvHost host, Pairing pairing, Library library) {
         super("tvdrop-http");
         this.host = host;
         this.pairing = pairing;
+        this.library = library;
+        this.timer = new SleepTimer(java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "tvdrop-timer");
+            t.setDaemon(true);
+            return t;
+        }), System::currentTimeMillis, what -> ApiV2.timerAction(host, what));
         this.v2 = new ApiV2(host, pairing, this);
     }
 
@@ -207,7 +220,7 @@ public class HttpServer extends Thread {
                 String extra = "";
                 if (r.query.containsKey("auto")) {
                     if (Actions.isApk(name)) { host.install(f); extra = " Confirme a instalação na TV."; }
-                    else if (Actions.isVideo(name)) { host.play(f.getAbsolutePath()); extra = " Tocando na TV."; }
+                    else if (Actions.isVideo(name)) { library.setQueueActive(false); host.play(f.getAbsolutePath()); extra = " Tocando na TV."; }
                 }
                 Http.json(out, 200, "{\"ok\":true,\"message\":" + Http.js("Arquivo recebido." + extra)
                         + ",\"name\":" + Http.js(name) + "}");
@@ -218,10 +231,12 @@ public class HttpServer extends Thread {
                 if (file != null) {
                     File f = existing(file);
                     if (f == null) { Http.fail(out, "Arquivo não encontrado"); return; }
+                    library.setQueueActive(false);
                     host.play(f.getAbsolutePath());
                 } else {
                     String url = r.bodyText().trim();
                     if (!url.matches("(?i)^(https?|rtsp|rtmp)://\\S+$")) { Http.fail(out, "Link inválido"); return; }
+                    library.setQueueActive(false);
                     host.play(url);
                 }
                 Http.ok(out, "Tocando na TV.");

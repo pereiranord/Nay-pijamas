@@ -13,6 +13,15 @@ A **Etapa 1** (base, segurança e núcleo do controle remoto) está entregue na 
 - [x] Nova interface (web + app): Início, Transmitir, Controle (direcional, deslizante, touchpad, teclado, voz), Apps, Dispositivos (diagnóstico, encontrar minha TV)
 - [x] Tela da TV redesenhada (QR, PIN, aparelhos)
 
+## Etapas 2 a 5 — entregues (2.1), aguardando teste na TV
+
+- [x] Controle direto pelo celular (plano B se a TV recusar a conexão vinda dela mesma)
+- [x] Fila no receptor (avança sozinha, arrastar e soltar, repetir), playlists, histórico com "continuar de onde parou" e favoritos
+- [x] Painel do player: próximo/anterior, áudio, legenda e velocidade
+- [x] Temporizador na TV, Meus Atalhos, assistente por voz ou texto (módulo separado, com testes), busca TMDB
+- [x] Espelhamento de tela (app Android → TV), compartilhar qualquer arquivo, TVs salvas (apelido, favorita, online, encontrar)
+- [ ] Testar tudo na Philips e preencher a tabela de compatibilidade
+
 ## Etapa 2 — validar na Philips e corrigir
 
 1. Instalar o 2.0, parear o celular, parear o controle e conferir cada tecla. Resultado vai para a tabela de compatibilidade.

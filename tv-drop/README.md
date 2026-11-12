@@ -1,4 +1,4 @@
-# TV Drop 2.0
+# TV Drop 2.1
 
 Central multimídia e controle remoto para **Android TV / Google TV** (feito pensando na Philips 4K Google TV), com app para **celular Android** e versão **web**. O mesmo APK funciona nos dois aparelhos: na TV ele é o receptor; no celular, o controle e o transmissor.
 
@@ -6,11 +6,18 @@ Central multimídia e controle remoto para **Android TV / Google TV** (feito pen
 - **Do celular sem copiar**: a TV toca o vídeo direto do celular, em **qualidade original**, com avançar e voltar. O próprio app decodifica áudio DTS, TrueHD e AC3.
 - **Enviar para a TV**: links de vídeo (`.mp4`, `.m3u8`), links do YouTube (abrem no app do YouTube) e páginas da internet.
 - **Arquivos**: vídeos, músicas, fotos, documentos e APKs, vários de uma vez, com progresso, cancelamento e categorias.
+- **Espelhar a tela** do celular (app Android): apresentações, fotos e jogos, com vídeo H.264 decodificado pelo hardware da TV.
+- **Compartilhar → TV Drop** com qualquer arquivo: tocar agora, adicionar à fila ou copiar para a TV.
+
+**Biblioteca**
+- **Fila de reprodução** na TV (continua com o celular desligado), com arrastar e soltar, repetição e **playlists**.
+- **Histórico** com "continuar de onde parou" e favoritos (pode ser desligado). Áudio, legenda e velocidade pelo celular.
 
 **Controlar**
 - **Controle remoto**: direcional circular, modo deslizante, **touchpad** com cursor, teclado do celular, voz (app Android), volume, mídia e Liga/Desliga.
 - **Apps**: lista dos apps instalados na TV com os ícones reais, abrir, favoritos organizáveis, loja e desinstalação.
-- **Dispositivos**: pareamento seguro (PIN/QR), aparelhos autorizados, "Encontrar minha TV", diagnóstico de conexão.
+- **Dispositivos**: pareamento seguro (PIN/QR), aparelhos autorizados, "Encontrar minha TV", diagnóstico de conexão. No app: TVs salvas com apelido, favorita e status online/offline.
+- **Inteligência**: temporizador na TV (pausar, silenciar, encerrar ou desligar), **Meus Atalhos** (sequências de comandos), assistente por voz ou texto ("volume em 20", "desligue em 30 minutos", "abrir YouTube") e busca de filmes e séries com "onde assistir" (TMDB, com chave gratuita sua).
 
 Documentação: [arquitetura](docs/ARQUITETURA.md) · [API](docs/API.md) · [protocolos e compatibilidade](docs/COMPATIBILIDADE.md) · [próximas etapas](docs/PROXIMAS-ETAPAS.md).
 
@@ -86,10 +93,10 @@ Com JDK 17+, Gradle 8.13+ e o Android SDK (`platforms;android-35`, `build-tools;
 ANDROID_HOME=~/Android/Sdk ./tv-drop/build.sh   # roda os testes e gera tv-drop/build/TV-Drop.apk
 ```
 
-Testes (JUnit, sem aparelho): rotas 1.0 (regressão), API v2, pareamento e o protocolo do controle do Google TV contra uma TV falsa com TLS real.
+Testes (sem aparelho): rotas 1.0 (regressão), API v2, pareamento, biblioteca, temporizador, espelhamento e o protocolo do controle do Google TV contra uma TV falsa com TLS real (JUnit), além do assistente (Node).
 
 ```bash
-cd tv-drop && gradle testReleaseUnitTest
+cd tv-drop && gradle testReleaseUnitTest && node test/assistant.test.js
 ```
 
 **Rodar a interface web localmente** com uma TV simulada (o PIN fica no arquivo indicado):

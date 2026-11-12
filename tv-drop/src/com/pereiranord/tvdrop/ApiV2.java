@@ -42,6 +42,14 @@ import java.util.Map;
  *   GET  /api/v2/ping                 round-trip test
  *   GET  /api/v2/speed?bytes=         download test (bytes of zeros)
  *   POST /api/v2/speed                upload test (body discarded)
+ *   GET  /api/v2/queue                fila: items, current, repeat, active
+ *   POST /api/v2/queue/add            {"src","title","mode":"end|next|now"}  src = URL ou "inbox:<arquivo>"
+ *   POST /api/v2/queue/remove|move|clear|play|next|prev|repeat
+ *   GET  /api/v2/playlists            POST /api/v2/playlists/save|load|delete {"name"}
+ *   GET  /api/v2/history              POST /api/v2/history/play {"src","resume"} | favorite | clear | enabled
+ *   GET  /api/v2/player/tracks        POST /api/v2/player/track {"type","group","track"} | speed {"speed"}
+ *   GET  /api/v2/timer                POST /api/v2/timer {"minutes","action"} | /api/v2/timer/cancel
+ *   POST /api/v2/mirror/stop          ends screen mirroring (stream itself: TCP 8100, see MirrorProtocol)
  *   GET  /api/v2/ws?token=            WebSocket: {"t":"key","k":..} {"t":"move","dx","dy"} {"t":"tap"} {"t":"scroll","dy"} ...
  */
 final class ApiV2 {
@@ -79,10 +87,25 @@ final class ApiV2 {
                 return;
             }
             if (get && "/speed".equals(p)) { speedDown(r); return; }
+            if (get && "/queue".equals(p)) { Http.json(out, 200, server.library.queueJson().put("ok", true)); return; }
+            if (get && "/playlists".equals(p)) { Http.json(out, 200, server.library.playlistsJson().put("ok", true)); return; }
+            if (get && "/history".equals(p)) { Http.json(out, 200, server.library.historyJson().put("ok", true)); return; }
+            if (get && "/timer".equals(p)) { Http.json(out, 200, server.timer.state().put("ok", true)); return; }
+            if (get && "/player/tracks".equals(p)) {
+                JSONObject t = host.playerTracks();
+                if (t == null) Http.error(out, 409, "not_playing", "Nada tocando no TV Drop agora.");
+                else Http.json(out, 200, t.put("ok", true));
+                return;
+            }
             if (post && "/speed".equals(p)) { speedUp(r); return; }
             if (!post) { Http.error(out, 404, "not_found", "Rota não encontrada"); return; }
 
             JSONObject body = r.json();
+            if (p.startsWith("/queue/") || p.startsWith("/playlists/") || p.startsWith("/history/")
+                    || p.startsWith("/player/") || p.startsWith("/timer")) {
+                library(out, p, body);
+                return;
+            }
             switch (p) {
                 case "/remote/key": done(out, host.remote().key(body.optString("key")), "OK"); return;
                 case "/remote/text": {
@@ -137,10 +160,148 @@ final class ApiV2 {
                     return;
                 }
                 case "/beep": host.beep(); Http.ok(out, "A TV está tocando um som"); return;
+                case "/mirror/stop":
+                    if (host.mirrorStop()) Http.ok(out, "Espelhamento encerrado");
+                    else Http.error(out, 409, "not_mirroring", "Nenhum espelhamento ativo");
+                    return;
                 default: Http.error(out, 404, "not_found", "Rota não encontrada");
             }
         } catch (JSONException e) {
             Http.error(out, 500, "internal", e.getMessage());
+        }
+    }
+
+    // ---- queue, playlists, history, player, timer ----
+
+    private void library(OutputStream out, String p, JSONObject b) throws IOException, JSONException {
+        Library lib = server.library;
+        try {
+            switch (p) {
+                case "/queue/add": {
+                    String src = validSrc(b.optString("src"));
+                    if (src == null) { Http.fail(out, "Link ou arquivo inválido"); return; }
+                    String mode = b.optString("mode", "end");
+                    int at = lib.add(new Library.Item(src, b.optString("title")), mode);
+                    if ("now".equals(mode)) playItem(lib.play(at));
+                    Http.json(out, 200, lib.queueJson().put("ok", true).put("message", "now".equals(mode) ? "Tocando agora" : "Adicionado à fila"));
+                    return;
+                }
+                case "/queue/remove": queueResult(out, lib.remove(b.optInt("index", -1)), "Removido da fila"); return;
+                case "/queue/move": queueResult(out, lib.move(b.optInt("from", -1), b.optInt("to", -1)), "Fila reorganizada"); return;
+                case "/queue/clear": lib.clear(); queueResult(out, true, "Fila limpa"); return;
+                case "/queue/repeat": lib.setRepeat(b.optString("mode", "off")); queueResult(out, true, "Repetição alterada"); return;
+                case "/queue/play": queuePlay(out, lib.play(b.optInt("index", -1))); return;
+                case "/queue/next": queuePlay(out, lib.next(false)); return;
+                case "/queue/prev": queuePlay(out, lib.previous()); return;
+                case "/playlists/save": lib.saveQueueAs(b.optString("name")); Http.json(out, 200, lib.playlistsJson().put("ok", true).put("message", "Playlist salva")); return;
+                case "/playlists/load": {
+                    if (!lib.loadPlaylist(b.optString("name"))) { Http.error(out, 404, "not_found", "Playlist não encontrada"); return; }
+                    if (b.optBoolean("play")) playItem(lib.play(0));
+                    queueResult(out, true, "Playlist carregada na fila");
+                    return;
+                }
+                case "/playlists/delete":
+                    if (lib.deletePlaylist(b.optString("name"))) Http.json(out, 200, lib.playlistsJson().put("ok", true).put("message", "Playlist apagada"));
+                    else Http.error(out, 404, "not_found", "Playlist não encontrada");
+                    return;
+                case "/history/play": {
+                    String src = validSrc(b.optString("src"));
+                    if (src == null) { Http.fail(out, "Item inválido"); return; }
+                    long start = b.optBoolean("resume") ? lib.resumePosition(src) : 0;
+                    lib.setQueueActive(false);
+                    String path = resolve(src);
+                    if (path == null) { Http.error(out, 404, "not_found", "O arquivo não está mais na TV"); return; }
+                    host.play(path, start);
+                    Http.ok(out, start > 0 ? "Continuando de onde parou" : "Tocando na TV");
+                    return;
+                }
+                case "/history/favorite": {
+                    boolean fav = lib.toggleFavorite(b.optString("src"));
+                    Http.json(out, 200, new JSONObject().put("ok", true).put("favorite", fav));
+                    return;
+                }
+                case "/history/clear": lib.clearHistory(); Http.ok(out, "Histórico apagado"); return;
+                case "/history/enabled": lib.setHistoryEnabled(b.optBoolean("enabled", true)); Http.ok(out, "Ajuste salvo"); return;
+                case "/player/track":
+                    done(out, host.playerSelectTrack(b.optString("type"), b.optInt("group", -1), b.optInt("track", -1))
+                            ? null : "Não foi possível trocar a faixa.", "Faixa alterada");
+                    return;
+                case "/player/speed": {
+                    double sp = b.optDouble("speed", 1);
+                    if (sp < 0.25 || sp > 3) { Http.fail(out, "Velocidade de 0,25x a 3x"); return; }
+                    done(out, host.playerSpeed((float) sp) ? null : "Nada tocando no TV Drop agora.", "Velocidade " + sp + "x");
+                    return;
+                }
+                case "/timer":
+                    server.timer.set(b.optLong("minutes", 0), b.optString("action", "pause"));
+                    Events.add("Temporizador: " + b.optString("action", "pause") + " em " + b.optLong("minutes") + " min");
+                    Http.json(out, 200, server.timer.state().put("ok", true).put("message", "Temporizador ativado"));
+                    return;
+                case "/timer/cancel":
+                    server.timer.cancel();
+                    Http.json(out, 200, server.timer.state().put("ok", true).put("message", "Temporizador cancelado"));
+                    return;
+                default: Http.error(out, 404, "not_found", "Rota não encontrada");
+            }
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            Http.fail(out, e.getMessage());
+        }
+    }
+
+    private void queueResult(OutputStream out, boolean ok, String msg) throws IOException, JSONException {
+        if (!ok) { Http.error(out, 404, "not_found", "Item não encontrado na fila"); return; }
+        Http.json(out, 200, server.library.queueJson().put("ok", true).put("message", msg));
+    }
+
+    private void queuePlay(OutputStream out, Library.Item item) throws IOException, JSONException {
+        if (item == null) { Http.error(out, 404, "not_found", "Não há item para tocar"); return; }
+        if (!playItem(item)) { Http.error(out, 404, "not_found", "O arquivo não está mais na TV"); return; }
+        Http.json(out, 200, server.library.queueJson().put("ok", true).put("message", "Tocando: " + item.title));
+    }
+
+    private boolean playItem(Library.Item item) {
+        if (item == null) return false;
+        String path = resolve(item.src);
+        if (path == null) return false;
+        host.play(path);
+        return true;
+    }
+
+    /** Accepts http(s)/rtsp URLs and "inbox:<received file>". */
+    String validSrc(String src) {
+        if (src == null) return null;
+        String s = src.trim();
+        if (s.matches("(?i)^(https?|rtsp|rtmp)://\\S+$")) return s;
+        if (s.startsWith("inbox:")) {
+            String n = HttpServer.safeName(s.substring(6));
+            return n == null ? null : "inbox:" + n;
+        }
+        return null;
+    }
+
+    /** What the player should open for a src (null when an inbox file is gone). */
+    String resolve(String src) {
+        if (!src.startsWith("inbox:")) return src;
+        java.io.File f = server.existing(src.substring(6));
+        return f == null ? null : f.getAbsolutePath();
+    }
+
+    /** Runs a sleep-timer action on the TV. */
+    static void timerAction(TvHost host, String what) {
+        Events.add("Temporizador: " + what);
+        switch (what) {
+            case "pause":
+                if (!host.playerControl("pause", 0)) host.remote().key("pause");
+                break;
+            case "mute":
+                host.volume("mute");
+                break;
+            case "power":
+                if (host.remote().key("power") == null) break;
+                Events.add("Não foi possível desligar a TV (pareie o controle). Encerrando a reprodução.");
+                // fall through
+            default:
+                if (!host.playerControl("stop", 0)) host.remote().key("stop");
         }
     }
 
@@ -201,7 +362,8 @@ final class ApiV2 {
                                 && !host.externalPlayerName().isEmpty()))
                 .put("files", new JSONObject().put("upload", true).put("install", host.canInstall()))
                 .put("autoOpen", host.canOverlay())
-                .put("beep", true);
+                .put("beep", true)
+                .put("mirror", new JSONObject().put("active", host.mirrorActive()).put("port", MirrorProtocol.PORT));
     }
 
     // ---- apps ----
