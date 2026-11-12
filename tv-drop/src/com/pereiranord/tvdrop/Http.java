@@ -117,7 +117,7 @@ final class Http {
         String head = "HTTP/1.1 " + code + " " + reason(code) + "\r\n"
                 + "Content-Type: " + type + "\r\n"
                 + "Content-Length: " + body.length + "\r\n"
-                + "Cache-Control: no-store\r\n"
+                + (extraHeaders != null && extraHeaders.contains("Cache-Control:") ? "" : "Cache-Control: no-store\r\n")
                 + "X-Content-Type-Options: nosniff\r\n"
                 + CORS
                 + (extraHeaders == null ? "" : extraHeaders)
@@ -183,6 +183,8 @@ final class Http {
             case 413: return "Payload Too Large";
             case 429: return "Too Many Requests";
             case 501: return "Not Implemented";
+            case 206: return "Partial Content";
+            case 416: return "Range Not Satisfiable";
             case 507: return "Insufficient Storage";
             case 503: return "Service Unavailable";
             default: return "Error";
@@ -197,7 +199,41 @@ final class Http {
         if (n.endsWith(".svg")) return "image/svg+xml";
         if (n.endsWith(".png")) return "image/png";
         if (n.endsWith(".json") || n.endsWith(".webmanifest")) return "application/json; charset=utf-8";
+        if (n.endsWith(".woff2")) return "font/woff2";
+        if (n.endsWith(".mp4")) return "video/mp4";
+        if (n.endsWith(".webm")) return "video/webm";
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".webp")) return "image/webp";
+        if (n.endsWith(".mp3")) return "audio/mpeg";
         return "application/octet-stream";
+    }
+
+    /**
+     * "bytes=100-199", "bytes=100-", "bytes=-500" -> {from, to} (inclusive); null when there is no usable
+     * Range header (send the whole file); {-1, -1} when the range is outside the file (416).
+     */
+    static long[] parseRange(String header, long size) {
+        if (header == null || !header.startsWith("bytes=") || header.indexOf(',') >= 0 || size <= 0) return null;
+        String spec = header.substring(6).trim();
+        int dash = spec.indexOf('-');
+        if (dash < 0) return null;
+        try {
+            String a = spec.substring(0, dash).trim(), b = spec.substring(dash + 1).trim();
+            long from, to;
+            if (a.isEmpty()) { // the last N bytes
+                long n = Long.parseLong(b);
+                if (n <= 0) return new long[]{-1, -1};
+                from = Math.max(0, size - n);
+                to = size - 1;
+            } else {
+                from = Long.parseLong(a);
+                to = b.isEmpty() ? size - 1 : Math.min(Long.parseLong(b), size - 1);
+            }
+            if (from >= size || from > to) return new long[]{-1, -1};
+            return new long[]{from, to};
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     // ---- small utilities ----

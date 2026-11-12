@@ -73,7 +73,7 @@ public class GameHubTest extends ServerTestBase {
     private String open() throws Exception {
         JSONObject r = new JSONObject(req("POST", "/api/v2/games/open", "", pair()).body);
         assertTrue(r.getBoolean("open"));
-        assertTrue(host.gamesUrl, host.gamesUrl.startsWith("http://127.0.0.1:" + server.port() + "/jogos-tv.html?key="));
+        assertTrue(host.gamesUrl, host.gamesUrl.startsWith("http://127.0.0.1:" + server.port() + "/gamer-tv.html?key="));
         assertTrue(r.getString("url").endsWith("/jogar"));
         return r.getString("code");
     }
@@ -83,7 +83,7 @@ public class GameHubTest extends ServerTestBase {
         assertEquals(401, req("POST", "/api/v2/games/open", "", null).code);
         assertEquals(401, req("GET", "/api/v2/games", (String) null, null).code);
         String code = open();
-        assertTrue(code.matches("[A-Z]{4}"));
+        assertTrue(code, code.matches("[1-9][0-9]{3}"));
         try (Ws p = new Ws(server.port(), "/api/v2/games/ws?room=" + code.toLowerCase() + "&id=phone000001")) {
             assertTrue(p.head, p.head.startsWith("HTTP/1.1 101"));
             assertFalse("no TV page connected yet", new JSONObject(p.read()).getBoolean("on"));
@@ -139,7 +139,7 @@ public class GameHubTest extends ServerTestBase {
     @Test
     public void wrongCodeWrongKeyAndBadIdsAreRefused() throws Exception {
         String code = open();
-        String other = code.equals("AAAA") ? "BBBB" : "AAAA";
+        String other = code.equals("1111") ? "2222" : "1111";
         try (Ws p = new Ws(server.port(), "/api/v2/games/ws?room=" + other + "&id=phone000001")) {
             assertEquals("noroom", new JSONObject(p.read()).getString("t"));
             assertNull(p.read());
@@ -151,6 +151,24 @@ public class GameHubTest extends ServerTestBase {
             assertTrue(p.head, p.head.startsWith("HTTP/1.1 400"));
         }
         assertEquals(403, req("GET", "/api/v2/games/qr?key=nope", (String) null, null).code);
+    }
+
+    @Test
+    public void theHostCanRemoveAPlayer() throws Exception {
+        String code = open();
+        try (Ws tv = new Ws(server.port(), "/api/v2/games/ws?role=host&key=" + server.games.hostKey());
+             Ws bob = new Ws(server.port(), "/api/v2/games/ws?room=" + code + "&id=bobphone0001")) {
+            assertEquals("room", new JSONObject(tv.read()).getString("t"));
+            assertEquals("host", new JSONObject(bob.read()).getString("t"));
+            assertEquals("join", new JSONObject(tv.read()).getString("t"));
+            tv.send("!kick|bobphone0001");
+            assertEquals("kicked", new JSONObject(bob.read()).getString("t"));
+            assertNull("the removed phone is disconnected", bob.read());
+            JSONObject leave = new JSONObject(tv.read());
+            assertEquals("leave", leave.getString("t"));
+            assertTrue(leave.getBoolean("kicked"));
+            assertEquals(0, server.games.playerCount());
+        }
     }
 
     @Test

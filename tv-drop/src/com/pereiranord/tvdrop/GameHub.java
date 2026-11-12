@@ -15,15 +15,16 @@ import java.util.concurrent.LinkedBlockingQueue;
  *   player -> host   {"t":"m","id":"<player>","d":<what the phone sent>}
  *   host -> player   the host sends "<player id>|<json>" or "*|<json>" (everyone)
  *   hub -> host      {"t":"room",...}  {"t":"join","id"}  {"t":"leave","id"}
- *   hub -> player    {"t":"host","on":bool}  {"t":"closed"}  {"t":"full"}  {"t":"noroom"}
+ *   host -> hub      "!kick|<player id>" removes that player (the phone gets {"t":"kicked"})
+ *   hub -> player    {"t":"host","on":bool}  {"t":"closed"}  {"t":"full"}  {"t":"noroom"}  {"t":"kicked"}
  *
- * Players join with the 4-letter room code shown on the TV. They are guests:
+ * Players join with the 4-digit room code shown on the TV. They are guests:
  * the room gives no access to the rest of TV Drop (no pairing, no remote control).
  */
 final class GameHub {
     static final int MAX_PLAYERS = 10; // 6 play, the rest wait for the next match
     private static final int MAX_MESSAGE = 24_000;
-    private static final String LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I or O
+    private static final String DIGITS = "0123456789";
     private static final String POISON = new String("close");
     private final SecureRandom rnd = new SecureRandom();
     private String code, hostKey;
@@ -74,7 +75,8 @@ final class GameHub {
     synchronized String open() {
         if (code == null) {
             StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < 4; i++) sb.append(LETTERS.charAt(rnd.nextInt(LETTERS.length())));
+            sb.append("123456789".charAt(rnd.nextInt(9))); // 4 digits, never starting with 0
+            for (int i = 1; i < 4; i++) sb.append(DIGITS.charAt(rnd.nextInt(DIGITS.length())));
             code = sb.toString();
             byte[] k = new byte[18];
             rnd.nextBytes(k);
@@ -130,6 +132,15 @@ final class GameHub {
                 String to = msg.substring(0, bar), data = msg.substring(bar + 1);
                 synchronized (this) {
                     if (host != me) break;
+                    if ("!kick".equals(to)) { // the host removes a player from the room
+                        Peer p = players.remove(data);
+                        if (p != null) {
+                            p.send("{\"t\":\"kicked\"}");
+                            p.close();
+                            me.send("{\"t\":\"leave\",\"id\":" + Http.js(data) + ",\"kicked\":true}");
+                        }
+                        continue;
+                    }
                     if ("*".equals(to)) for (Peer p : players.values()) p.send(data);
                     else {
                         Peer p = players.get(to);

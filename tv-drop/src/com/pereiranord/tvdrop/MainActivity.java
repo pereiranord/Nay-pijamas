@@ -97,13 +97,13 @@ public class MainActivity extends Activity {
         left.addView(connect);
 
         LinearLayout gamesCard = card();
-        gamesCard.addView(text("Jogos", 20, TEXT));
-        gamesCard.addView(text("De 2 a 6 jogadores. Cada celular vira o controle: é só apontar a câmera para o QR Code da sala.", 15, MUTED));
-        gamesCard.addView(button("Abrir jogos", v -> {
+        gamesCard.addView(text("Central Gamer", 20, TEXT));
+        gamesCard.addView(text("Jogos para a família toda. Cada celular vira o controle: escolha um jogo e aponte a câmera para o QR Code da sala.", 15, MUTED));
+        gamesCard.addView(button("Abrir a Central Gamer", v -> {
             HttpServer s = ServerService.server();
             if (s == null) return;
             s.games.open();
-            GameActivity.launch(this, "http://127.0.0.1:" + s.port() + "/jogos-tv.html?key=" + s.games.hostKey());
+            GameActivity.launch(this, "http://127.0.0.1:" + s.port() + "/gamer-tv.html?key=" + s.games.hostKey());
         }));
         left.addView(gamesCard);
 

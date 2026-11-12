@@ -135,6 +135,7 @@
       case 'noroom': P.stop = true; showJoin('Sala não encontrada. Confira o código que aparece na TV.'); break;
       case 'full': P.stop = true; showJoin('A sala está cheia (6 jogadores).'); break;
       case 'closed': P.stop = true; leaveGame(); showJoin('A sala foi encerrada na TV.'); break;
+      case 'kicked': P.stop = true; leaveGame(); showJoin('Você foi removido da sala pelo anfitrião. Pode entrar de novo com o código.'); break;
       case 'host': P.hostOn = m.on; net(m.on ? '' : 'A TV saiu dos jogos. Aguardando…'); if (m.on) hello(); break;
       case 'who': hello(); break;
       case 'lobby': onRoom(m); break;
@@ -161,16 +162,16 @@
     app.innerHTML = `<section class="view join">
       <div class="brand"><i></i><span>TV Drop Jogos</span></div>
       <h1>Entre na sala<br>que está na TV</h1>
-      <div><label for="code">Código da sala</label><input class="field code" id="code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="····" value="${esc(P.room)}"></div>
+      <div><label for="code">Código da sala</label><input class="field code" id="code" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="····" inputmode="numeric" value="${esc(P.room)}"></div>
       <div><label for="name">Seu nome</label><input class="field" id="name" maxlength="12" autocomplete="off" placeholder="Como te chamam?" value="${esc(P.name)}"></div>
       <div class="err">${esc(error || '')}</div>
       <button class="btn primary" id="go">Entrar</button>
       <p class="muted" style="text-align:center;font-size:13px">O celular precisa estar no mesmo Wi-Fi da TV.</p></section>`;
     const code = $('#code'), name = $('#name');
-    code.oninput = () => { code.value = code.value.toUpperCase().replace(/[^A-Z]/g, ''); if (code.value.length === 4 && !name.value) name.focus(); };
+    code.oninput = () => { code.value = code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); if (code.value.length === 4 && !name.value) name.focus(); };
     const go = () => {
       const c = code.value.trim().toUpperCase(), n = name.value.trim();
-      if (c.length !== 4) { $('.err').textContent = 'O código tem 4 letras e aparece na TV.'; code.focus(); return; }
+      if (c.length !== 4) { $('.err').textContent = 'O código tem 4 números e aparece na TV.'; code.focus(); return; }
       if (!n) { $('.err').textContent = 'Digite seu nome.'; name.focus(); return; }
       join(c, n);
     };
@@ -195,6 +196,7 @@
     document.documentElement.style.setProperty('--me', P.me.color);
     store.set('shape', P.me.shape);
     if (m.state === 'lobby') { leaveGame(); renderLobby(); }
+    else if (m.state === 'catalog') { leaveGame(); renderBrowse(); }
     else if (!P.me.active) { leaveGame(); renderWait(); }
     else if (m.state === 'results' && P.view === 'end') renderEndButtons();
   }
@@ -238,6 +240,25 @@
       }
     }
     void on; void sel; void leaderName;
+  }
+
+  /** The TV is in the catalog (choosing a game): this phone waits, and can still change name and character. */
+  function renderBrowse() {
+    if (P.view === 'browse') { const c = $('#crewB'); if (c) drawCrew(c); return; }
+    P.view = 'browse';
+    app.innerHTML = `<section class="view centered"><div class="brand"><i></i><span>Sala ${esc(P.state.room)}</span></div>
+      <div id="bb"></div><div class="big">A TV está escolhendo o jogo</div>
+      <p class="muted" style="font-size:16px;max-width:300px">Fique por aqui: quando alguém tocar em <b style="color:#fff">Jogar</b> na TV, a sala de espera aparece neste celular.</p>
+      <div class="crew" id="crewB" style="justify-content:center"></div>
+      <button class="btn small" id="shapeB">Trocar personagem</button></section>`;
+    const b = buddy(P.me, 120); b.onclick = () => { send({ t: 'wave' }); vib(20); };
+    $('#bb').replaceWith(b);
+    drawCrew($('#crewB'));
+    $('#shapeB').onclick = () => { send({ t: 'shape' }); vib(20); P.view = ''; };
+  }
+  function drawCrew(crew) {
+    crew.innerHTML = '';
+    P.state.players.forEach((p) => { const sp = el('span', p.on ? '' : 'off'); sp.appendChild(buddy(p, 26)); sp.appendChild(document.createTextNode(p.name)); crew.appendChild(sp); });
   }
 
   function renderWait() {
@@ -354,7 +375,7 @@
   /* ---------------------------------------------------------------- start */
   addEventListener('contextmenu', (e) => { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
   window.PAD_STATE = P; // for automated tests
-  const room = (qs.get('sala') || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
+  const room = (qs.get('sala') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
   P.room = room;
   if (room.length === 4 && P.name) join(room, P.name); else showJoin('');
 })();

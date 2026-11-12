@@ -3,7 +3,7 @@
   --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px); }
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; }
-body { background: radial-gradient(130% 80% at 50% 115%, #2a1a5e 0%, #15102f 50%, #0d0b1e 100%) fixed var(--bg); color: var(--text); font-family: Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; overscroll-behavior: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; -webkit-font-smoothing: antialiased; }
+body { background: radial-gradient(130% 80% at 50% 115%, #2a1a5e 0%, #15102f 50%, #0d0b1e 100%) fixed var(--bg); color: var(--text); font-family: Archivo, Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; overscroll-behavior: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; -webkit-font-smoothing: antialiased; }
 h1, h2, h3, b { font-weight: 900; letter-spacing: -.01em; }
 button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer; touch-action: manipulation; }
 input { font: inherit; color: inherit; -webkit-user-select: text; user-select: text; }
@@ -29,7 +29,7 @@ input { font: inherit; color: inherit; -webkit-user-select: text; user-select: t
 .btn.small { min-height: 42px; font-size: 14px; border-radius: 14px; padding: 0 14px; }
 .btn[disabled] { filter: grayscale(1) brightness(.6); pointer-events: none; }
 .muted { color: var(--muted); }
-.big { font-size: 30px; line-height: 1.1; }
+.big { font-size: 30px; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; }
 .centered { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; min-height: 0; }
 .buddy { display: block; }
 

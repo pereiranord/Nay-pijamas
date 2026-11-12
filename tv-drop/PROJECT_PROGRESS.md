@@ -8,8 +8,8 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | --- | --- |
 | 0 — Auditoria e planejamento | ✅ Concluído (12/11/2026) |
 | 1 — Correção dos controles | ✅ Concluído (12/11/2026) |
-| 2 — Central Gamer na TV | ⏭️ Próximo |
-| 3 — Infraestrutura multiplayer | Pendente |
+| 2 — Central Gamer na TV | ✅ Concluído (12/11/2026) |
+| 3 — Infraestrutura multiplayer | ⏭️ Próximo |
 | 4 — Rabisco Relâmpago | Pendente (existe versão 2.6 a ampliar) |
 | 5 — STOP / Adedonha | Pendente |
 | 6 — Mímica | Pendente |
@@ -19,6 +19,37 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 9b — Pesca Maluca, Quem Sou Eu?, Cabo de Guerra, Telefone Maluco | Pendente (pedidos em 12/11) |
 | 10 — Investigação dos Impostores | Bloqueado até os blocos 4–9 serem validados |
 | 11 — Testes e acabamento | Pendente |
+
+## Bloco 2 — Central Gamer na TV
+
+**Implementado**
+- **Sistema visual** (`gamer/tokens.css`): paleta da referência (grafite + âmbar), Archivo e JetBrains Mono embutidas (funciona sem internet), vidro com desfoque e alternativa sólida, molas, botões, chips, foco por controle remoto. Detecção automática de TV fraca: desliga desfoque e animações pesadas.
+- **Capas originais** (`gamer/covers.js`): 15 cenas desenhadas em código, nítidas em qualquer resolução, com o título do jogo; versão sem título para os fundos.
+- **Catálogo** (`gamer/catalog.js`): 15 jogos com nome, descrição, como funciona, jogadores, duração, categorias e situação (5 disponíveis, 10 "Em breve" claramente marcados).
+- **Central na TV** (`gamer-tv.html/js/css`):
+  - **Catálogo**: destaque com título, descrição, chips e botões JOGAR AGORA / VER DETALHES; o fundo mostra o trailer do jogo focado (ou a arte, com movimento lento, para os que ainda não têm trailer); 6 trilhos (Populares, Em grupo, Criatividade, Competição, Cooperativos e times, Investigação); cartões com capa, nome, jogadores, duração e selo; foco com zoom, brilho e borda; rolagem horizontal e vertical suave. Nenhuma informação de conexão no catálogo (só "N jogadores na sala" quando há gente conectada).
+  - **Detalhes**: trailer de fundo, descrição completa, jogadores, duração, categoria, situação, os 3 passos de como funciona, Jogar/Voltar. Jogos "Em breve" não iniciam e explicam por quê.
+  - **Sala de espera** (só aqui aparecem QR Code e código): código numérico de 4 dígitos, endereço, 6 vagas com avatar, nome, estado (Conectado/Reconectando…), anfitrião, **remover jogador** com confirmação, Iniciar partida (avisa quantos faltam) e Trocar de jogo.
+  - **Prepare-se** com a arte do jogo, contagem, partida, **resultado** com Jogar de novo / Voltar ao catálogo. A sala continua aberta ao voltar ao catálogo, para emendar outro jogo.
+  - Controle remoto em tudo: setas, OK e Voltar (Voltar no catálogo pergunta antes de sair; na partida pergunta antes de encerrar).
+- **Trailers reais** (`media/trailers/*.mp4`, `tools/trailers/`): partidas jogadas por jogadores simulados, com a TV e o celular de um jogador lado a lado (desenhando, resolvendo o desafio da bomba, escrevendo a mentira, pilotando, dirigindo). 15 s, H.264 720p, 135–590 KB cada.
+- **Celular**: código numérico, tela "A TV está escolhendo o jogo" enquanto a TV está no catálogo, aviso de remoção pelo anfitrião, fonte da marca.
+- **Servidor**: arquivos em subpastas (com bloqueio de `..`), vídeo por partes (Range), cache de mídia, código de sala numérico, remoção de jogador (`!kick`). A TV abre a Central em vez da tela antiga; o endereço antigo `jogos-tv.html` redireciona.
+- **TV (Android)**: cartão "Central Gamer" na tela inicial.
+
+**Arquivos criados:** `assets/web/gamer/` (tokens, fontes, catálogo, capas), `assets/web/gamer-tv.html/js/css`, `assets/web/media/trailers/` (5 vídeos), `tools/trailers/` (gravador + palco), `tools/qa/check-central.js`, `test/.../WebAssetTest.java`.
+**Arquivos modificados:** `HttpServer.java`, `Http.java`, `GameHub.java`, `ApiV2.java`, `MainActivity.java`, `jogos-pad.js/css`, `jogos.html`, `jogos-tv.html` (redireciona), testes `GameHubTest`, `FakeHost`. **Removido:** `jogos-tv.js` (substituído por `gamer-tv.js`; os 5 jogos foram preservados).
+
+**Testes executados**
+- 101 testes JUnit (5 novos: subpastas, bloqueio de `..`, Range 206/416, Central aberta pela TV, remover jogador; código numérico) e 27 do assistente: verdes.
+- Navegação completa só com as teclas do controle remoto (catálogo → trilhos → detalhes → sala → remover jogador → iniciar → prepare-se → partida → encerrar → catálogo → jogo "Em breve" → pergunta de saída), com 3 celulares: sem erros.
+- Partidas completas, até o pódio, dos 5 jogos dentro da Central: Arena Neon, Batata-Bomba, Quem Mente?, Rabisco Relâmpago e Corrida de Sofá, sem erros.
+- Trailer tocando no fundo do catálogo (vídeo carregado, avançando, troca ao mudar o foco).
+- Bloco 1 (layouts do celular) continua válido: nenhum arquivo do controle foi alterado.
+
+**Não validado aqui:** desempenho e decodificação de vídeo na WebView da TV real (testado em Chromium 1920×1080). O QR Code só aparece na TV de verdade (o servidor de teste não gera a imagem).
+
+**Problemas conhecidos:** o controle de cada jogo no celular ainda é o da 2.6 (será refeito no padrão novo junto com cada jogo, blocos 4+). Os 10 jogos "Em breve" não têm trailer ainda: o fundo usa a arte com movimento, sem botão de play falso.
 
 ## Bloco 1 — Correção dos controles
 
@@ -79,4 +110,4 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 - Imagens realistas do jogo de investigação: usar o gerador de imagens conectado (consome créditos da conta). Confirmar no Bloco 10.
 - `tv-app` está privado: links de download diretos (curl) só funcionam com o repositório público ou pelo espelho em `Nay-pijamas`.
 
-**Próxima etapa recomendada:** Bloco 2 — Central Gamer na TV.
+**Próxima etapa recomendada:** Bloco 3 — Infraestrutura multiplayer (sessões, reconexão, ações sem duplicar, configurações de partida com presets).

@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>trailer stage</title>
+<style>
+  /* 1280×720: the TV screen and a player's phone side by side, nothing covering either */
+  html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: #0c0d0f; }
+  body { background: radial-gradient(70% 90% at 35% 50%, #1b1d24 0%, #0c0d0f 70%); }
+  #tvbox { position: absolute; left: 30px; top: 86px; width: 980px; height: 551px; border-radius: 16px; overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 30px 70px -20px rgba(0,0,0,.9); background: #000; }
+  #tv { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border: 0; transform: scale(.51042); transform-origin: 0 0; }
+  #phone { position: absolute; right: 26px; top: 121px; width: 222px; height: 478px; border-radius: 36px; background: #0a0a0c;
+    box-shadow: 0 0 0 2px #2c2c33, 0 26px 60px -12px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.08) inset; overflow: hidden;
+    transform: translateX(260px); transition: transform .9s cubic-bezier(.16,1,.3,1); }
+  #phone.on { transform: none; }
+  #phone iframe { position: absolute; left: 8px; top: 10px; width: 412px; height: 915px; border: 0; transform: scale(.5); transform-origin: 0 0; border-radius: 52px; }
+  #phone::after { content: ""; position: absolute; left: 50%; top: 16px; width: 54px; height: 12px; margin-left: -27px; border-radius: 8px; background: #000; z-index: 2; }
+</style></head>
+<body>
+<div id="tvbox"><iframe id="tv"></iframe></div>
+<div id="phone"><iframe id="pad"></iframe></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  document.getElementById('tv').src = q.get('tv');
+  document.getElementById('pad').src = q.get('pad');
+</script>
+</body></html>

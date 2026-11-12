@@ -549,7 +549,7 @@ final class ApiV2 {
         if (get && "/games".equals(p)) { Http.json(r.out, 200, gamesState()); return; }
         if (post && "/games/open".equals(p)) {
             hub.open();
-            String err = host.openGames("http://127.0.0.1:" + server.port() + "/jogos-tv.html?key=" + hub.hostKey());
+            String err = host.openGames("http://127.0.0.1:" + server.port() + "/gamer-tv.html?key=" + hub.hostKey());
             if (err != null) { Http.error(r.out, 409, "unavailable", err); return; }
             Http.json(r.out, 200, gamesState().put("message", "Jogos abertos na TV"));
             return;

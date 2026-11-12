@@ -33,8 +33,11 @@ class FakeHost implements TvHost {
     @Override public String androidRelease() { return "12"; }
     @Override public String appVersion() { return "2.0-test"; }
 
+    final java.util.Map<String, byte[]> assets = new java.util.HashMap<>();
+
     @Override
     public byte[] webAsset(String name) {
+        if (assets.containsKey(name)) return assets.get(name);
         if (name.equals("index.html")) return "<!doctype html><title>TV Drop</title>".getBytes(StandardCharsets.UTF_8);
         if (name.equals("app.js")) return "console.log(1)".getBytes(StandardCharsets.UTF_8);
         if (name.equals("jogos.html")) return "<!doctype html><title>Jogos</title>".getBytes(StandardCharsets.UTF_8);

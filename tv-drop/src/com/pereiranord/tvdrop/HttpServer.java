@@ -188,7 +188,7 @@ public class HttpServer extends Thread {
         if ("/".equals(p) || "/index.html".equals(p)) p = "/index.html";
         if ("/jogar".equals(p) || "/jogos".equals(p)) p = "/jogos.html"; // the phones' game controller
         String name = p.substring(1);
-        if (!name.matches("[A-Za-z0-9_-]+(\\.[A-Za-z0-9]+)+") ) {
+        if (!isAssetName(name)) {
             Http.send(r.out, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
             return;
         }
@@ -197,9 +197,32 @@ public class HttpServer extends Thread {
             Http.send(r.out, 404, "text/plain", "not found".getBytes(StandardCharsets.UTF_8));
             return;
         }
-        Http.send(r.out, 200, Http.contentType(name), data,
-                // the game controller may be embedded by the TV Drop app (it controls nothing but the game)
-                name.endsWith(".html") && !name.startsWith("jogos") ? "Content-Security-Policy: frame-ancestors 'self'\r\n" : null);
+        String type = Http.contentType(name);
+        boolean media = type.startsWith("video/") || type.startsWith("audio/") || type.startsWith("font/") || type.startsWith("image/");
+        // fonts, pictures and trailers don't change between two versions of the app: let the TV keep them for an hour
+        String extra = media ? "Cache-Control: max-age=3600\r\nAccept-Ranges: bytes\r\n" : "";
+        if (name.endsWith(".html") && !name.startsWith("jogos")) {
+            // the game controller may be embedded by the TV Drop app (it controls nothing but the game)
+            extra += "Content-Security-Policy: frame-ancestors 'self'\r\n";
+        }
+        long[] range = media ? Http.parseRange(r.header("range"), data.length) : null;
+        if (range != null) { // the video element asks for pieces (seeking, looping)
+            if (range[0] < 0) {
+                Http.send(r.out, 416, "text/plain", new byte[0], "Content-Range: bytes */" + data.length + "\r\n");
+                return;
+            }
+            int from = (int) range[0], len = (int) (range[1] - range[0] + 1);
+            byte[] part = new byte[len];
+            System.arraycopy(data, from, part, 0, len);
+            Http.send(r.out, 206, type, part, extra + "Content-Range: bytes " + range[0] + "-" + range[1] + "/" + data.length + "\r\n");
+            return;
+        }
+        Http.send(r.out, 200, type, data, extra.isEmpty() ? null : extra);
+    }
+
+    /** "index.html", "gamer/tokens.css", "media/trailers/rabisco.mp4": letters, digits, - and _ only, no "..". */
+    static boolean isAssetName(String name) {
+        return name.length() < 200 && name.matches("([A-Za-z0-9_-]+/){0,3}[A-Za-z0-9_-]+(\\.[A-Za-z0-9]+)+");
     }
 
     // ---- TV Drop 1.0 routes (unchanged behaviour) ----
