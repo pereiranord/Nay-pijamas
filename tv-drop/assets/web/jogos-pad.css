@@ -16,7 +16,9 @@ input { font: inherit; color: inherit; -webkit-user-select: text; user-select: t
 @keyframes stamp { 0% { transform: translate(-50%, -50%) rotate(-12deg) scale(4); opacity: 0; } 12% { transform: translate(-50%, -50%) rotate(-12deg) scale(1); opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; } }
 #net { position: fixed; left: 12px; right: 12px; top: calc(10px + var(--st)); z-index: 60; background: #ff4d6d; color: #fff; border-radius: 14px; padding: 10px 14px; font-weight: 800; text-align: center; font-size: 14px; }
 
-.view { flex: 1; display: flex; flex-direction: column; min-height: 0; animation: viewIn .3s both; }
+.view { flex: 1; display: flex; flex-direction: column; min-height: 0; animation: viewIn .3s both; overflow-y: auto; overscroll-behavior: contain; }
+/* phones on their side: a little less padding, and the safe areas of a notch on the left or right */
+@media (orientation: landscape) and (max-height: 540px) { #app { padding-top: calc(8px + var(--st)); padding-bottom: calc(8px + var(--sb)); } .join h1 { font-size: 26px; } .gico { width: 72px; height: 72px; } }
 @keyframes viewIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; flex: 1; min-height: 0; margin: 0 -16px; padding: 0 16px; }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }

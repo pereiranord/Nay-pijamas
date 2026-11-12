@@ -229,6 +229,7 @@ function go(view) {
   if (!VIEWS[view]) view = 'home';
   S.view = view;
   store.set('view', view);
+  $('#main').dataset.view = view;
   $$('.nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.view === view ? 'page' : 'false'));
   if (view !== 'remote') wsClose(); else wsConnect();
   VIEWS[view]();
@@ -828,21 +829,24 @@ function renderRemote() {
   const main = $('#main');
   const caps = S.caps && S.caps.remote;
   const limited = caps && !(caps.atv && caps.atv.paired) && !nativeAtvOk();
+  // Two regions: "r-pad" (the direction surface + Back/Home/Menu) and "r-side" (everything else).
+  // Upright phones show them as one column in a fixed order; a phone on its side shows them next to each
+  // other, with the direction pad always on screen and the rest scrolling on its own (see app.css).
   main.innerHTML = header('Controle') + `
-    <div class="rstatus" id="rstatus"></div>
-    ${limited ? `<div class="notice">${icon('info')}<div>Algumas teclas estão apagadas porque o controle ainda não foi pareado. <button class="btn small" data-go="devices" style="margin-top:8px">Parear controle</button></div></div>` : ''}
-    <div class="seg" role="group" aria-label="Modo do controle">
-      <button data-mode="dpad" aria-pressed="${S.remoteMode === 'dpad'}">${icon('remote')}Direcional</button>
-      <button data-mode="swipe" aria-pressed="${S.remoteMode === 'swipe'}">${icon('pulse')}Deslizante</button>
-      <button data-mode="pad" aria-pressed="${S.remoteMode === 'pad'}">${icon('grid')}Touchpad</button>
-    </div>
-    <div class="remote-grid">
-      <div class="rcol">
-        <div class="key-row top4">${rkey('power', 'power')}${rkey('input')}${rkey('assistant')}${rkey('settings')}</div>
+    <div class="rview">
+     <div class="r-pad">
         <div id="surface"></div>
         <div class="key-row nav3">${rkey('back', 'big')}${rkey('home', 'big')}${rkey('menu', 'big')}</div>
+     </div>
+     <div class="r-side">
+      <div class="rstatus" id="rstatus"></div>
+      ${limited ? `<div class="notice">${icon('info')}<div>Algumas teclas estão apagadas porque o controle ainda não foi pareado. <button class="btn small" data-go="devices" style="margin-top:8px">Parear controle</button></div></div>` : ''}
+      <div class="seg" role="group" aria-label="Modo do controle">
+        <button data-mode="dpad" aria-pressed="${S.remoteMode === 'dpad'}" aria-label="Direcional">${icon('remote')}<span>Direcional</span></button>
+        <button data-mode="swipe" aria-pressed="${S.remoteMode === 'swipe'}" aria-label="Deslizante">${icon('pulse')}<span>Deslizante</span></button>
+        <button data-mode="pad" aria-pressed="${S.remoteMode === 'pad'}" aria-label="Touchpad">${icon('grid')}<span>Touchpad</span></button>
       </div>
-      <div class="rcol">
+      <div class="key-row top4">${rkey('power', 'power')}${rkey('input')}${rkey('assistant')}${rkey('settings')}</div>
         <div class="rockers">
           <div class="rocker" aria-label="Volume">
             <button class="rk-up ${S.caps && !has('volup') ? 'off' : ''}" data-rk="volup" aria-label="Aumentar volume">${icon('plus')}</button>
@@ -890,7 +894,7 @@ function renderRemote() {
           <div class="msg" id="voiceMsg" style="text-align:center"></div><div class="row" id="voiceConfirm" hidden><button class="btn primary" data-yes>Executar</button><button class="btn" data-no>Cancelar</button></div></div>
         <div class="card" id="timerCard"></div>
         <div class="card kb-hint" id="kbHint"><h2>Atalhos do teclado</h2><p class="sub" style="margin:0">Setas · Enter = OK · Esc/Backspace = Voltar · H = Início · Espaço = Play/Pausa · + / − = Volume · M = Mudo · PgUp/PgDn = Canal · 0–9</p></div>
-      </div>
+     </div>
     </div>`;
   renderConn();
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));

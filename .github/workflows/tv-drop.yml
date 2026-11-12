@@ -40,7 +40,7 @@ jobs:
       - name: Build
         env:
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 2.6.${{ github.run_number }}
+          VERSION_NAME: 2.7.${{ github.run_number }}
         run: ./tv-drop/build.sh
 
       - name: Show failed tests
@@ -58,8 +58,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: tv-drop-v2.6.${{ github.run_number }}
-          name: TV Drop 2.6.${{ github.run_number }}
+          tag_name: tv-drop-v2.7.${{ github.run_number }}
+          name: TV Drop 2.7.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           make_latest: true
           files: |

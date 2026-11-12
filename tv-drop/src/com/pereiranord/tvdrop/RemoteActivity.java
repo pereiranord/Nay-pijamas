@@ -57,6 +57,8 @@ public class RemoteActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
+        // Follow the phone's font size, but cap it: past ~115% the remote's keys stop fitting a phone screen.
+        s.setTextZoom(Math.min(s.getTextZoom(), 115));
         web.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView v, String url) {
