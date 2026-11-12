@@ -234,6 +234,39 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
 .item .t { flex: 1 1 140px; }
 .qrow .t { flex: 1 1 120px; }
 
+/* ---------- 2.4 settings, light theme, big buttons ---------- */
+.gear { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); flex: none; }
+.gear svg { width: 22px; height: 22px; }
+.setting { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.setting:first-of-type { border-top: 0; }
+.setting .t { flex: 1; }
+.setting b { display: block; font-weight: 600; }
+.setting small { color: var(--muted); font-size: 13px; }
+.switch { appearance: none; width: 50px; height: 30px; border-radius: 30px; background: var(--key-hi); position: relative; flex: none; cursor: pointer; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch:checked { background: var(--green); }
+.switch:checked::after { transform: translateX(20px); }
+.seg.mini { margin: 0; }
+.seg.mini button { min-height: 38px; font-size: 14px; }
+:root[data-theme="light"] {
+  --bg: #f3f5f7; --surface: #ffffff; --surface-2: #eceff3; --key: #e6e9ee; --key-hi: #d5dae1; --line: #e1e5ea;
+  --text: #15181c; --muted: #5d6873; --dim: #8a949e; --green: #12a150; --green-ink: #ffffff; --red: #d64545; --amber: #b87400;
+  color-scheme: light;
+}
+:root[data-theme="light"] body { background: var(--bg); }
+:root[data-theme="light"] .nav { background: rgba(243, 245, 247, .94); }
+:root[data-theme="light"] .dpad { background: radial-gradient(circle at 50% 40%, #ffffff, #e4e8ed 70%); box-shadow: inset 0 0 0 1px #d6dbe1, 0 14px 30px rgba(0,0,0,.12); }
+:root[data-theme="light"] .dpad .ok, :root[data-theme="light"] .key.play-big { background: #ffffff; box-shadow: 0 6px 16px rgba(0,0,0,.12), inset 0 0 0 1px #dfe3e8; }
+:root[data-theme="light"] .toast { background: #2b3036; color: #fff; }
+:root[data-theme="light"] .pad, :root[data-theme="light"] .rocker { box-shadow: inset 0 0 0 1px #d6dbe1; }
+:root[data-size="large"] .key { width: 70px; height: 70px; }
+:root[data-size="large"] .key svg { width: 30px; height: 30px; }
+:root[data-size="large"] .key.big { width: 88px; height: 76px; }
+:root[data-size="large"] .dpad { width: min(88vw, 360px); }
+:root[data-size="large"] .rocker { height: 220px; }
+:root[data-size="large"] .nkey { min-height: 70px; font-size: 26px; }
+:root[data-size="large"] body { font-size: 17px; }
+
 /* ---------- 2.3 app home: TVs found ---------- */
 .found { display: grid; gap: 10px; margin: 6px 0 18px; text-align: left; }
 .tv-found { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 18px; background: var(--surface); }
@@ -313,6 +346,13 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
 .pad small { color: var(--dim); }
 .kb-hint { display: none; }
 @media (hover: hover) and (pointer: fine) { .kb-hint { display: block; } }
+/* big buttons: keep everything inside a phone screen */
+:root[data-size="large"] .key.small { width: 54px; height: 54px; }
+:root[data-size="large"] .key.small svg { width: 24px; height: 24px; }
+:root[data-size="large"] .top4 .key { width: 64px; height: 64px; }
+:root[data-size="large"] .key.play-big { width: 96px; height: 96px; }
+:root[data-size="large"] .rockers { grid-template-columns: 72px 1fr 72px; gap: 10px; }
+.qa, .app-tile { color: #fff; }
 
 </style>
 </head>
@@ -328,6 +368,7 @@ select.field { appearance: none; padding-right: 36px; background-image: linear-g
       <input class="field" id="tvAddr" placeholder="1G58-28FG ou 192.168.18.31" autocapitalize="characters" aria-label="Código ou endereço da TV" style="text-align:center;font-size:20px;min-height:60px" required>
       <button class="btn primary" style="width:100%;margin-top:14px">Conectar</button>
     </form>
+    <button class="btn" id="scanBtn" style="width:100%;margin-top:10px" hidden>Ler QR Code da TV</button>
     <div class="msg" id="connectMsg"></div>
     <p class="sub" id="connectNote" style="margin-top:22px">A TV e este aparelho precisam estar no mesmo Wi-Fi.</p>
   </div>
@@ -602,7 +643,39 @@ function toast(text, ok = true) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
 }
-const buzz = () => { try { navigator.vibrate && navigator.vibrate(12); } catch (e) { /* ignore */ } };
+/* ---------------------------------------------------------------- PREFERENCES (Ajustes) */
+const PREF_DEFAULTS = { theme: 'dark', size: 'normal', vibrate: true, sound: false, volKeys: true, quickNotif: false };
+const prefs = () => ({ ...PREF_DEFAULTS, ...store.get('prefs', {}) });
+function setPref(k, v) {
+  const p = prefs(); p[k] = v; store.set('prefs', p);
+  applyPrefs();
+  if (NATIVE && NATIVE.setPref) NATIVE.setPref(k, String(v));
+}
+function applyPrefs() {
+  const p = prefs();
+  const dark = p.theme === 'auto' ? !(window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) : p.theme !== 'light';
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.documentElement.dataset.size = p.size;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = dark ? '#121417' : '#f3f5f7';
+}
+let audioCtx = null;
+function click() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'triangle'; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.05, audioCtx.currentTime); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.05);
+    o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + 0.06);
+  } catch (e) { /* no audio */ }
+}
+const buzz = () => {
+  const p = prefs();
+  if (p.vibrate) { try { navigator.vibrate && navigator.vibrate(12); } catch (e) { /* ignore */ } }
+  if (p.sound) click();
+};
+applyPrefs();
+if (window.matchMedia) matchMedia('(prefers-color-scheme: light)').addEventListener('change', applyPrefs);
 const fmtTime = (ms) => { const s = Math.floor((ms || 0) / 1000); const h = Math.floor(s / 3600); const m = Math.floor(s / 60) % 60; const x = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${x}` : `${m}:${x}`; };
 const fmtSize = (n) => n >= 1073741824 ? (n / 1073741824).toFixed(2) + ' GB' : n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 const fmtDate = (t) => { if (!t) return ''; const d = new Date(t); return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); };
@@ -674,7 +747,7 @@ async function doPair(pin) {
 }
 
 /* ---------------------------------------------------------------- shell */
-const VIEWS = { home: renderHome, cast: renderCast, remote: renderRemote, apps: renderApps, library: renderLibrary, devices: renderDevices };
+const VIEWS = { home: renderHome, cast: renderCast, remote: renderRemote, apps: renderApps, library: renderLibrary, devices: renderDevices, settings: renderSettings };
 
 function go(view) {
   if (!VIEWS[view]) view = 'home';
@@ -687,7 +760,8 @@ function go(view) {
 }
 
 function header(title) {
-  return `<div class="top"><h1>${esc(title)}</h1><div class="conn" id="conn"><span class="dot"></span><span></span></div></div>`;
+  return `<div class="top"><h1>${esc(title)}</h1><div class="conn" id="conn"><span class="dot"></span><span></span></div>
+    <button class="gear" onclick="go('settings')" aria-label="Ajustes">${icon('settings')}</button></div>`;
 }
 
 function renderConn() {
@@ -1765,7 +1839,10 @@ const DEFAULT_SHORTCUTS = [
   { name: 'Modo descanso', steps: [{ type: 'key', value: 'pause' }, { type: 'timer', value: 30, action: 'stop' }] },
 ];
 const getShortcuts = () => store.get('shortcuts', DEFAULT_SHORTCUTS);
-const setShortcuts = (v) => store.set('shortcuts', v);
+const setShortcuts = (v) => { store.set('shortcuts', v); syncNativeShortcuts(); };
+function syncNativeShortcuts() {
+  if (NATIVE && NATIVE.setShortcuts) NATIVE.setShortcuts(JSON.stringify(getShortcuts().map((x) => x.name)));
+}
 
 function appByRef(ref) {
   const c = S.catalog.find((x) => x.id === ref);
@@ -2022,6 +2099,61 @@ async function renderDevices() {
   drawStorage();
 }
 
+/* ---------------------------------------------------------------- SETTINGS (one place for every option) */
+function seg(name, value, options) {
+  return `<div class="seg mini" role="group">${options.map(([v, l]) => `<button data-pref="${name}" data-val="${v}" aria-pressed="${String(value) === String(v)}">${l}</button>`).join('')}</div>`;
+}
+function toggle(name, value, label, sub) {
+  return `<label class="setting"><span class="t"><b>${label}</b>${sub ? `<small>${sub}</small>` : ''}</span><input type="checkbox" class="switch" data-toggle="${name}" ${value ? 'checked' : ''}></label>`;
+}
+
+async function renderSettings() {
+  const main = $('#main');
+  const p = prefs();
+  main.innerHTML = header('Ajustes') + `
+    <div class="card"><h2>Aparência</h2>
+      <p class="sub">Tema</p>${seg('theme', p.theme, [['dark', 'Escuro'], ['light', 'Claro'], ['auto', 'Automático']])}
+      <p class="sub" style="margin-top:12px">Tamanho dos botões do controle</p>${seg('size', p.size, [['normal', 'Normal'], ['large', 'Grande']])}</div>
+    <div class="card"><h2>Controle</h2>
+      ${toggle('vibrate', p.vibrate, 'Vibrar ao tocar')}
+      ${toggle('sound', p.sound, 'Som ao tocar', 'Um clique curto em cada tecla')}
+      ${toggle('liveTyping', store.get('liveTyping', false), 'Teclado: digitar ao vivo por padrão')}
+      <label class="slider-row">Sensibilidade do touchpad<input type="range" id="setSens" min="0.6" max="4" step="0.1" value="${S.sensitivity}"></label></div>
+    ${NATIVE ? `<div class="card"><h2>No celular</h2>
+      ${NATIVE.setPref ? toggle('volKeys', p.volKeys, 'Botões de volume do celular controlam a TV', 'Enquanto o app está aberto') : ''}
+      ${NATIVE.setPref ? toggle('quickNotif', p.quickNotif, 'Controle rápido na notificação', 'Play/pausa e volume na barra de notificações e na tela de bloqueio') : ''}
+      ${NATIVE.scanQr ? `<button class="btn" id="setQr" style="margin-top:8px">${icon('grid')}Ler QR Code da TV</button>` : ''}
+      <p class="sub" style="margin-top:12px">Widget: toque e segure a tela inicial do celular → Widgets → TV Drop. Atalhos: toque e segure o ícone do TV Drop.</p></div>` : ''}
+    <div class="card"><h2>Biblioteca</h2><div id="setHistory"></div></div>
+    <div class="card"><h2>Conexão</h2>
+      <p class="sub">${esc(S.info ? S.info.name : 'TV')} · ${esc((BASE || location.origin).replace(/^https?:\/\//, ''))}</p>
+      <div id="setLegacy"></div>
+      <div class="row" style="margin-top:8px">${STANDALONE ? '<button class="btn small" id="setSwitch">Trocar de TV</button>' : ''}<button class="btn small" data-go="devices">Dispositivos e diagnóstico</button></div></div>
+    <div class="card"><h2>Busca de filmes e séries</h2><p class="sub">${store.get('tmdbKey', '') ? 'Chave do TMDB salva neste aparelho.' : 'Sem chave do TMDB (configure em Apps → Buscar filmes e séries).'}</p>
+      ${store.get('tmdbKey', '') ? '<button class="btn small" id="setTmdb">Remover chave</button>' : ''}</div>
+    <div class="card"><h2>Sobre</h2><p class="sub" style="margin:0">TV Drop ${esc(S.info ? S.info.version : '')} na TV · Android ${esc(S.info ? S.info.android : '?')}${NATIVE && NATIVE.appVersion ? ' · app ' + esc(NATIVE.appVersion()) : ''}</p></div>`;
+  renderConn();
+  $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
+  $$('[data-pref]', main).forEach((b) => b.onclick = () => { setPref(b.dataset.pref, b.dataset.val); $$(`[data-pref="${b.dataset.pref}"]`).forEach((x) => x.setAttribute('aria-pressed', x === b)); buzz(); });
+  $$('[data-toggle]', main).forEach((c) => c.onchange = () => {
+    const k = c.dataset.toggle;
+    if (k === 'liveTyping') store.set('liveTyping', c.checked); else setPref(k, c.checked);
+    buzz();
+  });
+  $('#setSens').oninput = (e) => { S.sensitivity = +e.target.value; store.set('sensitivity', S.sensitivity); };
+  if ($('#setQr')) $('#setQr').onclick = () => NATIVE.scanQr();
+  if ($('#setSwitch')) $('#setSwitch').onclick = showConnect;
+  if ($('#setTmdb')) $('#setTmdb').onclick = () => { store.del('tmdbKey'); renderSettings(); };
+  try {
+    const h = await api('/api/v2/history');
+    $('#setHistory').innerHTML = toggle('history', h.enabled, 'Guardar histórico de reprodução', 'Fica só na TV. Desligar apaga o histórico.');
+    $('[data-toggle="history"]').onchange = (e) => api('/api/v2/history/enabled', { method: 'POST', json: { enabled: e.target.checked } }).then(() => toast('Ajuste salvo'), (er) => toast(er.message, false));
+    const d = await api('/api/v2/devices');
+    $('#setLegacy').innerHTML = toggle('legacy', d.legacyOpen, 'Permitir apps antigos (1.0) sem pareamento');
+    $('[data-toggle="legacy"]').onchange = (e) => api('/api/v2/settings', { method: 'POST', json: { legacyOpen: e.target.checked } }).then(() => toast('Ajuste salvo'), (er) => toast(er.message, false));
+  } catch (e) { /* offline */ }
+}
+
 /* ---------------------------------------------------------------- STORAGE */
 const KIND_INFO = { video: ['Vídeos', '#4fc3f7'], audio: ['Músicas', '#ba68c8'], image: ['Fotos', '#ffb74d'], document: ['Documentos', '#81c784'], apk: ['APKs', '#e57373'], other: ['Outros', '#90a4ae'] };
 
@@ -2157,6 +2289,7 @@ function tellNative() {
 async function start() {
   $('#appView').hidden = false;
   tellNative();
+  syncNativeShortcuts();
   fillIcons();
   try { S.info = await api('/api/v2/info'); }
   catch (e) {
@@ -2168,7 +2301,28 @@ async function start() {
   loadApps();
   go(store.get('view', 'home'));
   refreshStatus();
+  S.started = true;
+  if (S.pendingOpen) { const o = S.pendingOpen; S.pendingOpen = null; window.tvdropOpen(o[0], o[1]); }
 }
+
+/* Android app: launcher shortcuts and tvdrop:// links (go/<view>, shortcut/<name>, mirror). */
+window.tvdropOpen = (kind, value) => {
+  if (!S.started) { S.pendingOpen = [kind, value]; return; }
+  if (kind === 'go') go(value);
+  else if (kind === 'shortcut') { const sc = getShortcuts().find((x) => x.name === decodeURIComponent(value)); if (sc) runShortcut(sc); else toast('Atalho não encontrado: ' + value, false); }
+  else if (kind === 'mirror' && NATIVE && NATIVE.mirror) NATIVE.mirror();
+};
+
+/* Android app: QR code from the TV -> connect and pair without typing. */
+window.tvdropQr = (text) => {
+  let url;
+  try { url = new URL(text); } catch (e) { toast('Este QR Code não é do TV Drop.', false); return; }
+  const pin = url.searchParams.get('pair');
+  const hp = url.host;
+  if (!hp || !/^\d{6}$/.test(pin || '')) { toast('Este QR Code não é do TV Drop.', false); return; }
+  S.qrPin = pin;
+  doConnect(hp);
+};
 
 /* Android app: a link shared from another app ("Compartilhar → TV Drop"). */
 window.tvdropShareLink = (url) => {
@@ -2198,6 +2352,7 @@ function showConnect(message) {
   const last = store.get('base', '');
   if (last && !$('#tvAddr').value) $('#tvAddr').value = last.replace('http://', '');
   if (location.protocol === 'https:') $('#connectNote').textContent = 'Esta página está em https, e o navegador não deixa uma página https falar com a TV (http). Ao conectar, você vai para a página da própria TV.';
+  $('#scanBtn').hidden = !(NATIVE && NATIVE.scanQr);
   if (NATIVE && NATIVE.discover) startDiscovery();
   else setTimeout(() => $('#tvAddr').focus(), 50);
 }
@@ -2256,6 +2411,7 @@ async function doConnect(input) {
     store.set('base', BASE);
     $('#connectView').hidden = true;
     S.connecting = false;
+    if (S.qrPin) { const pin = S.qrPin; S.qrPin = null; saveToken(''); $('#pairView').hidden = false; $('#pinInput').value = pin; doPair(pin); return; }
     if (S.token) start(); else showPairing();
   } catch (e) {
     S.connecting = false;
@@ -2267,6 +2423,7 @@ async function doConnect(input) {
 function boot() {
   fillIcons();
   $('#connectForm').onsubmit = (e) => { e.preventDefault(); doConnect($('#tvAddr').value); };
+  $('#scanBtn').onclick = () => NATIVE && NATIVE.scanQr && NATIVE.scanQr();
   if ($('#pairSwitch')) $('#pairSwitch').onclick = (e) => { e.preventDefault(); showConnect(); };
   if (STANDALONE) $('#pairSwitch').hidden = false;
   $$('.nav button').forEach((b) => b.onclick = () => go(b.dataset.view));
@@ -2284,7 +2441,13 @@ function boot() {
 
 setInterval(refreshStatus, 2000);
 setInterval(() => { if (!document.hidden && S.token && (S.view === 'remote' || S.view === 'home')) loadCaps().then(() => { if (S.view === 'remote') drawRemoteStatus(); }); }, 15000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshStatus(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) return;
+  refreshStatus();
+  if (S.view === 'remote' && !S.wsOk) { wsClose(); wsConnect(); }
+  if (S.token) loadCaps().then(() => { if (S.view === 'remote') drawRemoteStatus(); });
+});
+window.addEventListener('online', () => { if (S.token) { refreshStatus(); if (S.view === 'remote') wsConnect(); } });
 boot();
 
 </script>
