@@ -16,6 +16,7 @@ public class ServerService extends Service {
     private static final String CHANNEL = "server";
     private static final int FGS_TYPE_SPECIAL_USE = 0x40000000;
     private static volatile HttpServer server;
+    private static volatile Pairing pairing;
     private NsdManager.RegistrationListener nsdReg;
 
     public static void start(Context ctx) {
@@ -25,6 +26,16 @@ public class ServerService extends Service {
         } catch (Exception e) {
             Events.add("Não consegui iniciar o servidor: " + e.getMessage());
         }
+    }
+
+    /** Paired devices and the current PIN (shared by the server and the TV screen). */
+    public static synchronized Pairing pairing(Context ctx) {
+        if (pairing == null) pairing = new Pairing(new PrefsStore(ctx, "pairing"));
+        return pairing;
+    }
+
+    public static HttpServer server() {
+        return server;
     }
 
     public static int port() {
@@ -48,7 +59,7 @@ public class ServerService extends Service {
 
         synchronized (ServerService.class) {
             if (server == null) {
-                HttpServer s = new HttpServer(getApplicationContext());
+                HttpServer s = new HttpServer(new AndroidTvHost(getApplicationContext()), pairing(this));
                 if (s.open()) {
                     server = s;
                     s.start();
@@ -62,7 +73,7 @@ public class ServerService extends Service {
     /** Announces the TV on the network (mDNS) so the phone app finds it by itself. */
     private void advertise(int port) {
         NsdServiceInfo info = new NsdServiceInfo();
-        info.setServiceName(HttpServer.tvName());
+        info.setServiceName(server.tvName());
         info.setServiceType(Discovery.TYPE);
         info.setPort(port);
         nsdReg = new NsdManager.RegistrationListener() {

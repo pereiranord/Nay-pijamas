@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121417">
+<title>TV Drop</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<!-- Pairing: shown until this browser/phone has a token -->
+<section class="pair" id="pairView" hidden>
+  <div class="box">
+    <div class="logo" data-icon="tv"></div>
+    <h1 style="margin:0 0 6px;font-size:26px">Conectar à TV</h1>
+    <p class="sub">Digite o código de 6 números que aparece na tela da TV (no app TV Drop).</p>
+    <form id="pairForm" autocomplete="off">
+      <input class="field pin" id="pinInput" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" placeholder="000000" aria-label="Código da TV" required>
+      <button class="btn primary" style="width:100%;margin-top:14px" id="pairBtn">Conectar</button>
+    </form>
+    <div class="msg" id="pairMsg"></div>
+    <p class="sub" style="margin-top:22px">Dica: aponte a câmera do celular para o QR Code da TV para conectar sem digitar.</p>
+  </div>
+</section>
+
+<div class="app" id="appView" hidden>
+  <nav class="nav" aria-label="Seções">
+    <div class="brand">TV DROP</div>
+    <button data-view="home" aria-current="page"><span data-icon="home"></span>Início</button>
+    <button data-view="cast"><span data-icon="cast"></span>Transmitir</button>
+    <button data-view="remote"><span data-icon="remote"></span>Controle</button>
+    <button data-view="apps"><span data-icon="grid"></span>Apps</button>
+    <button data-view="devices"><span data-icon="tv"></span>Dispositivos</button>
+  </nav>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -26,6 +26,13 @@ android {
             res.srcDirs = ['res']
             assets.srcDirs = ['assets']
         }
+        test {
+            java.srcDirs = ['test']
+        }
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
     }
 
     signingConfigs {
@@ -62,4 +69,10 @@ dependencies {
     implementation "androidx.media3:media3-ui:$media3"
     // FFmpeg audio decoders (DTS, DTS-HD core, Dolby TrueHD, AC3, E-AC3...) for audio the TV can't decode.
     implementation "org.jellyfin.media3:media3-ffmpeg-decoder:$media3+1"
+    // QR code shown on the TV for pairing.
+    implementation "com.google.zxing:core:3.5.3"
+
+    testImplementation "junit:junit:4.13.2"
+    // Real org.json for JVM tests (Android's copy is a stub off-device).
+    testImplementation "org.json:json:20240303"
 }

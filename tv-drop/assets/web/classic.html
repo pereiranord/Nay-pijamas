@@ -88,6 +88,14 @@
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
+// TV Drop 2.0: requests carry the token saved by the new interface after pairing.
+let TOKEN = ''; try { TOKEN = localStorage.getItem('tvdrop.token') || ''; } catch (e) {}
+const AUTH = TOKEN ? { 'X-TVDrop-Token': TOKEN } : {};
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (url, opt = {}) => nativeFetch(url, { ...opt, headers: { ...(opt.headers || {}), ...AUTH } }).then((r) => {
+  if (r.status === 401) location.href = '/';
+  return r;
+});
 function say(el, text, ok) { el.textContent = text; el.className = 'msg ' + (ok ? 'ok' : 'err'); }
 function mb(n) { return (n / 1048576).toFixed(1) + ' MB'; }
 
@@ -116,6 +124,7 @@ function sendOne(file) {
     const xhr = new XMLHttpRequest();
     const auto = $('auto').checked ? '&auto=1' : '';
     xhr.open('POST', '/api/upload?name=' + encodeURIComponent(file.name) + auto);
+    if (TOKEN) xhr.setRequestHeader('X-TVDrop-Token', TOKEN);
     prog.style.display = 'block'; prog.value = 0;
     msg.className = 'msg'; msg.textContent = 'Enviando ' + file.name + '…';
     const t0 = Date.now();

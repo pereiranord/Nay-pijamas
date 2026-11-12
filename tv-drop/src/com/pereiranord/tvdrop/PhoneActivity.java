@@ -24,6 +24,8 @@ import android.widget.ScrollView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import org.json.JSONObject;
+
 import java.io.InputStream;
 import java.net.URLEncoder;
 import java.util.LinkedHashMap;
@@ -135,7 +137,74 @@ public class PhoneActivity extends Activity {
         });
     }
 
+    /**
+     * TV Drop 2.0 TVs need this phone to be paired once (PIN shown on the TV);
+     * 1.0 TVs have no /api/v2 and work as before.
+     */
     private void connect(String key, String name) {
+        if (discovery != null) discovery.stop();
+        status.setText("Conectando a " + name + "…");
+        io.execute(() -> {
+            int info = Net.status("http://" + key + "/api/v2/info", 4000);
+            if (info == 404) { // TV Drop 1.0 on the TV
+                Net.token = null;
+                ui.post(() -> connected(key, name));
+                return;
+            }
+            if (info < 0) {
+                ui.post(() -> say("Não consegui falar com " + name + ".", false));
+                return;
+            }
+            Net.token = prefs.getString("token:" + key, null);
+            int session = Net.token == null ? 401 : Net.status("http://" + key + "/api/v2/session", 4000);
+            if (session == 200) ui.post(() -> connected(key, name));
+            else ui.post(() -> askPin(key, name, null));
+        });
+    }
+
+    private void askPin(String key, String name, String error) {
+        EditText pin = new EditText(this);
+        pin.setInputType(InputType.TYPE_CLASS_NUMBER);
+        pin.setHint("000000");
+        pin.setTextSize(28);
+        pin.setGravity(Gravity.CENTER);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Parear com " + name)
+                .setMessage((error != null ? error + "\n\n" : "") + "Digite o código de 6 números que aparece na tela da TV.")
+                .setView(pin)
+                .setPositiveButton("Conectar", (d, w) -> {
+                    String code = pin.getText().toString();
+                    io.execute(() -> {
+                        try {
+                            JSONObject body = new JSONObject().put("pin", code).put("name", "App TV Drop (" + Build.MODEL + ")");
+                            Net.token = null;
+                            String r = Net.post("http://" + key + "/api/v2/pair", body.toString());
+                            String token = Net.str(r, "token");
+                            if (token == null) {
+                                String m = Net.str(r, "message");
+                                ui.post(() -> askPin(key, name, m == null ? "Código recusado." : m));
+                                return;
+                            }
+                            Net.token = token;
+                            prefs.edit().putString("token:" + key, token).apply();
+                            ui.post(() -> connected(key, name));
+                        } catch (Exception e) {
+                            ui.post(() -> askPin(key, name, "Erro: " + e.getMessage()));
+                        }
+                    });
+                })
+                .setNegativeButton("Cancelar", (d, w) -> status.setText("Não conectado"))
+                .show();
+    }
+
+    private void openRemote() {
+        if (tv == null) return;
+        startActivity(new Intent(this, RemoteActivity.class)
+                .putExtra(RemoteActivity.EXTRA_TV, tv)
+                .putExtra(RemoteActivity.EXTRA_TOKEN, Net.token));
+    }
+
+    private void connected(String key, String name) {
         tv = key;
         tvName = name;
         prefs.edit().putString("last", key).apply();
@@ -230,20 +299,8 @@ public class PhoneActivity extends Activity {
         final String name = displayName(u);
         say("Preparando " + name + "…", true);
         io.execute(() -> {
-            try {
-                int port = StreamService.ensure(this, u);
-                String[] hp = target.split(":");
-                String me = Net.localAddressTowards(hp[0], Integer.parseInt(hp[1]));
-                String type = getContentResolver().getType(u);
-                String path = StreamService.server().serve(u, type, name);
-                String url = "http://" + me + ":" + port + path;
-                String r = Net.post("http://" + target + "/api/play", url);
-                boolean ok = Net.bool(r, "ok");
-                ui.post(() -> say(ok ? "Transmitindo " + name + " para a TV. Mantenha o celular no Wi-Fi."
-                        : "A TV recusou: " + Net.str(r, "message"), ok));
-            } catch (Exception e) {
-                ui.post(() -> say("Não consegui transmitir: " + e.getMessage(), false));
-            }
+            String err = PhoneCast.cast(this, target, u);
+            ui.post(() -> say(err == null ? "Transmitindo " + name + " para a TV. Mantenha o celular no Wi-Fi." : err, err == null));
         });
     }
 
@@ -419,6 +476,9 @@ public class PhoneActivity extends Activity {
         root.addView(controls);
 
         LinearLayout c2 = card(controls, "Transmitir");
+        Button remote = button("🎮  Controle remoto, apps e mais", true);
+        remote.setOnClickListener(v -> openRemote());
+        c2.addView(remote);
         Button cast = button("▶  Transmitir vídeo do celular", true);
         cast.setOnClickListener(v -> pick(PICK_VIDEO, "*/*"));
         c2.addView(cast);

@@ -14,10 +14,34 @@ import java.util.regex.Pattern;
 
 /** Phone -> TV HTTP calls. Call these off the main thread. */
 public final class Net {
+    /** Pairing token of the TV this phone is connected to (TV Drop 2.0); null for 1.0 TVs. */
+    public static volatile String token;
+
     private Net() {}
 
-    public static String get(String url, int timeoutMs) throws IOException {
+    private static HttpURLConnection open(String url) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        String t = token;
+        if (t != null) c.setRequestProperty("X-TVDrop-Token", t);
+        return c;
+    }
+
+    /** HTTP status of a GET (no body read), or -1 when the TV can't be reached. */
+    public static int status(String url, int timeoutMs) {
+        try {
+            HttpURLConnection c = open(url);
+            c.setConnectTimeout(timeoutMs);
+            c.setReadTimeout(timeoutMs);
+            int code = c.getResponseCode();
+            c.disconnect();
+            return code;
+        } catch (IOException e) {
+            return -1;
+        }
+    }
+
+    public static String get(String url, int timeoutMs) throws IOException {
+        HttpURLConnection c = open(url);
         c.setConnectTimeout(timeoutMs);
         c.setReadTimeout(timeoutMs);
         try {
@@ -29,7 +53,7 @@ public final class Net {
 
     public static String post(String url, String body) throws IOException {
         byte[] b = body == null ? new byte[0] : body.getBytes(StandardCharsets.UTF_8);
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection c = open(url);
         c.setConnectTimeout(4000);
         c.setReadTimeout(15000);
         c.setRequestMethod("POST");
@@ -51,7 +75,7 @@ public final class Net {
 
     /** Sends a file body (for APK upload). */
     public static String upload(String url, InputStream in, long len, Progress p) throws IOException {
-        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        HttpURLConnection c = open(url);
         c.setConnectTimeout(4000);
         c.setReadTimeout(60000);
         c.setRequestMethod("POST");

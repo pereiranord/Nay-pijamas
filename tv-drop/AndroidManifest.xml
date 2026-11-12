@@ -15,6 +15,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
 
     <!-- External players used for audio the TV can't decode (DTS, TrueHD...) -->
     <queries>
@@ -22,6 +23,23 @@
         <package android:name="is.xyz.mpv" />
         <package android:name="com.mxtech.videoplayer.pro" />
         <package android:name="com.mxtech.videoplayer.ad" />
+        <!-- Apps screen: list the apps the TV can launch -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="market" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 
     <application
@@ -62,6 +80,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Phone: the shared TV Drop 2.0 interface (remote, apps, files) in a WebView -->
+        <activity
+            android:name=".RemoteActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
         <activity
             android:name=".PlayerActivity"
             android:exported="true"
@@ -95,6 +121,19 @@
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Streams a video from the phone to the TV on the local network" />
+        </service>
+
+        <service
+            android:name=".TvDropAccessibility"
+            android:exported="false"
+            android:label="TV Drop: controle pelo celular"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service" />
         </service>
 
         <receiver android:name=".InstallReceiver" android:exported="false" />

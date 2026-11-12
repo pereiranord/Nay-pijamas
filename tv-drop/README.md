@@ -1,14 +1,18 @@
-# TV Drop
+# TV Drop 2.0
 
-App para **Android TV / Google TV** (feito pensando na Philips 4K Google TV) e para **celular Android**. O mesmo APK funciona nos dois aparelhos: na TV ele é o receptor; no celular, o transmissor e o controle remoto.
+Central multimídia e controle remoto para **Android TV / Google TV** (feito pensando na Philips 4K Google TV), com app para **celular Android** e versão **web**. O mesmo APK funciona nos dois aparelhos: na TV ele é o receptor; no celular, o controle e o transmissor.
 
-- **Transmitir do celular sem copiar**: o celular serve o vídeo e a TV toca direto dele, em **qualidade original** (são os bytes do arquivo, sem recompressão), com avançar e voltar.
-- **Conecta sozinho**: na mesma rede, o app do celular acha a TV. Se não achar, digite o **código de 8 letras** que aparece na tela da TV.
-- **Compartilhar → TV Drop**: na galeria ou em qualquer app, compartilhe um vídeo com o TV Drop e ele começa a tocar na TV.
-- **Links de vídeo**: `.mp4`, `.m3u8` (HLS) e outros links diretos.
-- **APKs**: envie um `.apk` do celular e a TV abre a tela de instalação.
-- **Controle**: pausar, barra de tempo, avançar, voltar, parar e volume.
-- Também funciona **sem o app no celular**, pelo navegador, no endereço que a TV mostra.
+**Transmitir**
+- **Do celular sem copiar**: a TV toca o vídeo direto do celular, em **qualidade original**, com avançar e voltar. O próprio app decodifica áudio DTS, TrueHD e AC3.
+- **Enviar para a TV**: links de vídeo (`.mp4`, `.m3u8`), links do YouTube (abrem no app do YouTube) e páginas da internet.
+- **Arquivos**: vídeos, músicas, fotos, documentos e APKs, vários de uma vez, com progresso, cancelamento e categorias.
+
+**Controlar**
+- **Controle remoto**: direcional circular, modo deslizante, **touchpad** com cursor, teclado do celular, voz (app Android), volume, mídia e Liga/Desliga.
+- **Apps**: lista dos apps instalados na TV com os ícones reais, abrir, favoritos organizáveis, loja e desinstalação.
+- **Dispositivos**: pareamento seguro (PIN/QR), aparelhos autorizados, "Encontrar minha TV", diagnóstico de conexão.
+
+Documentação: [arquitetura](docs/ARQUITETURA.md) · [API](docs/API.md) · [protocolos e compatibilidade](docs/COMPATIBILIDADE.md) · [próximas etapas](docs/PROXIMAS-ETAPAS.md).
 
 ## 1. Instalar na TV pelo ADB
 
@@ -26,6 +30,10 @@ adb install -r TV-Drop.apk
 adb shell appops set com.pereiranord.tvdrop REQUEST_INSTALL_PACKAGES allow
 adb shell appops set com.pereiranord.tvdrop SYSTEM_ALERT_WINDOW allow
 
+# Touchpad, Voltar/Início e digitação (acessibilidade do TV Drop), opcional:
+adb shell settings put secure enabled_accessibility_services com.pereiranord.tvdrop/.TvDropAccessibility
+adb shell settings put secure accessibility_enabled 1
+
 # Abre o app
 adb shell am start -n com.pereiranord.tvdrop/.MainActivity
 ```
@@ -37,11 +45,15 @@ adb shell am start -n com.pereiranord.tvdrop/.MainActivity
 
 Baixe o mesmo `TV-Drop.apk` no celular e abra. O Android vai pedir para permitir a instalação de apps dessa origem.
 
-## 3. Usar
+## 3. Conectar e usar
 
-1. Abra o **TV Drop** na TV. Ela mostra um **código** (ex.: `1G58-28FG`) e um endereço `http://…:8080`.
-2. Abra o **TV Drop** no celular, no mesmo Wi-Fi. Ele encontra a TV e conecta. Se não encontrar, digite o código.
-3. Toque em **Transmitir vídeo do celular** e escolha o vídeo. Ou, na galeria, **Compartilhar → TV Drop**.
+1. Abra o **TV Drop** na TV. Ela mostra um **QR Code**, um **PIN de 6 números** (muda a cada 2 minutos), o endereço `http://…:8080` e o código de endereço (ex.: `1G58-28FG`).
+2. **No app do celular**: ele encontra a TV sozinho (ou use o código de endereço) e pede o PIN **só na primeira vez**.
+   **No navegador**: aponte a câmera para o QR Code, ou abra o endereço e digite o PIN.
+3. No app, **Controle remoto, apps e mais** abre a nova interface. **Transmitir vídeo do celular** e **Compartilhar → TV Drop** continuam funcionando como antes.
+4. Para o controle completo (todas as teclas, Liga/Desliga e teclado), abra **Dispositivos → Parear controle** e digite o código que a TV mostrar. É o mesmo pareamento do app oficial "Google TV", feito uma vez só.
+
+A página antiga continua em `http://IP_DA_TV:8080/classic.html`.
 
 O celular precisa ficar ligado e no Wi-Fi enquanto o vídeo toca, mas a tela pode apagar: uma notificação mantém a transmissão e tem o botão **Parar**.
 
@@ -58,18 +70,33 @@ O código guarda o endereço da TV na rede. Ele resolve quando a busca automáti
 
 ## Limites
 
-- Links do YouTube, Netflix e afins **não** funcionam: eles não entregam o arquivo de vídeo direto. Use links diretos (`.mp4`, `.mkv`, `.webm`, `.m3u8`).
+- O player do TV Drop toca links diretos (`.mp4`, `.mkv`, `.webm`, `.m3u8`). Links do YouTube e de páginas abrem no app do YouTube ou no navegador da TV. Conteúdo protegido (DRM) não é extraído nem reproduzido pelo TV Drop.
 - Não é espelhamento de tela: transmite arquivos de vídeo e áudio. Para espelhar a tela, use o Chromecast embutido da TV.
 - Vídeo: os formatos que o chip da TV decodifica (H.264, H.265/HEVC, VP9, AV1 em TVs novas). Áudio: praticamente todos, porque o app decodifica DTS, TrueHD e AC3 sozinho.
-- Qualquer pessoa no seu Wi-Fi consegue abrir a página. Instalar um APK ainda exige confirmação na TV.
+- Só aparelhos pareados (PIN ou QR) controlam a TV. A TV mostra a lista e permite remover qualquer um.
+- Apps do TV Drop 1.0 no celular precisam ser atualizados, ou então ligue na TV "Apps antigos (1.0) sem pareamento".
+- Voz: só no app Android. Navegadores não liberam o microfone na página http da TV.
 - Os arquivos ficam no armazenamento do app. Apague os que não usar mais, pela página ou desinstalando o app.
 
-## Compilar
+## Compilar e testar
 
 Com JDK 17+, Gradle 8.13+ e o Android SDK (`platforms;android-35`, `build-tools;35.0.0`):
 
 ```bash
-ANDROID_HOME=~/Android/Sdk ./tv-drop/build.sh   # gera tv-drop/build/TV-Drop.apk
+ANDROID_HOME=~/Android/Sdk ./tv-drop/build.sh   # roda os testes e gera tv-drop/build/TV-Drop.apk
+```
+
+Testes (JUnit, sem aparelho): rotas 1.0 (regressão), API v2, pareamento e o protocolo do controle do Google TV contra uma TV falsa com TLS real.
+
+```bash
+cd tv-drop && gradle testReleaseUnitTest
+```
+
+**Rodar a interface web localmente** com uma TV simulada (o PIN fica no arquivo indicado):
+
+```bash
+cd tv-drop && TVDROP_DEV=600 TVDROP_DEV_INFO=/tmp/tvdrop.info gradle testReleaseUnitTest --tests '*DevServer*'
+# abra http://127.0.0.1:18080 e use o PIN de /tmp/tvdrop.info
 ```
 
 O player usa o **ExoPlayer (Media3)**. O vídeo vai pelo decodificador de hardware da TV, em qualidade total e com HDR. O áudio que a TV não decodifica (DTS, DTS-HD, Dolby TrueHD, AC3/E-AC3) é decodificado no próprio app pela extensão FFmpeg do Jellyfin (`org.jellyfin.media3:media3-ffmpeg-decoder`).
