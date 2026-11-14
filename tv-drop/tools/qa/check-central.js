@@ -63,7 +63,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await pads[0].screenshot({ path: `${out}/p4-phone-browse.png` });
   await shot('c5-catalog-with-players');
   // a "coming soon" game
-  await tv.evaluate(() => window.Central.details('bomba')); await sleep(1100); await shot('d2-soon');
+  await tv.evaluate(() => window.Central.details('investigacao')); await sleep(1100); await shot('d2-soon');
   await key_('left'); await key_('ok'); await sleep(500);
   console.log('soon play stays on:', await screen());
   // exit question

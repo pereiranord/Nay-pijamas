@@ -10,15 +10,61 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 1 — Correção dos controles | ✅ Concluído (12/11/2026) |
 | 2 — Central Gamer na TV | ✅ Concluído (12/11/2026) |
 | 3 — Infraestrutura multiplayer | ✅ Concluído (12/11/2026) |
-| 4 — Rabisco Relâmpago | ⏭️ Próximo (existe versão 2.6 a ampliar) |
-| 5 — STOP / Adedonha | Pendente |
-| 6 — Mímica | Pendente |
-| 7 — Desenho Relâmpago | Pendente |
-| 8 — Desarme a Bomba | Pendente |
-| 9 — Leilão Maluco | Pendente |
-| 9b — Pesca Maluca, Quem Sou Eu?, Cabo de Guerra, Telefone Maluco | Pendente (pedidos em 12/11) |
-| 10 — Investigação dos Impostores | Bloqueado até os blocos 4–9 serem validados |
+| 4 — Rabisco Relâmpago | ✅ Concluído (12/11/2026) |
+| 5 — STOP / Adedonha | ✅ Concluído (12/11/2026) |
+| 6 — Mímica | ✅ Concluído (12/11/2026) |
+| 7 — Desenho Relâmpago | ✅ Concluído (12/11/2026) |
+| 8 — Desarme a Bomba | ✅ Concluído (12/11/2026) |
+| 9 — Leilão Maluco | ✅ Concluído (12/11/2026) |
+| 9b — Pesca Maluca, Quem Sou Eu?, Cabo de Guerra, Telefone Maluco | ✅ Concluído (12/11/2026) |
+| 10 — Investigação dos Impostores | ⏭️ Próximo (depois de os jogos 4–9b serem jogados na TV de verdade) |
 | 11 — Testes e acabamento | Pendente |
+
+## Blocos 4 a 9b — os jogos (12/11/2026)
+
+Tudo aqui roda dentro da Central Gamer, usa a sala e as configurações do Bloco 3 e tem controle no celular em pé e deitado. O único jogo ainda "Em breve" é a Investigação dos Impostores (Bloco 10).
+
+**O celular do anfitrião faz tudo** (pedido em 12/11): com a TV no catálogo, o celular do anfitrião já lista os jogos; tocar em um abre a sala de espera na TV. Dali ele troca de jogo, configura, inicia, **encerra a partida** (aba no topo da tela durante o jogo) e **remove jogador** (toque no nome). A TV continua aceitando o controle remoto para as mesmas coisas; os outros celulares só acompanham. `tools/qa/check-host-phone.js` cobre o fluxo (14 verificações).
+
+**Peças comuns novas**
+- `gamer/words.js`: banco de palavras por categoria: 2.768 escritas à mão (animais, objetos, objetos domésticos, profissões, comidas, filmes e séries, personagens, lugares, esportes, ações, expressões populares, difícil, muito difícil, celebridades, desenhos animados, situações engraçadas) e a categoria "Coisas absurdas", que combina quem + fazendo o quê (3.700 combinações). Total 6.468. Mais 115 temas para o Desenho Relâmpago.
+- `J.fresh()` (em `jogos-core.js`): sorteio sem repetir o que saiu nas últimas partidas (lembrado na TV, por jogo).
+- `gamer/sketch.js`: prancheta de desenho única (10 cores, **borracha**, 4 espessuras, desfazer, limpar; ferramentas embaixo com o celular em pé e ao lado com ele deitado).
+- Configurações do tipo lista (categorias): escolhidas na TV em uma grade (OK liga/desliga) e no celular do anfitrião por toques; "Tudo misturado" liga todas.
+- Resultados com título próprio para jogos de time e cooperativos.
+
+| Jogo | O que tem | Configurações |
+| --- | --- | --- |
+| **Rabisco Relâmpago** (ampliado) | 14 categorias + Tudo misturado, 3 palavras novas por vez com a categoria, categoria como dica na TV, expressões longas aceitam palpite aproximado, borracha | tempo, vezes de cada um, categorias |
+| **STOP!** | roleta de letra (sem repetir na partida), campos no celular, botão STOP só com tudo preenchido, conferência por categoria com "não vale" (maioria dos outros anula), letra errada e vazio anulados sozinhos | rodadas, tempo, pontos (única/repetida), categorias (16, mínimo 3) |
+| **Mímica** | palavra secreta só no celular de quem faz, Acertou (escolhe quem acertou: os dois pontuam) e Pular (3), categoria como dica na TV, histórico da vez | tempo, vezes, dificuldade, categorias (11) |
+| **Desenho Relâmpago** | mesmo tema para todos, desenhos borrados na TV enquanto desenham, galeria numerada sem nomes, voto secreto (não vale o próprio), nomes só depois | tempo, número de temas |
+| **Desarme a Bomba** | cooperativo: técnico vê os módulos no celular; os outros recebem pedaços diferentes do manual; 5 módulos (fios, símbolos, senha, sequência de cores, botão), número de série e pilhas entram nas regras; erro custa 20 s, 3 erros explodem; TV com relógio, erros e módulos | dificuldade (3/4/5 módulos), tempo |
+| **Leilão Maluco** | 72 itens (tesouros, comuns, tranqueiras, amaldiçoados), 2 pistas + avaliação, lance secreto, empate vai para quem tem menos dinheiro, eventos: relâmpago, item misterioso, oferta falsa, oportunidade (paga metade), item raríssimo; lista de compras no celular | caixas, dinheiro inicial, tempo do lance |
+| **Telefone Maluco** | frase → desenho → descrição…, cada um só vê o passo anterior, revelação da corrente inteira na TV, voto na melhor parte | tempo de desenho, tamanho da corrente |
+| **Quem Sou Eu?** | celular na testa: inclinar para baixo acerta, para cima pula (sensor de movimento); os amigos veem a mesma palavra no celular deles, com os mesmos botões, e a tela de quem adivinha aceita toque — funciona sem sensor; a TV nunca mostra a palavra | tempo, vezes, categorias (9) |
+| **Cabo de Guerra** | dois times sorteados, força = média do time (2 contra 3 é justo), toque no compasso do anel vale por três, limite por toque por segundo na TV | rodadas para vencer, tempo máximo |
+| **Pesca Maluca** | arremesso por deslize (força e direção), peixes comuns perto e raros longe, baú, bota velha e tubarão ladrão; a puxada é julgada pelo tempo medido no próprio celular desde a mordida | tempo de pescaria |
+
+**Lógica da bomba verificável** (`gamer/bomb-logic.js`, `test/bomb-logic.test.js`): 4.500 bombas geradas no teste; em todas a solução de cada módulo sai só do que o manual diz, o caminho certo desarma sem erro, um movimento errado conta um erro e o módulo continua resolvível, ações repetidas ou inválidas não punem, o manual é distribuído inteiro e, com 2 ou mais especialistas, ninguém fica com um módulo completo.
+
+**Arquivos criados:** `assets/web/jogo-{stop,mimica,desenho,bomba,leilao,telefone,quemsou,cabo,pesca}.js`, `assets/web/gamer/{words,sketch,bomb-logic}.js`, `test/bomb-logic.test.js`, `tools/qa/check-host-phone.js`, `tools/qa/play/` (um roteiro de partida completa por jogo).
+**Arquivos modificados:** `jogo-rabisco.js` (reescrito sobre as peças novas), `gamer-tv.js/css/html`, `jogos-pad.js/css`, `jogos.html`, `jogos-core.js`, `gamer/catalog.js` (14 jogos disponíveis), workflow (teste da bomba no CI).
+
+**Testes executados**
+- Partida completa de cada um dos 14 jogos com celulares simulados (páginas reais, toques reais), sem erros de página: `tools/qa/play/play.js`.
+- Bomba: 7 testes sobre 4.500 bombas. Sala: 10 testes. JUnit: 102.
+- Anfitrião pelo celular (14 verificações), sala/configurações (18), navegação por controle remoto e layouts do celular.
+
+**Não validado aqui**
+- Nada disto foi jogado em TV e celulares de verdade: tudo em Chromium, com jogadores simulados.
+- Sensor de movimento do Quem Sou Eu?: simulado. Navegadores costumam bloquear o sensor em páginas `http://` (o caso da TV); por isso os botões e o toque na tela existem e foram testados.
+- Emojis dos itens do Leilão dependem da fonte de emojis da TV.
+
+**Pendências**
+- Trailers dos 9 jogos novos (o catálogo mostra a arte em movimento para eles; os 5 antigos continuam com trailer real).
+- Itens do Leilão usam emojis em vez de ilustrações próprias.
+- A sala continua com no máximo 6 jogando (o catálogo foi corrigido para dizer isso).
 
 ## Bloco 3 — Infraestrutura multiplayer
 
@@ -140,4 +186,4 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 - Imagens realistas do jogo de investigação: usar o gerador de imagens conectado (consome créditos da conta). Confirmar no Bloco 10.
 - `tv-app` está privado: links de download diretos (curl) só funcionam com o repositório público ou pelo espelho em `Nay-pijamas`.
 
-**Próxima etapa recomendada:** Bloco 4 — Rabisco Relâmpago (milhares de palavras por categoria, modo aleatório sem repetir, borracha, controle novo no celular).
+**Próxima etapa recomendada:** jogar os jogos novos na TV e nos celulares de verdade e anotar o que incomodar; gravar os trailers dos 9 jogos novos; depois, Bloco 10 — Investigação dos Impostores (confirmar antes o uso do gerador de imagens, que consome créditos).
