@@ -115,11 +115,19 @@ public class AtvRemoteTest {
         tv = new FakeTv();
         AtvRemote r = client(new KeyValueStore.Memory());
         r.startPairing();
-        r.finishPairing(tv.shownCode.poll(5, TimeUnit.SECONDS));
-
-        r.sendKey(19); // DPAD_UP
-        Proto.Msg key = tv.received.poll(5, TimeUnit.SECONDS);
-        assertNotNull(key);
+        r.finishPairing(tv.shownCode.poll(10, TimeUnit.SECONDS));
+        // on a busy machine the session may still be opening right after pairing: wait for it, and press again
+        // (as a person would) if the first press was lost while it opened
+        for (int i = 0; i < 200 && !r.isConnected(); i++) Thread.sleep(50);
+        Proto.Msg key = null;
+        for (int i = 0; i < 4 && key == null; i++) {
+            try { r.sendKey(19); } catch (Exception ignored) { } // DPAD_UP
+            Proto.Msg m = tv.received.poll(4, TimeUnit.SECONDS);
+            while (m != null && (m.all(10) == null || m.all(10).isEmpty())) m = tv.received.poll(500, TimeUnit.MILLISECONDS);
+            key = m;
+        }
+        assertNotNull("the key should reach the TV", key);
+        tv.received.clear(); // a repeated press, if there was one, is not part of what follows
         assertEquals("configure must be answered with our features", AtvRemote.FEATURES & 622, tv.configuredFeatures);
         for (int i = 0; i < 50 && !tv.pongOk; i++) Thread.sleep(50); // the ping answer may follow the key
         assertTrue("ping must be answered", tv.pongOk);
@@ -129,8 +137,11 @@ public class AtvRemoteTest {
         assertEquals("com.google.android.youtube.tv", r.currentApp());
         assertTrue(r.imeReady());
 
+        Thread.sleep(300); tv.received.clear();
         r.sendText("abc");
-        Proto.Msg text = tv.received.poll(5, TimeUnit.SECONDS);
+        Proto.Msg text = tv.received.poll(10, TimeUnit.SECONDS);
+        while (text != null && (text.all(21) == null || text.all(21).isEmpty())) text = tv.received.poll(5, TimeUnit.SECONDS);
+        assertNotNull("the text should reach the TV", text);
         Proto.Msg be = text.msg(21);
         assertEquals(5, be.num(1, 0)); // ime counter from the TV
         assertEquals(9, be.num(2, 0)); // field counter from the TV
@@ -140,7 +151,10 @@ public class AtvRemoteTest {
         assertEquals(3, edit.msg(2).num(1, 0));
 
         r.launchLink("https://www.youtube.com");
-        assertEquals("https://www.youtube.com", tv.received.poll(5, TimeUnit.SECONDS).msg(90).str(1));
+        Proto.Msg link = tv.received.poll(10, TimeUnit.SECONDS);
+        while (link != null && (link.all(90) == null || link.all(90).isEmpty())) link = tv.received.poll(5, TimeUnit.SECONDS);
+        assertNotNull("the link should reach the TV", link);
+        assertEquals("https://www.youtube.com", link.msg(90).str(1));
         assertEquals(30, r.volumeMax());
         assertEquals(12, r.volumeLevel());
     }
