@@ -67,6 +67,14 @@ public class GameHubTest extends ServerTestBase {
             return new String(d, StandardCharsets.UTF_8);
         }
 
+        /** Next message that is not a "host" notice. A phone that connects while the TV page is still registering is
+            told twice (TV absent, then TV here), so tests that open both at once must not count those. */
+        String next() throws Exception {
+            String m = read();
+            while (m != null && m.startsWith("{\"t\":\"host\"")) m = read();
+            return m;
+        }
+
         @Override public void close() throws Exception { s.close(); }
     }
 
@@ -162,8 +170,8 @@ public class GameHubTest extends ServerTestBase {
             assertEquals("host", new JSONObject(bob.read()).getString("t"));
             assertEquals("join", new JSONObject(tv.read()).getString("t"));
             tv.send("!kick|bobphone0001");
-            assertEquals("kicked", new JSONObject(bob.read()).getString("t"));
-            assertNull("the removed phone is disconnected", bob.read());
+            assertEquals("kicked", new JSONObject(bob.next()).getString("t"));
+            assertNull("the removed phone is disconnected", bob.next());
             JSONObject leave = new JSONObject(tv.read());
             assertEquals("leave", leave.getString("t"));
             assertTrue(leave.getBoolean("kicked"));
@@ -180,14 +188,14 @@ public class GameHubTest extends ServerTestBase {
             assertEquals("host", new JSONObject(p.read()).getString("t"));
             assertEquals("join", new JSONObject(tv.read()).getString("t"));
             p.send("{\"t\":\"p\"}");
-            assertEquals("pong", new JSONObject(p.read()).getString("t"));
+            assertEquals("pong", new JSONObject(p.next()).getString("t"));
             // 2000 messages at once. The limit refills with time, so what may pass depends on how long this machine takes:
             // a burst of BURST plus RATE per second, never more.
             final int sent = 2000;
             long t0 = System.nanoTime();
             for (int i = 0; i < sent; i++) p.send("{\"t\":\"g\",\"k\":\"in\",\"n\":" + i + "}");
             p.send("{\"t\":\"p\"}");
-            assertEquals("pong", new JSONObject(p.read()).getString("t")); // the phone's messages are all read by now
+            assertEquals("pong", new JSONObject(p.next()).getString("t")); // the phone's messages are all read by now
             double secs = (System.nanoTime() - t0) / 1e9;
             long allowed = (long) Math.ceil(GameHub.BURST + GameHub.RATE * secs) + 2;
             assertTrue("no more than the limit passes (" + allowed + " in " + secs + " s): refused " + server.games.dropped, server.games.dropped >= sent - allowed);

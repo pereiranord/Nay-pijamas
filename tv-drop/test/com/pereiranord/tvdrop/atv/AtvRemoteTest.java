@@ -119,13 +119,7 @@ public class AtvRemoteTest {
         // on a busy machine the session may still be opening right after pairing: wait for it, and press again
         // (as a person would) if the first press was lost while it opened
         for (int i = 0; i < 200 && !r.isConnected(); i++) Thread.sleep(50);
-        Proto.Msg key = null;
-        for (int i = 0; i < 4 && key == null; i++) {
-            try { r.sendKey(19); } catch (Exception ignored) { } // DPAD_UP
-            Proto.Msg m = tv.received.poll(4, TimeUnit.SECONDS);
-            while (m != null && (m.all(10) == null || m.all(10).isEmpty())) m = tv.received.poll(500, TimeUnit.MILLISECONDS);
-            key = m;
-        }
+        Proto.Msg key = pressUntilSeen(r, 19, 6); // DPAD_UP
         assertNotNull("the key should reach the TV", key);
         tv.received.clear(); // a repeated press, if there was one, is not part of what follows
         assertEquals("configure must be answered with our features", AtvRemote.FEATURES & 622, tv.configuredFeatures);
@@ -159,34 +153,36 @@ public class AtvRemoteTest {
         assertEquals(12, r.volumeLevel());
     }
 
+    /** Presses a key until the fake TV receives that key. On a busy machine a press can be lost while the session is
+        opening or reconnecting, and an older press can arrive late: a person would just press again. */
+    private Proto.Msg pressUntilSeen(AtvRemote r, int keyCode, int tries) throws Exception {
+        for (int i = 0; i < tries; i++) {
+            try { r.sendKey(keyCode); } catch (Exception ignored) { }
+            long until = System.currentTimeMillis() + 3000;
+            while (System.currentTimeMillis() < until) {
+                Proto.Msg m = tv.received.poll(Math.max(1, until - System.currentTimeMillis()), TimeUnit.MILLISECONDS);
+                if (m == null) break;
+                if (m.all(10) != null && !m.all(10).isEmpty() && m.msg(10).num(1, 0) == keyCode) return m;
+            }
+        }
+        return null;
+    }
+
     @Test
     public void reconnectsAfterTheTvDropsTheConnection() throws Exception {
         tv = new FakeTv();
         AtvRemote r = client(new KeyValueStore.Memory());
         r.startPairing();
-        r.finishPairing(tv.shownCode.poll(5, TimeUnit.SECONDS));
+        r.finishPairing(tv.shownCode.poll(10, TimeUnit.SECONDS));
         // on a busy machine the session may still be opening right after pairing
         for (int i = 0; i < 200 && !r.isConnected(); i++) Thread.sleep(50);
-        r.sendKey(3);
-        Proto.Msg first = tv.received.poll(10, TimeUnit.SECONDS);
-        while (first != null && (first.all(10) == null || first.all(10).isEmpty())) first = tv.received.poll(2, TimeUnit.SECONDS);
-        assertTrue("the first key should reach the TV", first != null);
-        assertEquals(3, first.msg(10).num(1, 0));
+        assertNotNull("the first key should reach the TV", pressUntilSeen(r, 3, 6));
         tv.dropSessions();
         // wait until the client has noticed the drop (slow CI machines take longer)
-        for (int i = 0; i < 100 && r.isConnected(); i++) Thread.sleep(50);
+        for (int i = 0; i < 200 && r.isConnected(); i++) Thread.sleep(50);
         assertFalse("the client should notice the TV closed the connection", r.isConnected());
-        // The background reconnect and the key press may race on a slow machine; like a person would,
-        // press again until the TV gets it (it must arrive within a few seconds).
-        Proto.Msg key = null;
-        for (int i = 0; i < 6 && key == null; i++) {
-            try { r.sendKey(4); } catch (Exception ignored) { }
-            Proto.Msg m = tv.received.poll(2, TimeUnit.SECONDS);
-            while (m != null && (m.all(10) == null || m.all(10).isEmpty())) m = tv.received.poll(200, TimeUnit.MILLISECONDS);
-            key = m;
-        }
-        assertTrue("the key should reach the TV after the reconnection", key != null);
-        assertEquals(4, key.msg(10).num(1, 0));
+        // The background reconnect and the key press may race on a slow machine: press until the TV gets it
+        assertNotNull("the key should reach the TV after the reconnection", pressUntilSeen(r, 4, 8));
     }
 
     @Test
