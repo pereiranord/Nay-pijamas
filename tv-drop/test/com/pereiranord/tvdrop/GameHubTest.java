@@ -181,14 +181,21 @@ public class GameHubTest extends ServerTestBase {
             assertEquals("join", new JSONObject(tv.read()).getString("t"));
             p.send("{\"t\":\"p\"}");
             assertEquals("pong", new JSONObject(p.read()).getString("t"));
-            for (int i = 0; i < 400; i++) p.send("{\"t\":\"g\",\"k\":\"in\",\"n\":" + i + "}");
+            // 2000 messages at once. The limit refills with time, so what may pass depends on how long this machine takes:
+            // a burst of BURST plus RATE per second, never more.
+            final int sent = 2000;
+            long t0 = System.nanoTime();
+            for (int i = 0; i < sent; i++) p.send("{\"t\":\"g\",\"k\":\"in\",\"n\":" + i + "}");
             p.send("{\"t\":\"p\"}");
             assertEquals("pong", new JSONObject(p.read()).getString("t")); // the phone's messages are all read by now
-            assertTrue("most of a 400-message burst is refused: " + server.games.dropped, server.games.dropped >= 250);
+            double secs = (System.nanoTime() - t0) / 1e9;
+            long allowed = (long) Math.ceil(GameHub.BURST + GameHub.RATE * secs) + 2;
+            assertTrue("no more than the limit passes (" + allowed + " in " + secs + " s): refused " + server.games.dropped, server.games.dropped >= sent - allowed);
+            assertTrue("and the burst itself passes: refused " + server.games.dropped, server.games.dropped <= sent - GameHub.BURST + 1);
             int got = 0;
             tv.s.setSoTimeout(800);
             try { while (tv.read() != null) got++; } catch (java.net.SocketTimeoutException e) { /* drained */ }
-            assertTrue("the TV page received only the allowed part: " + got, got >= 100 && got <= 150);
+            assertTrue("the TV page received only the allowed part: " + got, got >= GameHub.BURST - 1 && got <= allowed);
         }
     }
 
