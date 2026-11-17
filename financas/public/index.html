@@ -12,6 +12,7 @@
     --r: 10px; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
     margin: 0; background: var(--bg); color: var(--txt); font: 15px/1.5 -apple-system,
     BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -63,6 +64,34 @@
   .sp { animation: sp 1s linear infinite; } @keyframes sp { to { transform: rotate(360deg); } }
   .scroll { overflow-x: auto; }
   footer { margin-top: 26px; color: var(--dim); font-size: 12px; }
+  /* créditos por fora */
+  .credits { grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); }
+  .cc { background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .cc .top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+  .cc .nm { font-weight: 600; font-size: 15px; }
+  .cc .kd { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .07em; }
+  .cc .owed { font-size: 21px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.4px; }
+  .cc .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  .cc .bar > i.hi { background: var(--warn); } .cc .bar > i.over { background: var(--bad); }
+  .bills { font-size: 12.5px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
+  .bills .num { font-size: 12.5px; }
+  .empty { border: 1px dashed var(--line); border-radius: var(--r); padding: 18px; text-align: center; }
+  .x { background: none; border: 0; color: var(--dim); padding: 0 4px; font-size: 15px; line-height: 1; }
+  .x:hover { color: var(--bad); }
+  dialog { background: var(--panel); color: var(--txt); border: 1px solid var(--line); border-radius: 14px;
+           padding: 0; width: min(520px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+  dialog::backdrop { background: rgba(0,0,0,.6); }
+  dialog form { padding: 18px; display: grid; gap: 12px; }
+  dialog h3 { margin: 0; font-size: 16px; }
+  .fld { display: grid; gap: 4px; font-size: 12.5px; color: var(--dim); }
+  .fld input, .fld select, .fld textarea { width: 100%; color: var(--txt); }
+  textarea { background: var(--panel-2); color: var(--txt); border: 1px solid var(--line); border-radius: 8px;
+             padding: 8px 11px; font: 13px/1.45 var(--mono); min-height: 150px; resize: vertical; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .hint { font-size: 12px; color: var(--dim); margin: 0; }
+  .preview { font-size: 12.5px; background: var(--panel-2); border-radius: 8px; padding: 8px 11px; color: var(--dim); }
+  .preview b { color: var(--txt); font-weight: 600; }
+  .dlg-acts { display: flex; justify-content: flex-end; gap: 8px; }
   @media (max-width: 640px) { .kpi .val { font-size: 21px; } .wrap { padding: 14px 11px 48px; } }
 </style>
 </head>
@@ -104,6 +133,24 @@
     </div>
 
     <div class="grid kpis" id="kpis"></div>
+
+    <div class="card" style="margin-bottom:14px">
+      <div class="row" style="justify-content:space-between;margin-bottom:12px">
+        <h2 style="margin:0">Créditos por fora</h2>
+        <div class="row">
+          <button id="btnImport"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>Importar CSV</button>
+          <button class="pri" id="btnAddCredit"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Adicionar crédito</button>
+        </div>
+      </div>
+      <p class="hint" style="margin-bottom:12px">Cartões de loja, Keeta, crediário, carnê, "pague depois": o que o Open Finance não enxerga.
+        Lance as compras (parceladas ou não) e os pagamentos; elas entram em todos os totais junto com os bancos.</p>
+      <div class="grid credits" id="credits"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h2>Parcelas a vencer</h2>
+      <div id="upcoming"></div>
+    </div>
 
     <div class="card" style="margin-bottom:14px">
       <h2>Entradas e saídas por mês</h2>
@@ -151,11 +198,20 @@
     </div>
 
     <footer>
-      Dados lidos via Open Finance pela Pluggy (Meu Pluggy), somente leitura.
+      Bancos lidos via Open Finance pela Pluggy (Meu Pluggy), somente leitura. Créditos por fora lançados por você.
       Última sincronização: <span id="lastSync">—</span>.
     </footer>
   </div>
 </div>
+
+<dialog id="dlg"><form id="dlgForm" method="dialog"></form></dialog>
+
+<datalist id="credPresets">
+  <option>Keeta</option><option>Renner</option><option>Riachuelo</option><option>C&amp;A</option>
+  <option>Marisa</option><option>Pernambucanas</option><option>Havan</option><option>Magalu</option>
+  <option>Casas Bahia</option><option>Americanas</option><option>Carrefour</option><option>Assaí</option>
+</datalist>
+<datalist id="catList"></datalist>
 
 <script>
 'use strict';
@@ -318,7 +374,12 @@ function renderOverview(d) {
       }).join('') + '</tbody></table>'
     : '<p class="muted small">Sem saídas no período.</p>';
 
+  renderUpcoming(d.upcoming || []);
+
   state.cats = d.byCategory.map(function (c) { return c.category; });
+  var base = ['Compras', 'Vestuario', 'Delivery', 'Alimentacao', 'Mercado', 'Casa', 'Saude', 'Transporte', 'Eletronicos'];
+  el('catList').innerHTML = state.cats.concat(base.filter(function (c) { return state.cats.indexOf(c) < 0; }))
+    .map(function (c) { return '<option value="' + esc(c) + '">'; }).join('');
   var sel = el('fcat'), cur = sel.value;
   sel.innerHTML = '<option value="">todas as categorias</option>' +
     state.cats.map(function (c) { return '<option' + (c === cur ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('');
@@ -336,14 +397,29 @@ function renderTxs(d) {
         var parc = r.total_installments ? ' <span class="muted small">' + r.installment_number + '/' + r.total_installments + '</span>' : '';
         var pend = r.status === 'PENDING' ? ' <span class="muted small">(pendente)</span>' : '';
         var intern = r.is_transfer ? ' <span class="muted small">· interna</span>' : '';
+        var del = r.source === 'manual'
+          ? ' <button class="x" title="Apagar lançamento manual" data-del="' + esc(r.id) + '" data-n="' +
+            (r.total_installments || 1) + '">×</button>' : '';
         return '<tr><td class="num muted">' + esc(r.day.slice(8) + '/' + r.day.slice(5, 7)) + '</td>' +
           '<td>' + esc(r.description) + parc + pend + intern + '</td>' +
           '<td><span class="tag' + (r.category_source === 'manual' ? ' man' : '') +
             '" data-id="' + esc(r.id) + '" data-cat="' + esc(r.category) + '">' + esc(r.category) + '</span></td>' +
           '<td class="small muted">' + esc(r.conta || '—') + '</td>' +
-          '<td class="num ' + (r.flow < 0 ? 'out' : 'in') + '">' + brl(Math.abs(r.flow)) + '</td></tr>';
+          '<td class="num ' + (r.flow < 0 ? 'out' : 'in') + '">' + brl(Math.abs(r.flow)) + del + '</td></tr>';
       }).join('') + '</tbody></table>'
     : '<p class="muted small">Nenhum lançamento com esses filtros.</p>';
+
+  Array.prototype.forEach.call(el('txs').querySelectorAll('[data-del]'), function (b) {
+    b.addEventListener('click', function () {
+      var n = Number(b.dataset.n) || 1, group = false;
+      if (n > 1) {
+        group = window.confirm('Esta compra tem ' + n + ' parcelas.\nOK = apagar a compra inteira (todas as parcelas)\nCancelar = escolher apagar só esta parcela');
+        if (!group && !window.confirm('Apagar só esta parcela?')) return;
+      } else if (!window.confirm('Apagar este lançamento manual?')) return;
+      api('/manual/transactions/' + encodeURIComponent(b.dataset.del) + (group ? '?group=1' : ''), { method: 'DELETE' })
+        .then(loadAll).catch(function (e) { notice(e.message, 'err'); });
+    });
+  });
 
   Array.prototype.forEach.call(el('txs').querySelectorAll('.tag'), function (tag) {
     tag.addEventListener('click', function () {
@@ -420,6 +496,369 @@ function renderRules(d) {
   });
 }
 
+/* ------------------------------------------------- créditos por fora ----- */
+
+var KINDS = [
+  ['STORE_CARD', 'Cartão de loja'],
+  ['DELIVERY_APP', 'App / carteira (ex.: Keeta)'],
+  ['BNPL', 'Pague depois / parcelado sem cartão'],
+  ['CREDIARIO', 'Crediário / carnê'],
+  ['LOAN', 'Empréstimo'],
+  ['OTHER', 'Outro']
+];
+var kindLabel = function (k) {
+  for (var i = 0; i < KINDS.length; i++) if (KINDS[i][0] === k) return KINDS[i][1];
+  return 'Outro';
+};
+var guessKind = function (name) {
+  var n = String(name || '').toLowerCase();
+  if (/keeta/.test(n)) return 'DELIVERY_APP';
+  if (/renner|riachuelo|c&a|marisa|pernambucanas|havan|magalu|casas bahia|americanas|carrefour|assa/.test(n)) return 'STORE_CARD';
+  return '';
+};
+var today = function () {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+};
+var dm = function (day) { return day ? day.slice(8) + '/' + day.slice(5, 7) : '—'; };
+var addMonthsDay = function (day, n) {
+  var p = day.split('-').map(Number), y = p[0], m = p[1] + n;
+  while (m > 12) { m -= 12; y++; }
+  var last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return y + '-' + String(m).padStart(2, '0') + '-' + String(Math.min(p[2], last)).padStart(2, '0');
+};
+
+state.credits = [];
+
+function renderCredits(d) {
+  state.credits = d.results || [];
+  if (!state.credits.length) {
+    el('credits').innerHTML = '<div class="empty" style="grid-column:1/-1"><p class="small muted" style="margin:0 0 10px">' +
+      'Nenhum crédito por fora ainda. Comece pelo seu cartão de loja ou pelo Keeta.</p>' +
+      '<button class="pri" data-act="new">Adicionar crédito</button></div>';
+  } else {
+    el('credits').innerHTML = state.credits.map(function (c) {
+      var lim = c.credit_limit, pct = lim ? Math.min((c.owed / lim) * 100, 100) : 0;
+      var barCls = lim && c.owed > lim ? 'over' : pct >= 80 ? 'hi' : '';
+      var next = c.upcoming[0];
+      var bills = c.upcoming.slice(0, 4).map(function (b) {
+        return '<span>' + monthLabel(b.key) + (b.due ? ' <span class="muted">vence ' + dm(b.due) + '</span>' : '') + '</span>' +
+          '<span class="num">' + brl(b.total) + '</span>';
+      }).join('');
+      return '<div class="cc">' +
+        '<div class="top"><div><div class="nm">' + esc(c.name) + '</div><div class="kd">' + esc(kindLabel(c.kind)) + '</div></div>' +
+          '<button class="chip" data-act="edit" data-id="' + esc(c.id) + '" title="Editar">editar</button></div>' +
+        '<div><div class="small muted">' + (c.owed < 0 ? 'Crédito a favor' : 'Devendo') + '</div><div class="owed ' +
+          (c.owed > 0 ? 'out' : c.owed < 0 ? 'in' : '') + '">' + brl(Math.abs(c.owed)) + '</div></div>' +
+        (lim ? '<div><div class="bar"><i class="' + barCls + '" style="width:' + pct.toFixed(1) + '%"></i></div>' +
+          '<div class="small muted" style="margin-top:4px">Limite ' + brl(lim) + ' · disponível <span class="' +
+          (c.available < 0 ? 'out' : 'in') + '">' + brl(c.available) + '</span></div></div>'
+          : '<div class="small muted">Sem limite cadastrado</div>') +
+        (next ? '<div class="small">Próxima fatura: <strong>' + brl(next.total) + '</strong>' +
+          (next.due ? ' em ' + dm(next.due) : ' (' + monthLabel(next.key) + ')') + '</div>' : '<div class="small muted">Nada a vencer.</div>') +
+        (c.upcoming.length > 1 ? '<div class="bills">' + bills + '</div>' : '') +
+        (!c.closing_day ? '<div class="hint">Cadastre os dias de fechamento e vencimento para ver as faturas certinhas.</div>' : '') +
+        '<div class="acts">' +
+          '<button class="chip" data-act="buy" data-id="' + esc(c.id) + '">+ compra</button>' +
+          '<button class="chip" data-act="pay" data-id="' + esc(c.id) + '">pagar fatura</button>' +
+          '<button class="chip" data-act="import" data-id="' + esc(c.id) + '">importar</button>' +
+          '<button class="chip" data-act="list" data-id="' + esc(c.id) + '">ver lançamentos</button>' +
+        '</div></div>';
+    }).join('');
+  }
+
+  Array.prototype.forEach.call(el('credits').querySelectorAll('[data-act]'), function (b) {
+    b.addEventListener('click', function () {
+      var c = creditById(b.dataset.id);
+      var act = b.dataset.act;
+      if (act === 'new') return accountForm(null);
+      if (act === 'edit') return accountForm(c);
+      if (act === 'buy') return txForm(c.id, 'compra');
+      if (act === 'pay') return txForm(c.id, 'pagamento', c.upcoming[0] ? c.upcoming[0].total : (c.owed > 0 ? c.owed : ''));
+      if (act === 'import') return importForm(c.id);
+      if (act === 'list') {
+        el('facc').value = c.id;
+        el('ftr').checked = true;
+        el('btnFilter').click();
+        el('txs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+}
+
+function creditById(id) {
+  for (var i = 0; i < state.credits.length; i++) if (state.credits[i].id === id) return state.credits[i];
+  return null;
+}
+
+function renderUpcoming(rows) {
+  if (!rows.length) {
+    el('upcoming').innerHTML = '<p class="muted small">Nenhuma parcela futura. Compras parceladas lançadas nos créditos por fora aparecem aqui mês a mês.</p>';
+    return;
+  }
+  var total = rows.reduce(function (t, r) { return t + (r.total || 0); }, 0);
+  var max = rows.reduce(function (m, r) { return Math.max(m, r.total || 0); }, 0) || 1;
+  el('upcoming').innerHTML = '<p class="small muted" style="margin-top:0">Já comprometido: <strong class="out">' + brl(total) +
+    '</strong> nos próximos ' + rows.length + ' meses.</p>' +
+    '<div class="scroll"><table><thead><tr><th>Mês</th><th>Parcelas</th><th class="num">Por fora</th><th class="num">Total</th></tr></thead><tbody>' +
+    rows.map(function (r) {
+      return '<tr><td>' + monthLabel(r.month) + '<div class="bar" style="max-width:220px"><i style="width:' +
+        ((r.total / max) * 100).toFixed(1) + '%"></i></div></td>' +
+        '<td class="small muted">' + r.n + '</td>' +
+        '<td class="num small muted">' + brl(r.manual) + '</td>' +
+        '<td class="num out">' + brl(r.total) + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+
+/* ---- diálogo genérico ---- */
+
+function openDialog(html, onSubmit, onReady) {
+  var dlg = el('dlg'), form = el('dlgForm');
+  form.innerHTML = html + '<p class="small" id="dlgErr" style="color:var(--bad);margin:0" hidden></p>' +
+    '<div class="dlg-acts"><button type="button" id="dlgCancel">Cancelar</button>' +
+    '<button type="submit" class="pri" id="dlgOk">Salvar</button></div>';
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    var ok = el('dlgOk'), err = el('dlgErr');
+    err.hidden = true;
+    busy(ok, true, 'Salvando');
+    Promise.resolve().then(onSubmit).then(function () {
+      dlg.close();
+      return loadAll();
+    }).catch(function (x) {
+      err.textContent = x.message; err.hidden = false; busy(ok, false);
+    });
+  };
+  el('dlgCancel').onclick = function () { dlg.close(); };
+  if (onReady) onReady(form);
+  dlg.showModal();
+  var first = form.querySelector('input:not([type=hidden]),textarea');
+  if (first) first.focus();
+}
+
+function creditOptions(selected) {
+  return state.credits.map(function (c) {
+    return '<option value="' + esc(c.id) + '"' + (c.id === selected ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+  }).join('');
+}
+
+function val(id) { var x = el(id); return x ? x.value.trim() : ''; }
+
+function afterSave(r) {
+  if (r && r.recategorize) return recatLoop(0);
+  return r;
+}
+
+/* ---- conta ---- */
+
+function accountForm(c) {
+  var isNew = !c;
+  c = c || {};
+  var html = '<h3>' + (isNew ? 'Novo crédito por fora' : 'Editar ' + esc(c.name)) + '</h3>' +
+    '<label class="fld">Nome<input id="fName" list="credPresets" required maxlength="80" value="' + esc(c.name || '') +
+      '" placeholder="Keeta, Renner, Riachuelo..."></label>' +
+    '<label class="fld">Tipo<select id="fKind">' + KINDS.map(function (k) {
+      return '<option value="' + k[0] + '"' + (k[0] === (c.kind || 'STORE_CARD') ? ' selected' : '') + '>' + k[1] + '</option>';
+    }).join('') + '</select></label>' +
+    '<label class="fld">Limite (opcional)<input id="fLimit" type="number" step="0.01" min="0" inputmode="decimal" value="' +
+      (c.credit_limit == null ? '' : c.credit_limit) + '" placeholder="ex.: 1500"></label>' +
+    '<div class="two">' +
+      '<label class="fld">Dia do fechamento<input id="fClose" type="number" min="1" max="31" value="' + (c.closing_day || '') + '" placeholder="ex.: 3"></label>' +
+      '<label class="fld">Dia do vencimento<input id="fDue" type="number" min="1" max="31" value="' + (c.due_day || '') + '" placeholder="ex.: 10"></label>' +
+    '</div>' +
+    '<label class="fld">Como o pagamento aparece no extrato do banco (opcional)<input id="fPat" maxlength="120" value="' +
+      esc(c.payment_pattern || '') + '" placeholder="ex.: pag boleto renner"></label>' +
+    '<p class="hint">Se você paga essa fatura pela conta do banco, o pagamento vira "movimentação interna" e não conta duas vezes: ' +
+      'o gasto é a compra lançada aqui. Use um trecho que só apareça no pagamento, não nas compras.</p>' +
+    '<label class="fld">Observação<input id="fNotes" maxlength="500" value="' + esc(c.notes || '') + '"></label>' +
+    (isNew ? '' : '<button type="button" id="fDel" style="justify-self:start;color:var(--bad)">Remover este crédito e todos os lançamentos dele</button>');
+
+  openDialog(html, function () {
+    var body = {
+      name: val('fName'), kind: val('fKind'), credit_limit: val('fLimit'),
+      closing_day: val('fClose'), due_day: val('fDue'), payment_pattern: val('fPat'), notes: val('fNotes')
+    };
+    var req = isNew
+      ? api('/manual/accounts', { method: 'POST', body: JSON.stringify(body) })
+      : api('/manual/accounts/' + encodeURIComponent(c.id), { method: 'PATCH', body: JSON.stringify(body) });
+    return req.then(afterSave);
+  }, function () {
+    el('fName').addEventListener('input', function () {
+      var k = guessKind(el('fName').value);
+      if (k && isNew) el('fKind').value = k;
+    });
+    if (!isNew) el('fDel').addEventListener('click', function () {
+      if (!window.confirm('Remover ' + c.name + ' e os ' + c.lancamentos + ' lançamentos dele? Não dá para desfazer.')) return;
+      api('/manual/accounts/' + encodeURIComponent(c.id), { method: 'DELETE' })
+        .then(afterSave)
+        .then(function () { el('dlg').close(); return loadAll(); })
+        .catch(function (x) { el('dlgErr').textContent = x.message; el('dlgErr').hidden = false; });
+    });
+  });
+}
+
+/* ---- compra / pagamento / estorno ---- */
+
+function txForm(accId, kind, presetAmount) {
+  if (!state.credits.length) return accountForm(null);
+  var html = '<h3>Lançar no crédito por fora</h3>' +
+    '<div class="two">' +
+      '<label class="fld">Crédito<select id="tAcc">' + creditOptions(accId) + '</select></label>' +
+      '<label class="fld">Tipo<select id="tKind">' +
+        '<option value="compra">Compra</option><option value="pagamento">Pagamento de fatura</option>' +
+        '<option value="estorno">Estorno / crédito</option></select></label>' +
+    '</div>' +
+    '<div class="two">' +
+      '<label class="fld">Data<input id="tDate" type="date" required value="' + today() + '"></label>' +
+      '<label class="fld" id="tAmtLbl">Valor total<input id="tAmt" type="number" step="0.01" min="0.01" required inputmode="decimal" value="' +
+        (presetAmount ? Number(presetAmount).toFixed(2) : '') + '"></label>' +
+    '</div>' +
+    '<label class="fld">Descrição<input id="tDesc" maxlength="200" placeholder="ex.: Calça jeans, pedido Keeta..."></label>' +
+    '<div class="two only-buy">' +
+      '<label class="fld">Parcelas<input id="tN" type="number" min="1" max="72" value="1"></label>' +
+      '<label class="fld">Categoria (opcional)<input id="tCat" list="catList" maxlength="60" placeholder="vazio = regras"></label>' +
+    '</div>' +
+    '<div class="preview" id="tPrev"></div>';
+
+  openDialog(html, function () {
+    var k = val('tKind');
+    var entry = { date: val('tDate'), description: val('tDesc'), amount: Number(val('tAmt')), kind: k };
+    if (k === 'compra') { entry.installments = Number(val('tN')) || 1; entry.category = val('tCat'); }
+    if (!entry.amount) throw new Error('Informe o valor.');
+    return api('/manual/transactions', {
+      method: 'POST', body: JSON.stringify({ account_id: val('tAcc'), entries: [entry] })
+    });
+  }, function () {
+    el('tKind').value = kind || 'compra';
+    var upd = function () {
+      var k = val('tKind'), buy = k === 'compra';
+      Array.prototype.forEach.call(document.querySelectorAll('#dlgForm .only-buy'), function (x) { x.hidden = !buy; });
+      el('tAmtLbl').firstChild.textContent = buy ? 'Valor total' : 'Valor';
+      var amt = Number(val('tAmt')) || 0, n = Math.max(1, Math.min(72, Number(val('tN')) || 1)), d = val('tDate');
+      var c = creditById(val('tAcc')) || {};
+      var p = el('tPrev');
+      if (!buy) {
+        p.innerHTML = k === 'pagamento'
+          ? 'Abate <b>' + brl(amt) + '</b> da dívida de ' + esc(c.name || '') + ' (devendo ' + brl(c.owed) + '). Não conta como gasto.'
+          : 'Devolve <b>' + brl(amt) + '</b> ao crédito. Fica fora dos totais, como os estornos do banco.';
+        return;
+      }
+      if (!amt || !d) { p.innerHTML = 'Preencha data e valor.'; return; }
+      var parc = Math.floor((amt * 100) / n) / 100;
+      p.innerHTML = n > 1
+        ? '<b>' + n + 'x de ' + brl(parc) + '</b>' + (Math.abs(parc * n - amt) > 0.001 ? ' (a 1ª com o ajuste de centavos)' : '') +
+          ', uma por mês, de ' + dm(d) + '/' + d.slice(2, 4) + ' a ' + monthLabel(addMonthsDay(d, n - 1).slice(0, 7)) + '.'
+        : 'Compra à vista de <b>' + brl(amt) + '</b>.';
+      if (c.available != null) p.innerHTML += ' Disponível depois: <b>' + brl(c.available - amt) + '</b>.';
+    };
+    ['tKind', 'tAmt', 'tN', 'tDate', 'tAcc'].forEach(function (id) {
+      el(id).addEventListener('input', upd); el(id).addEventListener('change', upd);
+    });
+    upd();
+  });
+}
+
+/* ---- importação por CSV / texto colado ---- */
+
+function splitLine(line, delim) {
+  var out = [], cur = '', q = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (ch === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++; } else q = !q; }
+    else if (ch === delim && !q) { out.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  out.push(cur);
+  return out.map(function (x) { return x.trim(); });
+}
+
+function parseDate(s) {
+  s = String(s || '').trim();
+  var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+  if (!m) return null;
+  var y = m[3].length === 2 ? '20' + m[3] : m[3];
+  var mo = Number(m[2]), d = Number(m[1]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+
+function parseAmount(s) {
+  s = String(s || '').replace(/R\$|\s/g, '');
+  if (!s) return NaN;
+  var neg = /^-|-$|^\(.*\)$/.test(s);
+  s = s.replace(/[()+-]/g, '');
+  if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+  else s = s.replace(/,/g, '');
+  var n = Number(s);
+  return isNaN(n) ? NaN : (neg ? -n : n);
+}
+
+function parseCSV(text) {
+  var lines = String(text || '').split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+  var entries = [], errors = [];
+  lines.forEach(function (line, i) {
+    var delim = line.indexOf(';') >= 0 ? ';' : line.indexOf('\t') >= 0 ? '\t' : ',';
+    var c = splitLine(line, delim);
+    var date = parseDate(c[0]);
+    if (!date) { if (i > 0 || c.length < 3) errors.push('linha ' + (i + 1) + ': data não reconhecida'); return; }
+    var amt = parseAmount(c[2]);
+    if (isNaN(amt) || !amt) { errors.push('linha ' + (i + 1) + ': valor não reconhecido'); return; }
+    var e = { date: date, description: c[1] || '', amount: Math.abs(amt) };
+    if (amt < 0) e.kind = /estorno|devolu|cancel|reembols/i.test(e.description) ? 'estorno' : 'pagamento';
+    else {
+      e.kind = 'compra';
+      var parc = (c[3] || '').match(/^(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})$/i) ||
+        (!c[3] && e.description.match(/parc(?:ela)?\.?\s*(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})/i));
+      var nx = (c[3] || '').match(/^(\d{1,2})\s*x?$/i);
+      if (parc) e.installment = [Number(parc[1]), Number(parc[2])];
+      else if (nx) e.installments = Number(nx[1]);
+      if (c[4]) e.category = c[4];
+    }
+    entries.push(e);
+  });
+  return { entries: entries, errors: errors };
+}
+
+function importForm(accId) {
+  if (!state.credits.length) return accountForm(null);
+  var html = '<h3>Importar lançamentos</h3>' +
+    '<label class="fld">Crédito<select id="iAcc">' + creditOptions(accId) + '</select></label>' +
+    '<label class="fld">Cole aqui o CSV ou as linhas copiadas da fatura / do app<textarea id="iTxt" placeholder="data;descrição;valor;parcelas;categoria\n05/11/2026;Calça jeans;189,90;3x\n12/11/2026;Pedido Keeta;42,50\n20/10/2026;Tênis PARC 2/5;79,98\n15/11/2026;Pagamento fatura;-250,00"></textarea></label>' +
+    '<p class="hint">Uma linha por lançamento: <b>data; descrição; valor</b> e, se quiser, <b>parcelas</b> e <b>categoria</b>. ' +
+      'Separador ; , ou tab. Valor negativo = pagamento ou estorno. Parcelas: <b>3x</b> gera as 3 parcelas mês a mês; ' +
+      '<b>2/5</b> (ou "PARC 2/5" na descrição) grava só aquela parcela, do jeito que vem na fatura.</p>' +
+    '<div class="preview" id="iPrev">Nada colado ainda.</div>';
+
+  openDialog(html, function () {
+    var parsed = parseCSV(val('iTxt'));
+    if (!parsed.entries.length) throw new Error('Nenhuma linha válida.');
+    var acc = val('iAcc'), chunks = [];
+    for (var i = 0; i < parsed.entries.length; i += 300) chunks.push(parsed.entries.slice(i, i + 300));
+    return chunks.reduce(function (p, ch) {
+      return p.then(function () {
+        return api('/manual/transactions', { method: 'POST', body: JSON.stringify({ account_id: acc, entries: ch }) });
+      });
+    }, Promise.resolve());
+  }, function () {
+    el('iTxt').addEventListener('input', function () {
+      var r = parseCSV(el('iTxt').value);
+      var buy = r.entries.filter(function (e) { return e.kind === 'compra'; });
+      var tot = buy.reduce(function (t, e) { return t + e.amount; }, 0);
+      el('iPrev').innerHTML = r.entries.length
+        ? '<b>' + r.entries.length + '</b> lançamentos: ' + buy.length + ' compras somando <b>' + brl(tot) + '</b>, ' +
+          (r.entries.length - buy.length) + ' pagamentos/estornos.' +
+          (r.errors.length ? '<br><span style="color:var(--warn)">' + r.errors.slice(0, 5).map(esc).join('<br>') +
+            (r.errors.length > 5 ? '<br>…e mais ' + (r.errors.length - 5) : '') + '</span>' : '')
+        : (r.errors.length ? '<span style="color:var(--warn)">' + r.errors.slice(0, 5).map(esc).join('<br>') + '</span>' : 'Nada colado ainda.');
+    });
+  });
+}
+
+el('btnAddCredit').addEventListener('click', function () { accountForm(null); });
+el('btnImport').addEventListener('click', function () { importForm(state.credits[0] && state.credits[0].id); });
+
 /* ------------------------------------------------------------ carga ------ */
 
 function txQuery() {
@@ -439,10 +878,12 @@ function loadAll() {
     api('/transactions?' + txQuery()).then(renderTxs),
     api('/health').then(renderHealth),
     api('/rules').then(renderRules),
+    api('/manual/accounts').then(renderCredits),
     api('/accounts').then(function (d) {
       var sel = el('facc'), cur = sel.value;
       sel.innerHTML = '<option value="">todas as contas</option>' + d.results.map(function (a) {
-        var nome = (a.bank_name || a.name || a.id) + (a.type === 'CREDIT' ? ' (cartão)' : '');
+        var nome = (a.bank_name || a.name || a.id) +
+          (a.source === 'manual' ? ' (por fora)' : a.type === 'CREDIT' ? ' (cartão)' : '');
         return '<option value="' + esc(a.id) + '"' + (a.id === cur ? ' selected' : '') + '>' + esc(nome) + '</option>';
       }).join('');
     })

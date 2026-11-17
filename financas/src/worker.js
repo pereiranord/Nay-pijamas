@@ -10,6 +10,9 @@
  *   APP_TOKEN             -> secret, token unico do painel
  *   BACKFILL_FROM         -> var opcional, 'YYYY-MM-DD' (default: 24 meses atras)
  *   ACCOUNT_LABELS        -> var opcional, 'accountId=Nubank,accountId=Itau'
+ *
+ * Alem da Pluggy, aceita "creditos por fora" lancados a mao ou por CSV
+ * (cartao de loja, Keeta, crediario): rotas /api/manual/*.
  */
 
 const PLUGGY = 'https://api.pluggy.ai';
@@ -269,7 +272,12 @@ async function sync(env, mode = 'incremental') {
     .map((s) => s.trim())
     .filter(Boolean);
 
-  if (!itemIds.length) throw new Error('PLUGGY_ITEM_IDS esta vazio');
+  if (!itemIds.length) {
+    return {
+      mode, items: [], pages: 0, upserted: 0, pendingBackfill: false,
+      warnings: ['PLUGGY_ITEM_IDS esta vazio: nada para ler do Open Finance. Os creditos por fora continuam funcionando.'],
+    };
+  }
 
   const apiKey = await getApiKey(env);
   const rules = await loadRules(env);
@@ -531,6 +539,18 @@ async function overview(env, url) {
     .bind(from, to)
     .first();
 
+  // Parcelas ja compradas que caem nos proximos meses (manuais e, se a Pluggy mandar, do banco).
+  const upcoming = await db
+    .prepare(
+      `SELECT t.month, COALESCE(SUM(-t.flow), 0) AS total, COUNT(*) AS n,
+              SUM(CASE WHEN t.source = 'manual' THEN -t.flow ELSE 0 END) AS manual
+       FROM transactions t
+       WHERE t.day > ? AND t.is_transfer = 0 AND t.flow < 0
+       GROUP BY t.month ORDER BY t.month ASC LIMIT 12`
+    )
+    .bind(ymd(new Date()))
+    .all();
+
   const monthsCount = (byMonth.results || []).length || 1;
 
   return {
@@ -546,6 +566,7 @@ async function overview(env, url) {
     byAccount: byAccount.results || [],
     biggest: biggest.results || [],
     recurring: recurring.results || [],
+    upcoming: upcoming.results || [],
   };
 }
 
@@ -577,6 +598,7 @@ async function listTransactions(env, url) {
   const sql = `SELECT t.id, t.day, t.description, t.category, t.category_source, t.is_transfer,
                       t.flow, t.amount, t.type, t.status, t.operation_type,
                       t.installment_number, t.total_installments,
+                      t.source, t.group_id,
                       COALESCE(a.bank_name, a.name) AS conta, a.type AS account_type
                FROM transactions t LEFT JOIN accounts a ON a.id = t.account_id
                WHERE ${where.join(' AND ')}
@@ -638,6 +660,311 @@ async function recategorize(env, limit = 2000, offset = 0) {
   };
 }
 
+/* ---------------------------------------------- creditos por fora (manual) */
+/*
+ * Cartao de loja (Renner, Riachuelo, C&A...), Keeta, crediario, "pague depois":
+ * credito que o Open Finance nao enxerga. Vira uma conta com source = 'manual'
+ * na mesma tabela `accounts`, entao entra em todos os totais, graficos e filtros
+ * como qualquer cartao da Pluggy. O sync da Pluggy nunca toca nessas linhas
+ * (ids com prefixo man_, e o upsert so atualiza ids que vieram da Pluggy).
+ *
+ * Convencao de sinal igual a do cartao na Pluggy: amount positivo = compra,
+ * flow negativo = saida. Pagamento de fatura e estorno entram como is_transfer = 1,
+ * pelo mesmo motivo do README: o gasto e a compra, nao o pagamento.
+ */
+
+const MANUAL_KINDS = ['STORE_CARD', 'DELIVERY_APP', 'BNPL', 'CREDIARIO', 'LOAN', 'OTHER'];
+const MAX_INSTALLMENTS = 72;
+const MAX_ROWS_PER_REQUEST = 1500;
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const daysInMonth = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m: 1..12
+
+function mkDay(y, m, d) {
+  while (m > 12) { m -= 12; y += 1; }
+  while (m < 1) { m += 12; y -= 1; }
+  return `${y}-${pad2(m)}-${pad2(Math.min(d, daysInMonth(y, m)))}`;
+}
+
+function addMonths(day, n) {
+  const [y, m, d] = day.split('-').map(Number);
+  return mkDay(y, m + n, d);
+}
+
+const isDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !Number.isNaN(Date.parse(s));
+
+function dayOrNull(v) {
+  const n = Math.trunc(Number(v));
+  return n >= 1 && n <= 31 ? n : null;
+}
+
+/**
+ * Em qual fatura cai um lancamento. A fatura fecha no closing_day; o que for
+ * depois do fechamento vai para a seguinte. O vencimento e o primeiro due_day
+ * depois do fechamento. Sem dias configurados, a "fatura" e o proprio mes.
+ */
+function billOf(day, closingDay, dueDay) {
+  const [y, m, d] = day.split('-').map(Number);
+  if (!closingDay) return { key: day.slice(0, 7), close: null, due: dueDay ? mkDay(y, m, dueDay) : null };
+  let cy = y;
+  let cm = m;
+  if (d > Math.min(closingDay, daysInMonth(y, m))) cm += 1;
+  const close = mkDay(cy, cm, closingDay);
+  let due = null;
+  if (dueDay) due = mkDay(cy, dueDay <= closingDay ? cm + 1 : cm, dueDay);
+  return { key: (due || close).slice(0, 7), close, due };
+}
+
+async function getManualAccount(env, id) {
+  return env.DB.prepare("SELECT * FROM accounts WHERE id = ? AND source = 'manual'").bind(id).first();
+}
+
+async function setPaymentRule(env, accountId, pattern) {
+  await env.DB.prepare('DELETE FROM category_rules WHERE account_id = ?').bind(accountId).run();
+  const p = String(pattern || '').trim();
+  if (!p) return false;
+  await env.DB.prepare(
+    `INSERT INTO category_rules (pattern, match_type, category, is_transfer, priority, active, created_at, account_id)
+     VALUES (?, 'contains', 'Pagamento de fatura', 1, 9, 1, datetime('now'), ?)`
+  )
+    .bind(p, accountId)
+    .run();
+  return true;
+}
+
+function manualAccountFields(b) {
+  return {
+    name: String(b.name || '').trim().slice(0, 80),
+    kind: MANUAL_KINDS.includes(b.kind) ? b.kind : 'OTHER',
+    credit_limit: b.credit_limit === '' || b.credit_limit == null ? null : Number(b.credit_limit) || 0,
+    closing_day: dayOrNull(b.closing_day),
+    due_day: dayOrNull(b.due_day),
+    payment_pattern: String(b.payment_pattern || '').trim().slice(0, 120) || null,
+    notes: String(b.notes || '').trim().slice(0, 500) || null,
+  };
+}
+
+async function createManualAccount(env, b) {
+  const f = manualAccountFields(b);
+  if (!f.name) return json({ error: 'nome e obrigatorio' }, 400);
+  const id = `man_acc_${crypto.randomUUID().slice(0, 12)}`;
+  await env.DB.prepare(
+    `INSERT INTO accounts (id, item_id, type, subtype, name, bank_name, currency_code, credit_limit,
+       active, source, closing_day, due_day, payment_pattern, notes, synced_at)
+     VALUES (?, NULL, 'CREDIT', ?, ?, ?, 'BRL', ?, 1, 'manual', ?, ?, ?, ?, datetime('now'))`
+  )
+    .bind(id, f.kind, f.name, f.name, f.credit_limit, f.closing_day, f.due_day, f.payment_pattern, f.notes)
+    .run();
+  const ruleCreated = await setPaymentRule(env, id, f.payment_pattern);
+  return json({ ok: true, id, recategorize: ruleCreated });
+}
+
+async function updateManualAccount(env, id, b) {
+  const acc = await getManualAccount(env, id);
+  if (!acc) return json({ error: 'credito nao encontrado' }, 404);
+  const f = manualAccountFields({ ...acc, kind: acc.subtype, ...b });
+  if (!f.name) return json({ error: 'nome e obrigatorio' }, 400);
+  await env.DB.prepare(
+    `UPDATE accounts SET subtype = ?, name = ?, bank_name = ?, credit_limit = ?, closing_day = ?,
+       due_day = ?, payment_pattern = ?, notes = ?, synced_at = datetime('now')
+     WHERE id = ? AND source = 'manual'`
+  )
+    .bind(f.kind, f.name, f.name, f.credit_limit, f.closing_day, f.due_day, f.payment_pattern, f.notes, id)
+    .run();
+  const patternChanged = (acc.payment_pattern || null) !== f.payment_pattern;
+  if (patternChanged) await setPaymentRule(env, id, f.payment_pattern);
+  return json({ ok: true, id, recategorize: patternChanged });
+}
+
+async function deleteManualAccount(env, id) {
+  const acc = await getManualAccount(env, id);
+  if (!acc) return json({ error: 'credito nao encontrado' }, 404);
+  const hadRule = !!acc.payment_pattern;
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM transactions WHERE account_id = ? AND source = 'manual'").bind(id),
+    env.DB.prepare('DELETE FROM category_rules WHERE account_id = ?').bind(id),
+    env.DB.prepare("DELETE FROM accounts WHERE id = ? AND source = 'manual'").bind(id),
+  ]);
+  return json({ ok: true, recategorize: hadRule });
+}
+
+/** Contas manuais com divida, limite disponivel e proximas faturas. */
+async function listManualAccounts(env) {
+  const today = ymd(new Date());
+  const { results: accounts } = await env.DB.prepare(
+    "SELECT * FROM accounts WHERE source = 'manual' AND active = 1 ORDER BY name"
+  ).all();
+
+  const out = [];
+  for (const a of accounts || []) {
+    const { results: txs } = await env.DB.prepare(
+      'SELECT day, flow, is_transfer FROM transactions WHERE account_id = ?'
+    )
+      .bind(a.id)
+      .all();
+
+    let owed = 0;
+    let paid = 0;
+    let purchases = 0;
+    const bills = {};
+    for (const t of txs || []) {
+      owed -= t.flow;
+      if (t.flow > 0) paid += t.flow;
+      else purchases -= t.flow;
+      if (t.flow < 0) {
+        const b = billOf(t.day, a.closing_day, a.due_day);
+        const cur = bills[b.key] || (bills[b.key] = { key: b.key, close: b.close, due: b.due, total: 0, n: 0 });
+        cur.total += -t.flow;
+        cur.n += 1;
+      }
+    }
+
+    // Faturas que ainda nao venceram (a aberta e as futuras, com parcelas ja comprometidas).
+    // As antigas saem daqui: a divida total ja considera o que foi pago.
+    const upcoming = Object.values(bills)
+      .filter((b) => (b.due || b.close || `${b.key}-31`) >= today)
+      .sort((x, y) => (x.key < y.key ? -1 : 1))
+      .slice(0, 12)
+      .map((b) => ({ ...b, total: Math.round(b.total * 100) / 100 }));
+
+    const round = (n) => Math.round(n * 100) / 100;
+    out.push({
+      id: a.id,
+      name: a.name,
+      kind: a.subtype,
+      credit_limit: a.credit_limit,
+      closing_day: a.closing_day,
+      due_day: a.due_day,
+      payment_pattern: a.payment_pattern,
+      notes: a.notes,
+      owed: round(owed),
+      paid: round(paid),
+      purchases: round(purchases),
+      available: a.credit_limit == null ? null : round(a.credit_limit - owed),
+      lancamentos: (txs || []).length,
+      upcoming,
+      current_bill: billOf(today, a.closing_day, a.due_day),
+    });
+  }
+  return json({ results: out });
+}
+
+const MANUAL_TX_INSERT = `
+INSERT INTO transactions (
+  id, account_id, item_id, date, day, month, description, description_raw, rkey,
+  amount, flow, direction, currency_code, type, status, operation_type,
+  pluggy_category, merchant_name, installment_number, total_installments,
+  category, category_source, is_transfer, raw, first_seen_at, synced_at, source, group_id
+) VALUES (?,?,NULL,?,?,?,?,NULL,?,?,?,?,'BRL',?,'POSTED',NULL,NULL,NULL,?,?,?,?,?,?,datetime('now'),datetime('now'),'manual',?)`;
+
+/** Divide em centavos: a sobra do arredondamento vai na primeira parcela. */
+function splitCents(total, n) {
+  const cents = Math.round(total * 100);
+  const base = Math.floor(cents / n);
+  const rest = cents - base * n;
+  return Array.from({ length: n }, (_, i) => (base + (i === 0 ? rest : 0)) / 100);
+}
+
+/**
+ * Recebe {account_id, entries:[...]}. Cada entry:
+ *   { date:'YYYY-MM-DD', description, amount, kind:'compra'|'pagamento'|'estorno',
+ *     installments: N,               // compra parcelada: gera N lancamentos mensais
+ *     installment: [x, y],           // ou: esta linha ja E a parcela x de y (import de extrato)
+ *     category }                     // opcional; vazio = regras de categorizacao
+ */
+async function addManualTransactions(env, b) {
+  const acc = await getManualAccount(env, b.account_id);
+  if (!acc) return json({ error: 'credito nao encontrado' }, 404);
+  const entries = Array.isArray(b.entries) ? b.entries : [];
+  if (!entries.length) return json({ error: 'nenhum lancamento' }, 400);
+
+  const rules = await loadRules(env);
+  const statements = [];
+  const errors = [];
+
+  entries.forEach((e, idx) => {
+    const kind = ['compra', 'pagamento', 'estorno'].includes(e.kind) ? e.kind : 'compra';
+    const amount = Math.abs(Number(e.amount) || 0);
+    const description = String(e.description || '').trim().slice(0, 200) ||
+      (kind === 'pagamento' ? `Pagamento ${acc.name}` : acc.name);
+    if (!isDay(e.date)) return errors.push(`linha ${idx + 1}: data invalida`);
+    if (!amount) return errors.push(`linha ${idx + 1}: valor invalido`);
+
+    const groupId = `grp_${crypto.randomUUID().slice(0, 12)}`;
+    const userCat = String(e.category || '').trim().slice(0, 60);
+
+    const push = (day, value, flow, instNo, instTotal, cat) => {
+      statements.push(
+        env.DB.prepare(MANUAL_TX_INSERT).bind(
+          `man_${crypto.randomUUID()}`,
+          acc.id,
+          `${day}T12:00:00.000Z`,
+          day,
+          day.slice(0, 7),
+          description,
+          recurrenceKey(description, null),
+          value,
+          flow,
+          flow < 0 ? 'OUT' : 'IN',
+          flow < 0 ? 'DEBIT' : 'CREDIT',
+          instNo,
+          instTotal,
+          cat.category,
+          cat.source,
+          cat.isTransfer,
+          JSON.stringify(e),
+          groupId
+        )
+      );
+    };
+
+    if (kind !== 'compra') {
+      const cat = kind === 'pagamento'
+        ? { category: 'Pagamento de fatura', source: 'manual', isTransfer: 1 }
+        : { category: 'Estorno', source: 'manual', isTransfer: 1 };
+      push(e.date, -amount, amount, null, null, cat);
+      return;
+    }
+
+    const cat = userCat
+      ? { category: userCat, source: 'manual', isTransfer: 0 }
+      : categorize({ description }, rules, -amount);
+
+    if (Array.isArray(e.installment) && e.installment.length === 2) {
+      const x = Math.trunc(Number(e.installment[0]));
+      const y = Math.trunc(Number(e.installment[1]));
+      const ok = x >= 1 && y >= x && y <= MAX_INSTALLMENTS;
+      push(e.date, amount, -amount, ok ? x : null, ok ? y : null, cat);
+      return;
+    }
+
+    const n = Math.min(Math.max(Math.trunc(Number(e.installments) || 1), 1), MAX_INSTALLMENTS);
+    splitCents(amount, n).forEach((v, i) => {
+      push(addMonths(e.date, i), v, -v, n > 1 ? i + 1 : null, n > 1 ? n : null, cat);
+    });
+  });
+
+  if (statements.length > MAX_ROWS_PER_REQUEST) {
+    return json({ error: `muitos lancamentos de uma vez (${statements.length}); mande em partes de ate ${MAX_ROWS_PER_REQUEST}` }, 400);
+  }
+  if (!statements.length) return json({ error: errors.join('; ') || 'nada para gravar', errors }, 400);
+  const inserted = await runBatched(env, statements);
+  return json({ ok: true, inserted, errors });
+}
+
+async function deleteManualTransaction(env, id, wholeGroup) {
+  const row = await env.DB.prepare(
+    "SELECT id, group_id FROM transactions WHERE id = ? AND source = 'manual'"
+  )
+    .bind(id)
+    .first();
+  if (!row) return json({ error: 'so lancamentos manuais podem ser apagados' }, 404);
+  const res = wholeGroup && row.group_id
+    ? await env.DB.prepare("DELETE FROM transactions WHERE group_id = ? AND source = 'manual'").bind(row.group_id).run()
+    : await env.DB.prepare("DELETE FROM transactions WHERE id = ? AND source = 'manual'").bind(id).run();
+  return json({ ok: true, deleted: (res.meta && res.meta.changes) || 1 });
+}
+
 /* ------------------------------------------------------------- roteamento */
 
 function unauthorized() {
@@ -681,9 +1008,10 @@ async function handleApi(request, env, url) {
     const { results } = await env.DB.prepare(
       `SELECT a.id, a.item_id, a.type, a.subtype, a.name, a.bank_name, a.number, a.balance,
               a.credit_limit, a.available_credit_limit, a.balance_due_date, a.synced_at,
+              a.source, a.closing_day, a.due_day,
               i.connector_name, i.status AS item_status, i.consent_expires_at
        FROM accounts a LEFT JOIN items i ON i.id = a.item_id
-       WHERE a.active = 1 ORDER BY a.type, a.name`
+       WHERE a.active = 1 ORDER BY a.source DESC, a.type, a.name`
     ).all();
     return json({ results: results || [] });
   }
@@ -736,6 +1064,22 @@ async function handleApi(request, env, url) {
   if (ruleDel && method === 'DELETE') {
     await env.DB.prepare('DELETE FROM category_rules WHERE id = ?').bind(Number(ruleDel[1])).run();
     return json(await recategorize(env));
+  }
+
+  /* creditos por fora */
+  if (path === '/manual/accounts' && method === 'GET') return listManualAccounts(env);
+  if (path === '/manual/accounts' && method === 'POST') return createManualAccount(env, await request.json());
+  const manAcc = path.match(/^\/manual\/accounts\/([^/]+)$/);
+  if (manAcc && (method === 'PATCH' || method === 'PUT')) {
+    return updateManualAccount(env, decodeURIComponent(manAcc[1]), await request.json());
+  }
+  if (manAcc && method === 'DELETE') return deleteManualAccount(env, decodeURIComponent(manAcc[1]));
+  if (path === '/manual/transactions' && method === 'POST') {
+    return addManualTransactions(env, await request.json());
+  }
+  const manTx = path.match(/^\/manual\/transactions\/([^/]+)$/);
+  if (manTx && method === 'DELETE') {
+    return deleteManualTransaction(env, decodeURIComponent(manTx[1]), url.searchParams.get('group') === '1');
   }
 
   const txPatch = path.match(/^\/transactions\/([^/]+)$/);

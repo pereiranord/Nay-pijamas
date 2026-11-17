@@ -3,7 +3,8 @@
 -- Os padrões são comparados sem acento e em minúsculas, contra descricao + descricao crua + merchant.
 -- priority menor = avaliada antes. A primeira que casar vence.
 
-DELETE FROM category_rules WHERE id > 0;
+-- Preserva as regras criadas pelos creditos por fora (account_id preenchido).
+DELETE FROM category_rules WHERE account_id IS NULL;
 
 -- 1. Movimentação interna (is_transfer = 1): sai de uma conta sua e entra em outra.
 --    Precisa ficar fora dos gastos, senão o mesmo dinheiro conta duas vezes.

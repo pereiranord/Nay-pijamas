@@ -35,7 +35,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   bank_name              TEXT,   -- rótulo definido por você (PLUGGY_ACCOUNT_LABELS)
   active                 INTEGER NOT NULL DEFAULT 1,
   raw                    TEXT,
-  synced_at              TEXT
+  synced_at              TEXT,
+  -- Créditos por fora (cartão de loja, Keeta, crediário...): contas que o Open Finance não enxerga
+  source                 TEXT NOT NULL DEFAULT 'pluggy',  -- pluggy | manual
+  closing_day            INTEGER,  -- dia do fechamento da fatura (manual)
+  due_day                INTEGER,  -- dia do vencimento da fatura (manual)
+  payment_pattern        TEXT,     -- como o pagamento aparece no extrato do banco
+  notes                  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -64,7 +70,9 @@ CREATE TABLE IF NOT EXISTS transactions (
   is_transfer         INTEGER NOT NULL DEFAULT 0,         -- 1 = movimentação interna, não é gasto
   raw                 TEXT,
   first_seen_at       TEXT,
-  synced_at           TEXT
+  synced_at           TEXT,
+  source              TEXT NOT NULL DEFAULT 'pluggy',     -- pluggy | manual
+  group_id            TEXT                                -- agrupa as parcelas de uma compra manual
 );
 
 CREATE INDEX IF NOT EXISTS idx_tx_month    ON transactions(month);
@@ -73,6 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_tx_account  ON transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category);
 CREATE INDEX IF NOT EXISTS idx_tx_rkey     ON transactions(rkey);
 CREATE INDEX IF NOT EXISTS idx_tx_expense  ON transactions(is_transfer, flow);
+CREATE INDEX IF NOT EXISTS idx_tx_group    ON transactions(group_id);
 
 CREATE TABLE IF NOT EXISTS category_rules (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,7 +91,8 @@ CREATE TABLE IF NOT EXISTS category_rules (
   is_transfer INTEGER NOT NULL DEFAULT 0,
   priority    INTEGER NOT NULL DEFAULT 100,
   active      INTEGER NOT NULL DEFAULT 1,
-  created_at  TEXT
+  created_at  TEXT,
+  account_id  TEXT              -- regra criada por um crédito manual (pagamento da fatura dele)
 );
 
 CREATE INDEX IF NOT EXISTS idx_rules_order ON category_rules(active, priority);

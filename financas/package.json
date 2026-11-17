@@ -8,6 +8,7 @@
     "db:create": "wrangler d1 create financas",
     "db:schema": "wrangler d1 execute financas --remote --file=./schema.sql",
     "db:rules": "wrangler d1 execute financas --remote --file=./seed-rules.sql",
+    "db:migrate": "wrangler d1 execute financas --remote --file=./migrations/0002_creditos_por_fora.sql",
     "sync:full": "echo 'curl -X POST \"https://SEU-WORKER/api/sync?mode=full\" -H \"authorization: Bearer $APP_TOKEN\"'"
   }
 }
