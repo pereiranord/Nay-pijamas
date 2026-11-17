@@ -1,0 +1,13 @@
+{
+  "name": "financas-open-finance",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create financas",
+    "db:schema": "wrangler d1 execute financas --remote --file=./schema.sql",
+    "db:rules": "wrangler d1 execute financas --remote --file=./seed-rules.sql",
+    "sync:full": "echo 'curl -X POST \"https://SEU-WORKER/api/sync?mode=full\" -H \"authorization: Bearer $APP_TOKEN\"'"
+  }
+}
