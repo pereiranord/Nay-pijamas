@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The system themes TV Drop always used. Android 15 (values-v35) adds one line to keep the same layout. -->
+    <style name="TvDrop" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
+    <style name="TvDrop.Fullscreen" parent="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen" />
+</resources>

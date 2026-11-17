@@ -20,6 +20,14 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 10 — Investigação dos Impostores | ⏭️ Próximo (depois de os jogos 4–9b serem jogados na TV de verdade) |
 | 11 — Testes e acabamento | Pendente |
 
+## Módulo prioritário — Google Play Protect (17/11/2026)
+
+- **Causa confirmada**: o APK único declarava serviço de acessibilidade e leitor de notificações; o Play Protect bloqueia automaticamente a instalação, a partir de downloads da internet, de qualquer app com um deles (regra documentada, não detecção de malware). No celular o APK é baixado; na TV vai por ADB, por isso "só em alguns aparelhos".
+- **Correção (2.12)**: dois APKs do mesmo app (mesmo pacote e assinatura): `TV-Drop-Celular.apk` sem as partes que só a TV usa (9 permissões em vez de 14, sem acessibilidade/notificações/instalação/sobreposição/estatísticas/boot) e `TV-Drop.apk` (TV, por ADB, como sempre). targetSdk 35 mantendo o layout. Notas de versão com SHA-256 dos arquivos e certificado.
+- **Assinatura**: válida e igual em todas as versões, mas a chave privada e a senha estão no repositório público. Rotação v3 pronta e testada com chave descartável; **falta o usuário criar a chave nova e colocá-la nos segredos do GitHub** (`docs/ASSINATURA.md`).
+- **Google**: contestação não pedida (não é falso positivo). Registro no Android Developer Console recomendado antes da expansão da verificação de desenvolvedor (2027 para downloads diretos).
+- Relatório completo: `docs/PLAY-PROTECT.md`. Não testado em aparelho físico.
+
 ## Blocos 4 a 9b — os jogos (12/11/2026)
 
 Tudo aqui roda dentro da Central Gamer, usa a sala e as configurações do Bloco 3 e tem controle no celular em pé e deitado. O único jogo ainda "Em breve" é a Investigação dos Impostores (Bloco 10).

@@ -1,7 +1,7 @@
 // Records the Central Gamer trailers: real matches played by simulated players, with the TV full screen
 // and one player's phone in a corner, then cuts 15 s and encodes H.264 for the TV.
 //
-//   TVDROP_DEV=900 TVDROP_DEV_INFO=/tmp/tvdrop.info gradle testReleaseUnitTest --tests "*DevServer*" &
+//   TVDROP_DEV=900 TVDROP_DEV_INFO=/tmp/tvdrop.info gradle testTvReleaseUnitTest --tests "*DevServer*" &
 //   node tools/trailers/record.js /tmp/tvdrop.info assets/web/media/trailers [game ...]
 //
 // Needs Playwright (Chromium) and ffmpeg.

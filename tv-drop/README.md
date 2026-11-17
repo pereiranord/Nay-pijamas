@@ -45,7 +45,7 @@ Documentação: [arquitetura](docs/ARQUITETURA.md) · [API](docs/API.md) · [pro
 
 ## 1. Instalar na TV pelo ADB
 
-Baixe o `TV-Drop.apk` na página **Releases** deste repositório e, no computador (mesmo Wi-Fi da TV):
+Baixe o `TV-Drop.apk` (o da **TV**) na página **Releases** deste repositório e, no computador ou no Termux (mesmo Wi-Fi da TV):
 
 ```bash
 # Só na primeira vez, se a TV usa "Depuração sem fio" (Android 11+):
@@ -75,7 +75,11 @@ adb shell am start -n com.pereiranord.tvdrop/.MainActivity
 
 ## 2. Instalar no celular
 
-Baixe o mesmo `TV-Drop.apk` no celular e abra. O Android vai pedir para permitir a instalação de apps dessa origem.
+Baixe o **`TV-Drop-Celular.apk`** no celular e abra. O Android vai pedir para permitir a instalação de apps dessa origem (é o aviso normal de qualquer app que não vem da Play Store). **Não desative o Google Play Protect**: não é preciso.
+
+Por que dois arquivos: é o mesmo app, com o mesmo nome de pacote e a mesma assinatura, mas o do celular não traz as partes que só a TV usa (acessibilidade para o touchpad, leitura do que está tocando, instalação de apps, sobreposição, início com a TV). O Play Protect bloqueia a instalação, a partir da internet, de qualquer app que declare acessibilidade ou leitura de notificações; o `TV-Drop.apk` declara as duas e por isso vai na TV pelo ADB. Detalhes em [docs/PLAY-PROTECT.md](docs/PLAY-PROTECT.md).
+
+Para conferir o arquivo baixado, compare o SHA-256 com o publicado em cada versão (`SHA256SUMS.txt`): `sha256sum TV-Drop-Celular.apk`.
 
 No celular também: **widget** na tela inicial (play/pausa, volume, mudo), **controle rápido na notificação** e na tela de bloqueio, **botões de volume do celular** controlando a TV, **leitor de QR Code** para parear sem digitar e **atalhos** no ícone do app (Controle, Transmitir, Espelhar e os seus "Meus atalhos"). Em **Ajustes** (engrenagem no topo): tema escuro, claro ou automático, botões grandes, vibração e som.
 
@@ -127,19 +131,19 @@ O código guarda o endereço da TV na rede. Ele resolve quando a busca automáti
 Com JDK 17+, Gradle 8.13+ e o Android SDK (`platforms;android-35`, `build-tools;35.0.0`):
 
 ```bash
-ANDROID_HOME=~/Android/Sdk ./tv-drop/build.sh   # roda os testes e gera tv-drop/build/TV-Drop.apk
+ANDROID_HOME=~/Android/Sdk ./tv-drop/build.sh   # roda os testes e gera tv-drop/build/TV-Drop.apk (TV) e tv-drop/build/TV-Drop-Celular.apk (celular)
 ```
 
 Testes (sem aparelho): rotas 1.0 (regressão), API v2, pareamento, biblioteca, temporizador, espelhamento e o protocolo do controle do Google TV contra uma TV falsa com TLS real (JUnit), além do assistente (Node).
 
 ```bash
-cd tv-drop && gradle testReleaseUnitTest && node test/assistant.test.js
+cd tv-drop && gradle testTvReleaseUnitTest && node test/assistant.test.js
 ```
 
 **Rodar a interface web localmente** com uma TV simulada (o PIN fica no arquivo indicado):
 
 ```bash
-cd tv-drop && TVDROP_DEV=600 TVDROP_DEV_INFO=/tmp/tvdrop.info gradle testReleaseUnitTest --tests '*DevServer*'
+cd tv-drop && TVDROP_DEV=600 TVDROP_DEV_INFO=/tmp/tvdrop.info gradle testTvReleaseUnitTest --tests '*DevServer*'
 # abra http://127.0.0.1:18080 e use o PIN de /tmp/tvdrop.info
 ```
 

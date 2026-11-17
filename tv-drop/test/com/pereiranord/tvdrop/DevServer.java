@@ -11,7 +11,7 @@ import java.nio.charset.StandardCharsets;
 /**
  * Not a regular test: serves the real web interface (assets/web) backed by the
  * fake TV, for trying the UI in a browser. Runs only with TVDROP_DEV=<seconds>:
- *   TVDROP_DEV=600 gradle testReleaseUnitTest --tests '*DevServer*'
+ *   TVDROP_DEV=600 gradle testTvReleaseUnitTest --tests '*DevServer*'
  * It writes "port pin" to the file named by TVDROP_DEV_INFO (if set).
  */
 public class DevServer {

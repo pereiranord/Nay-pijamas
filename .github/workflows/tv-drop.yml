@@ -40,40 +40,60 @@ jobs:
           mkdir -p tv-drop/build
           python3 tv-drop/tools/build_web.py tv-drop/build/index.html
 
+      # The signing key lives only in the repository secrets (never in git). Without it the build keeps the
+      # original key; see tv-drop/docs/ASSINATURA.md.
+      - name: Signing key (when configured)
+        env:
+          KEY_B64: ${{ secrets.TVDROP_SIGNING_KEY_B64 }}
+        run: |
+          if [ -n "$KEY_B64" ]; then
+            echo "$KEY_B64" | base64 -d > "$RUNNER_TEMP/tvdrop-signing.jks"
+            echo "TVDROP_SIGNING_KEY=$RUNNER_TEMP/tvdrop-signing.jks" >> "$GITHUB_ENV"
+          else
+            echo "::warning::TVDROP_SIGNING_KEY_B64 is not set: signing with the original key (tv-drop/docs/ASSINATURA.md)"
+          fi
+
       - name: Build
         env:
+          TVDROP_SIGNING_PASS: ${{ secrets.TVDROP_SIGNING_PASS }}
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 2.11.${{ github.run_number }}
+          VERSION_NAME: 2.12.${{ github.run_number }}
         run: ./tv-drop/build.sh
 
       - name: Show failed tests
         if: failure()
         run: |
-          grep -l "<failure\|<error" tv-drop/build/test-results/testReleaseUnitTest/*.xml 2>/dev/null | while read f; do
+          grep -l "<failure\|<error" tv-drop/build/test-results/testTvReleaseUnitTest/*.xml 2>/dev/null | while read f; do
             echo "== $f"; grep -A8 "<failure\|<error" "$f" | head -40
           done
 
       - uses: actions/upload-artifact@v4
         with:
           name: TV-Drop
-          path: tv-drop/build/TV-Drop.apk
+          path: |
+            tv-drop/build/TV-Drop.apk
+            tv-drop/build/TV-Drop-Celular.apk
+            tv-drop/build/SHA256SUMS.txt
+            tv-drop/build/SIGNING.txt
+
+      - name: Release notes
+        run: bash tv-drop/tools/release_notes.sh "2.12.${{ github.run_number }}" tv-drop/build > tv-drop/build/RELEASE_NOTES.md
+
+      - name: Remove the signing key from the runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/tvdrop-signing.jks"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: tv-drop-v2.11.${{ github.run_number }}
-          name: TV Drop 2.11.${{ github.run_number }}
+          tag_name: tv-drop-v2.12.${{ github.run_number }}
+          name: TV Drop 2.12.${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           make_latest: true
+          body_path: tv-drop/build/RELEASE_NOTES.md
           files: |
             tv-drop/build/TV-Drop.apk
+            tv-drop/build/TV-Drop-Celular.apk
+            tv-drop/build/SHA256SUMS.txt
+            tv-drop/build/SIGNING.txt
             tv-drop/build/index.html
-          body: |
-            App para Android TV / Google TV: receba vídeos, links de vídeo e APKs pelo navegador do celular.
-
-            Instalar na TV:
-            ```
-            adb connect IP_DA_TV:PORTA
-            adb install -r TV-Drop.apk
-            ```
-            Veja o passo a passo completo em tv-drop/README.md.

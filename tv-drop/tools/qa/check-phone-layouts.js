@@ -1,6 +1,6 @@
 // Phone layout check (block 1): the Controle tab (3 modes + panels) and every tab on 11 phone/tablet shapes,
 // upright and on their side, normal and big buttons. Needs the dev server (test DevServer) and Playwright:
-//   TVDROP_DEV=600 TVDROP_DEV_INFO=/tmp/tvdrop.info gradle testReleaseUnitTest --tests "*DevServer*" &
+//   TVDROP_DEV=600 TVDROP_DEV_INFO=/tmp/tvdrop.info gradle testTvReleaseUnitTest --tests "*DevServer*" &
 //   node tools/qa/check-phone-layouts.js /tmp/tvdrop.info /tmp/shots
 const { chromium, devices } = require('playwright');
 const fs = require('fs');

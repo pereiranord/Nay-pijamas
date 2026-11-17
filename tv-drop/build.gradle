@@ -11,7 +11,8 @@ android {
     defaultConfig {
         applicationId 'com.pereiranord.tvdrop'
         minSdk 26
-        targetSdk 34
+        // Play Protect warns about apps that target an Android version more than two levels below the current one.
+        targetSdk 35
         versionCode((System.getenv('VERSION_CODE') ?: '1') as int)
         versionName System.getenv('VERSION_NAME') ?: '1.0'
         // TVs often run 32-bit Android even on 64-bit chips, so ship both.
@@ -29,6 +30,20 @@ android {
         test {
             java.srcDirs = ['test']
         }
+        // The phone build only removes what the phone never uses (see flavors/celular/AndroidManifest.xml).
+        celular {
+            manifest.srcFile 'flavors/celular/AndroidManifest.xml'
+        }
+    }
+
+    // Two APKs of the same app: same package name, same signature, same code.
+    //   tv      - everything (installed on the TV with adb, as always): build/TV-Drop.apk
+    //   celular - without the TV-only parts, so it can be downloaded and installed on a phone with
+    //             Google Play Protect on: build/TV-Drop-Celular.apk
+    flavorDimensions 'device'
+    productFlavors {
+        tv { dimension 'device' }
+        celular { dimension 'device' }
     }
 
     testOptions {
@@ -54,6 +69,14 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_11
         targetCompatibility JavaVersion.VERSION_11
+    }
+
+    // AGP normally adds an encrypted list of dependencies to the APK's signing block (for the Play Console).
+    // It is random on every build, so the same code would give a different file; without it the APK is
+    // reproducible: the same commit always gives the same SHA-256.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     lint {
