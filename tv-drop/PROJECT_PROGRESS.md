@@ -20,6 +20,14 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 10 — Investigação dos Impostores | ⏭️ Próximo (depois de os jogos 4–9b serem jogados na TV de verdade) |
 | 11 — Testes e acabamento | Pendente |
 
+## Controle em tela cheia e toque travado no navegador (24/11/2026)
+
+- **Tela cheia no celular em pé**: o Controle esconde o título, as abas de baixo e os avisos de status. Em cima fica uma barra fina: sair, TV e app na tela, e **Liga/Desliga**. Embaixo, nesta ordem: modo, direcional do tamanho que a tela permite, Voltar/Início/Menu, volume, mudo, play, canal e a barra Teclado/Voz/123/Mais. Status, volume em barra, apps e painéis ficam abaixo, rolando a tela. Celular deitado, tablet e computador continuam como antes.
+- **"Mais"** agora tem também Fonte, Ajustes, Assistente e Info.
+- **Toque**: o navegador não dá zoom com dois toques nem com pinça e não seleciona texto nem abre o balão "copiar" ao segurar. Campos de digitação continuam normais (e com fonte de 16 px, para o iPhone não dar zoom ao focar).
+- **Testes**: `check-phone-layouts.js` com 11 formatos × 2 tamanhos verde, `check-pairing`, `check-pwa` e `check-site` verdes, e cada tecla nova conferida enviando o comando.
+- **Não testado** em iPhone real (simulado no Chromium).
+
 ## Atualização dentro do app (24/11/2026)
 
 - **Como funciona**: a TV e o app do celular consultam a release mais nova do Nay-pijamas (`releases/latest/download/update.json`) ao abrir e a cada 12 h. O `update.json` é gerado no CI por `tools/update_json.py` e traz a versão e, para cada APK (`tv`, `celular`), o endereço, o tamanho e o SHA-256.

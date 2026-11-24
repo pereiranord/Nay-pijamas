@@ -566,3 +566,71 @@ main { padding-left: calc(16px + var(--safe-l)); padding-right: calc(16px + var(
 .upd-row b { display: block; }
 .upd-row small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
 .upd-notice { width: 100%; text-align: left; font: inherit; color: var(--text); background: rgba(61,220,132,.1); cursor: pointer; border: 1px solid rgba(61,220,132,.35); }
+
+
+/* =====================================================================
+   Touch: a browser on a phone behaves like an app. No zoom on a double tap
+   (touch-action: manipulation), no text selection or "copy" bubble on a long
+   press; fields where you type keep all of it. Font of 16px+ in fields so
+   iOS doesn't zoom in when one gets focus.
+   ===================================================================== */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+button, a, img, svg { -webkit-touch-callout: none; -webkit-user-drag: none; }
+input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+.code-box { -webkit-user-select: all; user-select: all; }
+@supports (-webkit-touch-callout: none) { input, textarea, select { font-size: max(16px, 1em); } }
+
+/* =====================================================================
+   Remote on an upright phone: the whole screen, like the Google TV remote.
+   No page title, no tab bar, no status chips on top: a slim bar (leave, TV,
+   power), the mode switch, the direction pad as big as the screen allows,
+   Back/Home/Menu, volume/mute/play/channel and the action bar. Status,
+   apps and panels follow below (scroll). Side/tablet layouts don't change.
+   ===================================================================== */
+.rtop, .rbar { display: none; }
+@media (max-width: 759px) and (orientation: portrait) {
+  body.rmode .nav, body.rmode #main > .top { display: none; }
+  body.rmode main { padding-top: calc(6px + var(--safe-t)); padding-bottom: calc(18px + var(--safe-b)); }
+  body.rmode .rview {
+    /* everything on the first screen except the pad: bar 48 + mode 40 + Back/Home 60 + volume row 56 + action bar 60, gaps and margins */
+    --rchrome: calc(338px + var(--safe-t) + var(--safe-b));
+    --dpad: clamp(170px, min(100vw - 44px, 100vh - var(--rchrome)), 380px);
+  }
+  @supports (height: 100dvh) { body.rmode .rview { --dpad: clamp(170px, min(100vw - 44px, 100dvh - var(--rchrome)), 380px); } }
+  body.rmode .rview .rtop { display: flex; order: 0; }
+  body.rmode .rview .rstatus { order: 9; margin-top: 4px; }
+  body.rmode .rview .top4, body.rmode .rview .rockers { display: none; }
+  body.rmode .rview .rbar { display: flex; order: 7; }
+  body.rmode .rview .seg { margin: 6px 0 4px; }
+  body.rmode .rview .seg button { min-height: 40px; font-size: 14px; }
+  body.rmode .rview .dpad { width: var(--dpad); margin: 6px auto 4px; }
+  body.rmode .rview .pad { height: var(--dpad); margin-top: 6px; }
+  body.rmode .rview #surface:has(.padbar) .pad { height: calc(var(--dpad) - 96px); min-height: 150px; } /* touchpad: its buttons and sensitivity fit on the first screen too */
+  body.rmode .rview .padbar { margin-top: 8px; } body.rmode .rview #surface .slider-row { margin: 6px 0 0; }
+  body.rmode .rview .nav3 { margin: 6px 0; }
+  body.rmode .rview .nav3 .key.big { width: 84px; height: 56px; border-radius: 20px; }
+  body.rmode .rview .actionbar { margin: 10px 0 12px; }
+  body.rmode .rview .abtn { min-height: 60px; padding: 8px 4px; gap: 3px; }
+  body.rmode .toast { top: calc(56px + var(--safe-t)); bottom: auto; transform: translateX(-50%) translateY(-16px); }
+  body.rmode .toast.show { transform: translateX(-50%) translateY(0); }
+}
+.rtop { align-items: center; gap: 8px; height: 48px; }
+.rt-exit { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); flex: none; }
+.rt-exit:active { background: var(--key-hi); }
+.rt-tv { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 999px; background: var(--surface); font-size: 14px; color: var(--text); }
+.rt-tv .dot { width: 8px; height: 8px; }
+.rt-tv.ok .dot { background: var(--green); } .rt-tv.bad .dot { background: var(--red); } .rt-tv.wait .dot { background: var(--amber); animation: pulse 1.2s infinite; }
+.rt-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-weight: 650; }
+.rt-app { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; font-size: 13px; }
+.rt-app:not(:empty)::before { content: "· "; }
+.rtop .key.rt-power { width: 48px; height: 48px; flex: none; background: rgba(255, 107, 107, .12); }
+.rbar { align-items: center; gap: 8px; margin: 6px 0 0; }
+.rbar .key { width: 56px; height: 56px; flex: none; }
+.hrock { flex: 1; min-width: 0; height: 56px; display: flex; align-items: center; border-radius: 28px; background: var(--key); box-shadow: inset 0 0 0 1px #24292e; overflow: hidden; }
+.hrock button { flex: 1; height: 100%; min-width: 40px; display: grid; place-items: center; color: var(--text); touch-action: none; transition: background .1s; }
+.hrock button:active, .hrock button.hit { background: var(--key-hi); color: var(--green); }
+.hrock button.off { opacity: .32; }
+.hrock .rk-label { padding: 0 2px; font-size: 11px; }
+@media (max-width: 359px) { .rbar { gap: 6px; } .rbar .key { width: 48px; height: 48px; } .hrock .rk-label { display: none; } }
+:root[data-theme="light"] .rt-tv { background: #fff; }

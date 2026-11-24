@@ -342,6 +342,23 @@ function pwaKeep() {
 }
 
 /* ---------------------------------------------------------------- shell */
+// iPhone/Android browsers: no zoom on a double tap or a pinch, no text selection or "copy" bubble on a long press.
+// Fields where you type keep all of it (app.css does the same with user-select / touch-action).
+(() => {
+  const editable = (t) => { const e = t && (t.nodeType === 3 ? t.parentElement : t); return !!(e && e.closest && e.closest('input, textarea, select, [contenteditable="true"], .code-box')); };
+  document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+  document.addEventListener('dblclick', (e) => { if (!editable(e.target)) e.preventDefault(); }, { passive: false });
+  document.addEventListener('contextmenu', (e) => { if (!editable(e.target)) e.preventDefault(); });
+  document.addEventListener('selectstart', (e) => { if (!editable(e.target)) e.preventDefault(); });
+  // older iOS still zooms on a fast second tap outside buttons: on the remote, a second tap within 350 ms never zooms
+  let lastEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const quick = e.timeStamp - lastEnd < 350;
+    lastEnd = e.timeStamp;
+    if (quick && e.cancelable && !editable(e.target) && e.target.closest && e.target.closest('.rview')) e.preventDefault();
+  }, { passive: false });
+})();
+
 const VIEWS = { home: renderHome, cast: renderCast, remote: renderRemote, apps: renderApps, library: renderLibrary, devices: renderDevices, settings: renderSettings };
 
 function go(view) {
@@ -350,6 +367,7 @@ function go(view) {
   store.set('view', view);
   $('#main').dataset.view = view;
   $$('.nav button').forEach((b) => b.setAttribute('aria-current', b.dataset.view === view ? 'page' : 'false'));
+  document.body.classList.toggle('rmode', view === 'remote'); // upright phone: the remote takes the whole screen (app.css)
   if (view !== 'remote') wsClose(); else wsConnect();
   VIEWS[view]();
   window.scrollTo(0, 0);
@@ -367,6 +385,8 @@ function renderConn() {
   if (S.online === false) { c.className = 'conn bad'; c.lastChild.textContent = 'Sem conexão'; }
   else if (S.online && S.info) { c.className = 'conn ok'; c.lastChild.textContent = name; }
   else { c.className = 'conn wait'; c.lastChild.textContent = 'Conectando…'; }
+  const rt = $('.rt-tv'); // the remote's own top bar (upright phones)
+  if (rt) { rt.className = 'rt-tv ' + c.className.replace('conn', '').trim(); $('#rtName').textContent = c.lastChild.textContent; }
 }
 
 const receiverHas = (key) => !!(S.caps && S.caps.remote && (S.caps.remote.keys || []).includes(key));
@@ -1004,6 +1024,11 @@ function renderRemote() {
   main.innerHTML = header('Controle') + `
     <div class="rview">
      <div class="r-pad">
+        <div class="rtop">
+          <button class="rt-exit" data-go="home" aria-label="Sair do controle">${icon('left')}</button>
+          <button class="rt-tv" data-go="devices" aria-label="TV conectada (trocar de TV)"><span class="dot"></span><span class="rt-name" id="rtName">TV</span><span class="rt-app" id="rtApp"></span></button>
+          ${rkey('power', 'power rt-power')}
+        </div>
         <div id="surface"></div>
         <div class="key-row nav3">${rkey('back', 'big')}${rkey('home', 'big')}${rkey('menu', 'big')}</div>
      </div>
@@ -1032,6 +1057,19 @@ function renderRemote() {
             <button class="rk-down ${S.caps && !has('chdown') ? 'off' : ''}" data-rk="chdown" aria-label="Canal anterior">${icon('down')}</button>
           </div>
         </div>
+        <div class="rbar">
+          <div class="hrock" aria-label="Volume">
+            <button class="${S.caps && !has('voldown') ? 'off' : ''}" data-rk="voldown" aria-label="Diminuir volume"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+            <span class="rk-label">VOL</span>
+            <button class="${S.caps && !has('volup') ? 'off' : ''}" data-rk="volup" aria-label="Aumentar volume">${icon('plus')}</button>
+          </div>
+          ${rkey('mute')}${rkey('playpause')}
+          <div class="hrock" aria-label="Canal">
+            <button class="${S.caps && !has('chdown') ? 'off' : ''}" data-rk="chdown" aria-label="Canal anterior">${icon('down')}</button>
+            <span class="rk-label">CH</span>
+            <button class="${S.caps && !has('chup') ? 'off' : ''}" data-rk="chup" aria-label="Próximo canal">${icon('up')}</button>
+          </div>
+        </div>
         <div class="actionbar">
           <button class="abtn" id="kbdBtn">${icon('keyboard')}<span>Teclado</span></button>
           <button class="abtn" id="micBtn">${icon('mic')}<span>Voz</span></button>
@@ -1046,7 +1084,7 @@ function renderRemote() {
         </div>
         <div class="card panel" id="morePanel" hidden>
           <div class="colors">${['red', 'green', 'yellow', 'blue'].map((c) => `<button class="ckey c-${c} ${S.caps && !has(c) ? 'off' : ''}" data-rk="${c}" aria-label="Botão ${c}"></button>`).join('')}</div>
-          <div class="more-grid">${['search', 'guide', 'captions', 'recents', 'apps', 'stop', 'prev', 'next'].map((k) => `<div class="key-wrap">${rkey(k)}<div class="key-label">${KEY_INFO[k][1]}</div></div>`).join('')}</div>
+          <div class="more-grid">${['input', 'settings', 'assistant', 'search', 'guide', 'captions', 'recents', 'apps', 'stop', 'prev', 'next', 'info'].map((k) => `<div class="key-wrap">${rkey(k)}<div class="key-label">${KEY_INFO[k][1]}</div></div>`).join('')}</div>
           <button class="btn" style="width:100%;margin-top:12px" id="peekBtn" ${S.caps && S.caps.screenshot === false ? 'aria-disabled="true"' : ''}>${icon('eye')}Ver a tela da TV no celular</button>
         </div>
         <div class="quickapps" id="quickApps"></div>
@@ -1098,6 +1136,8 @@ function drawRemoteStatus() {
   }
   const via = atv && atv.paired ? 'Controle pareado' : nativeAtvOk() ? 'Controle pelo celular' : r && r.accessibility && r.accessibility.enabled ? 'Acessibilidade' : 'Controle limitado';
   chips.push(`<span class="chip ${atv && atv.paired || nativeAtvOk() ? 'ok' : ''}">${icon('remote')}${via}</span>`);
+  const rtApp = $('#rtApp');
+  if (rtApp) { const a = atv && atv.currentApp && S.apps.find((x) => x.pkg === atv.currentApp); rtApp.textContent = atv && atv.currentApp ? (a ? a.label : atv.currentApp.split('.').pop()) : ''; }
   const volKnown = atv && atv.volumeMax > 0 && atv.volumeLevel >= 0;
   if (volKnown) chips.push(`<span class="chip">${icon(atv.muted ? 'mute' : 'volup')}${atv.muted ? 'Mudo' : atv.volumeLevel + '/' + atv.volumeMax}</span>`);
   box.innerHTML = `<div class="chips-row">${chips.join('')}</div>` + (volKnown ? `<label class="slider-row vol-slider">${icon('voldown')}<input type="range" id="volSlider" min="0" max="${atv.volumeMax}" value="${atv.volumeLevel}" aria-label="Volume">${icon('volup')}</label>` : '');
