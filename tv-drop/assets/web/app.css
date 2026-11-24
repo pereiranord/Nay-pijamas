@@ -537,3 +537,24 @@ main { padding-left: calc(16px + var(--safe-l)); padding-right: calc(16px + var(
   .nav button svg { width: 22px; height: 22px; }
   .top .conn span:last-child { max-width: 34vw; }
 }
+
+/* ---------- install on the phone (PWA): sheet pointing at the browser's share/menu button ---------- */
+.pwa-sheet { position: fixed; left: 0; right: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); pointer-events: none; transition: transform .25s ease, opacity .25s ease; opacity: 0; }
+.pwa-sheet.bottom { bottom: 0; transform: translateY(24px); }
+.pwa-sheet.top { top: 0; flex-direction: column-reverse; padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: 12px; transform: translateY(-24px); }
+.pwa-sheet.on { opacity: 1; transform: none; }
+.pwa-card { pointer-events: auto; width: 100%; max-width: 440px; background: #1f2328; border: 1px solid rgba(255,255,255,.1); border-radius: 22px; padding: 16px; box-shadow: 0 18px 50px rgba(0,0,0,.55); color: var(--text); }
+.pwa-head { display: flex; gap: 12px; align-items: center; }
+.pwa-head img { width: 52px; height: 52px; border-radius: 12px; flex: none; }
+.pwa-head b { display: block; font-size: 17px; }
+.pwa-head small { display: block; color: var(--muted); font-size: 13px; line-height: 1.35; margin-top: 2px; }
+.pwa-steps { list-style: none; margin: 14px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.pwa-steps li { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.4; }
+.pwa-steps em { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--green); color: #0b0d0f; font-style: normal; font-weight: 800; font-size: 13px; display: grid; place-items: center; margin-top: 1px; }
+.pwa-steps i { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: rgba(255,255,255,.1); vertical-align: middle; margin: 0 2px; }
+.pwa-steps i svg { width: 18px; height: 18px; fill: none; stroke: #4fa3ff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.pwa-steps i svg circle { fill: #4fa3ff; stroke: none; }
+.pwa-acts { display: flex; gap: 8px; }
+.pwa-acts .btn { flex: 1; }
+.pwa-arrow { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 14px solid #1f2328; margin-top: -1px; }
+.pwa-sheet.top .pwa-arrow { border-top: 0; border-bottom: 14px solid #1f2328; margin: 0 0 -1px; align-self: flex-end; margin-right: 18%; }

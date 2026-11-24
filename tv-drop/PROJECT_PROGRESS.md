@@ -20,6 +20,20 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 10 — Investigação dos Impostores | ⏭️ Próximo (depois de os jogos 4–9b serem jogados na TV de verdade) |
 | 11 — Testes e acabamento | Pendente |
 
+## Site, PWA e código do Google sem abrir o TV Drop (24/11/2026)
+
+- **PWA**: a página que a TV serve vira app no celular. Tem manifesto, ícones (incluindo o "maskable" e o `apple-touch-icon`) e as tags de tela cheia do iPhone.
+- **Pop-up de instalação**:
+  - No iPhone/iPad, com passos próprios para Safari, Chrome e Firefox, aparece **antes** de conectar, porque o app na tela de início tem armazenamento próprio.
+  - No Android, aparece com os passos do Chrome e do Samsung Internet.
+  - "Agora não" esconde por 3 dias e "Não mostrar mais" esconde de vez; em Ajustes há "Como instalar".
+  - Dentro do app instalado, o app pede ao navegador para não apagar os dados salvos.
+- **Site**: a versão de arquivo único, publicada em HTTPS (GitHub Pages em `Nay-pijamas/docs`), pede o IP ou o código da TV uma vez, lembra e abre a página da própria TV (um site HTTPS não pode falar direto com a TV em HTTP).
+- **Sem abrir o TV Drop na TV**: o servidor já roda em segundo plano desde o boot e agora religa também depois de cada atualização (`MY_PACKAGE_REPLACED`). O código do Google é mostrado pelo serviço do próprio Google por cima de qualquer app.
+- **Testes**: `tools/qa/check-pwa.js` (14 verificações), `tools/qa/check-site.js`, mais as verificações anteriores e a suíte completa, todos verdes.
+- **Não testado** em iPhone real (simulado no Chromium com o user agent do Safari/Chrome do iOS).
+- **Limitação**: o app instalado é ligado ao IP da TV. Um IP novo exige abrir o site de novo; a solução é reservar o IP no roteador.
+
 ## Conexão com um código só (24/11/2026)
 
 - Antes eram dois códigos: o PIN do TV Drop (para o celular entrar) e depois o código do Google (para o controle completo).

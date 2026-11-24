@@ -101,6 +101,18 @@ O app do celular abre direto na interface nova (a mesma do `index.html`, embutid
 
 A página antiga continua em `http://IP_DA_TV:8080/classic.html`.
 
+### Pelo navegador, sem abrir nada na TV, e como app no iPhone (PWA)
+
+- **Na TV**: o TV Drop roda em segundo plano. Ele liga sozinho quando a TV liga e depois de cada atualização; só é preciso abri-lo **uma vez**, logo depois de instalar (exigência do Android). Daí em diante, o código do Google aparece por cima de qualquer app quando um celular toca em Conectar.
+- **No celular**: abra o site do TV Drop, digite o IP da TV uma vez (ele fica lembrado) e você vai para a página da própria TV (`http://IP:8080`). Toque em **Conectar** e digite o código do Google.
+  - Site: https://pereiranord.github.io/Nay-pijamas/ (depois de ativar o GitHub Pages, veja abaixo).
+  - O IP fica em **Configurações → Rede e Internet → sua rede**, sem abrir o TV Drop.
+- **iPhone e iPad**: a página da TV mostra um aviso para instalar: **Compartilhar → Adicionar à Tela de Início**. O TV Drop ganha ícone próprio e abre em tela cheia.
+  - Conecte **dentro do app instalado**: o iPhone guarda os dados do ícone separados dos do Safari. É uma vez só, e o app instalado não é apagado pela limpeza automática do Safari.
+- **Android**: o mesmo aviso, com **⋮ → Adicionar à tela inicial**.
+- **Limitação**: o app instalado é ligado ao endereço da TV. Se o roteador der outro IP para a TV, é preciso abrir o site de novo. Para evitar, reserve o IP da TV no roteador (DHCP fixo).
+- **Ativar o site (uma vez)**: no GitHub, em `pereiranord/Nay-pijamas` → **Settings → Pages → Build and deployment**: *Source* = **Deploy from a branch**, *Branch* = o branch do TV Drop e a pasta **/docs** → **Save**.
+
 ### Versão web em um arquivo só (`index.html`)
 
 O `index.html` na raiz do branch `main` (e anexado a cada Release) é a mesma interface em um arquivo só. Ele é gerado por `python3 tv-drop/tools/build_web.py index.html` a partir de `tv-drop/assets/web`.

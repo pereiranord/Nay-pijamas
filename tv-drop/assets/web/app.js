@@ -229,6 +229,7 @@ function showPairing(message) {
   $('#pairView').hidden = false;
   pairStep('start', 'Toque em Conectar. A TV vai mostrar um código do Google com 6 caracteres. É só uma vez: este aparelho fica salvo.');
   pairMsg(message, true);
+  setTimeout(() => pwaOffer(), 600);
 }
 
 /** Asks the TV to show Google's code (or, on TVs without it, TV Drop's PIN). */
@@ -262,11 +263,82 @@ async function doPair(value) {
     $('#pairView').hidden = true;
     await start();
     toast('Conectado à TV. Este aparelho fica salvo.');
+    pwaKeep();
   } catch (e) {
     // a wrong Google code ends that pairing: the TV shows a new code
     if (google && (e.code === 'bad_code' || e.code === 'expired')) { pairStart(e.message); return; }
     pairMsg(e.message, true);
   } finally { $('#pairBtn').disabled = false; }
+}
+
+/* ---------------------------------------------------------------- install on the phone (PWA) */
+// The page the TV serves can live on the phone's home screen like an app: full screen, its own icon, and the
+// TV it is connected to stays saved. On iPhone/iPad there is no install button that a page can trigger, so a
+// sheet explains Safari's "Adicionar à Tela de Início". It shows up before connecting, because the app on the
+// home screen keeps its own storage: connecting inside it is what makes the phone stay saved.
+const PWA = {
+  ios: /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1),
+  android: /Android/.test(navigator.userAgent),
+  installed: () => navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches),
+};
+
+function pwaSnoozed() {
+  const until = +store.get('pwaSnooze', 0);
+  return until === -1 || Date.now() < until;
+}
+
+/** Shows the install sheet when it makes sense: a phone browser, not installed yet, not the Android app. */
+function pwaOffer(force) {
+  if (NATIVE || STANDALONE || PWA.installed() || location.protocol === 'file:') return false;
+  if (!PWA.ios && !PWA.android) return false;
+  if (!force && pwaSnoozed()) return false;
+  if ($('#pwaSheet')) return true;
+  const ua = navigator.userAgent;
+  const share = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5"/><path d="M8 10H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2"/></svg>';
+  const plus = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M12 8v8M8 12h8"/></svg>';
+  const dots = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>';
+  let steps, where;
+  if (PWA.ios) {
+    const chrome = /CriOS/.test(ua), firefox = /FxiOS/.test(ua);
+    where = chrome || firefox ? 'top' : 'bottom';
+    steps = [
+      chrome ? `Toque em <b>Compartilhar</b> <i>${share}</i> na barra de endereço, em cima.`
+        : firefox ? `Toque no menu <b>☰</b> e depois em <b>Compartilhar</b> <i>${share}</i>.`
+        : `Toque em <b>Compartilhar</b> <i>${share}</i> na barra do Safari. Se ele não aparecer, toque antes em <i>${dots}</i>.`,
+      `Role a lista e toque em <b>Adicionar à Tela de Início</b> <i>${plus}</i>.`,
+      'Toque em <b>Adicionar</b>. Depois abra o <b>TV Drop</b> pelo ícone e conecte com o código da TV: é só uma vez.',
+    ];
+  } else {
+    where = 'top';
+    steps = [
+      /SamsungBrowser/.test(ua) ? 'Toque no menu <b>≡</b> e em <b>Adicionar página a</b> → <b>Tela inicial</b>.'
+        : `Toque no menu <b>⋮</b> do navegador, no canto de cima.`,
+      'Toque em <b>Adicionar à tela inicial</b> (ou <b>Instalar app</b>) e confirme.',
+      'Abra o <b>TV Drop</b> pelo ícone novo: ele fica salvo com a sua TV.',
+    ];
+  }
+  const el = document.createElement('div');
+  el.id = 'pwaSheet';
+  el.className = 'pwa-sheet ' + where;
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-label', 'Instalar o TV Drop');
+  el.innerHTML = `<div class="pwa-card">
+      <div class="pwa-head"><img src="pwa/apple-touch-icon.png" alt=""><div><b>Instale o TV Drop ${PWA.ios ? 'no iPhone' : 'no celular'}</b><small>Abre em tela cheia, direto da tela de início, e lembra da sua TV.</small></div></div>
+      <ol class="pwa-steps">${steps.map((t, i) => `<li><em>${i + 1}</em><span>${t}</span></li>`).join('')}</ol>
+      <div class="pwa-acts"><button class="btn small" id="pwaLater">Agora não</button><button class="btn small" id="pwaNever">Não mostrar mais</button></div>
+    </div>
+    <div class="pwa-arrow" aria-hidden="true"></div>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('on'));
+  const close = (until) => { store.set('pwaSnooze', until); el.classList.remove('on'); setTimeout(() => el.remove(), 250); };
+  $('#pwaLater').onclick = () => close(Date.now() + 3 * 24 * 3600 * 1000);
+  $('#pwaNever').onclick = () => close(-1);
+  return true;
+}
+
+/** Inside the installed app: ask the browser not to clear what is saved (the TV and its token). */
+function pwaKeep() {
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* not supported */ }
 }
 
 /* ---------------------------------------------------------------- shell */
@@ -1897,6 +1969,9 @@ async function renderSettings() {
       ${toggle('sound', p.sound, 'Som ao tocar', 'Um clique curto em cada tecla')}
       ${toggle('liveTyping', store.get('liveTyping', false), 'Teclado: digitar ao vivo por padrão')}
       <label class="slider-row">Sensibilidade do touchpad<input type="range" id="setSens" min="0.6" max="4" step="0.1" value="${S.sensitivity}"></label></div>
+    ${!NATIVE && !STANDALONE && (PWA.ios || PWA.android) && !PWA.installed() ? `<div class="card"><h2>Instalar no celular</h2>
+      <p class="sub">Coloque o TV Drop na tela de início: abre em tela cheia e fica conectado à sua TV.</p>
+      <button class="btn primary" id="setPwa" style="margin-top:8px">${icon('grid')}Como instalar</button></div>` : ''}
     ${NATIVE ? `<div class="card"><h2>No celular</h2>
       ${NATIVE.setPref ? toggle('volKeys', p.volKeys, 'Botões de volume do celular controlam a TV', 'Enquanto o app está aberto') : ''}
       ${NATIVE.setPref ? toggle('quickNotif', p.quickNotif, 'Controle rápido na notificação', 'Play/pausa e volume na barra de notificações e na tela de bloqueio') : ''}
@@ -1923,6 +1998,7 @@ async function renderSettings() {
   $('#setSens').oninput = (e) => { S.sensitivity = +e.target.value; store.set('sensitivity', S.sensitivity); };
   if ($('#setQr')) $('#setQr').onclick = () => NATIVE.scanQr();
   if ($('#setSwitch')) $('#setSwitch').onclick = showConnect;
+  if ($('#setPwa')) $('#setPwa').onclick = () => pwaOffer(true);
   if ($('#setTmdb')) $('#setTmdb').onclick = () => { store.del('tmdbKey'); renderSettings(); };
   if ($('#setOs')) $('#setOs').onclick = () => { store.del('osKey'); renderSettings(); };
   try {
@@ -2083,6 +2159,7 @@ async function start() {
   go(store.get('view', 'home'));
   refreshStatus();
   S.started = true;
+  if (PWA.installed()) pwaKeep(); else setTimeout(() => pwaOffer(), 1500);
   if (S.pendingOpen) { const o = S.pendingOpen; S.pendingOpen = null; window.tvdropOpen(o[0], o[1]); }
 }
 
@@ -2133,7 +2210,10 @@ function showConnect(message) {
   msg.className = 'msg' + (message ? ' err' : '');
   const last = store.get('base', '');
   if (last && !$('#tvAddr').value) $('#tvAddr').value = last.replace('http://', '');
-  if (location.protocol === 'https:') $('#connectNote').textContent = 'Esta página está em https, e o navegador não deixa uma página https falar com a TV (http). Ao conectar, você vai para a página da própria TV.';
+  if (location.protocol === 'https:') {
+    $('#connectNote').innerHTML = 'Você vai para a página da própria TV. Lá, toque em <b>Conectar</b> e digite o código do Google que aparecer na TV.<br><br>Onde achar o endereço sem abrir nada na TV: <b>Configurações → Rede e Internet → sua rede</b>, campo "Endereço IP". Dica: reserve esse IP no roteador para ele não mudar.';
+    if (last) $('#connectHint').textContent = 'Sua TV salva já está preenchida: é só tocar em Conectar.';
+  }
   $('#scanBtn').hidden = !(NATIVE && NATIVE.scanQr);
   if (NATIVE && NATIVE.discover) startDiscovery();
   else setTimeout(() => $('#tvAddr').focus(), 50);
@@ -2178,7 +2258,9 @@ async function doConnect(input) {
   const hp = parseTvAddress(input);
   const msg = $('#connectMsg');
   if (!hp) { msg.textContent = 'Digite o código de 8 letras da TV (ex.: 1G58-28FG) ou o endereço (ex.: 192.168.18.31).'; msg.className = 'msg err'; return; }
-  if (location.protocol === 'https:') { location.href = 'http://' + hp + '/'; return; }
+  // a page on the internet (https) can't talk to the TV (http): it remembers the TV and opens the TV's own page,
+  // which asks for Google's code and can be installed on the home screen
+  if (location.protocol === 'https:') { store.set('base', 'http://' + hp); msg.textContent = 'Abrindo a página da TV…'; msg.className = 'msg'; location.href = 'http://' + hp + '/'; return; }
   msg.textContent = 'Procurando a TV em ' + hp + '…'; msg.className = 'msg';
   try {
     const ctrl = new AbortController();
@@ -2218,7 +2300,8 @@ function boot() {
   // QR code from the TV: /?pair=123456
   const pin = new URLSearchParams(location.search).get('pair');
   if (pin) { history.replaceState(null, '', location.pathname); if (!S.token) { $('#pairView').hidden = false; pairStep('pin', 'Conectando pelo QR Code…'); $('#pinInput').value = pin; doPair(pin); return; } }
-  if (STANDALONE && !BASE) { showConnect(); return; }
+  // on the internet (https) this page only opens the TV's own page: always ask (the saved TV comes filled in)
+  if (STANDALONE && (!BASE || location.protocol === 'https:')) { showConnect(); return; }
   if (!S.token) { showPairing(); return; }
   start();
 }
