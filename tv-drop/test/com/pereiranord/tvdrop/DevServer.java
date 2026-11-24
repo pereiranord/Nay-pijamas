@@ -57,6 +57,17 @@ public class DevServer {
             }
         };
         Pairing pairing = new Pairing(new KeyValueStore.Memory());
+        if (System.getenv("TVDROP_DEV_UPDATE") != null) { // a newer version "on GitHub", to try the update screens
+            UpdaterTest gh = new UpdaterTest();
+            gh.tmp = new org.junit.rules.TemporaryFolder();
+            gh.tmp.create();
+            gh.startGithub();
+            java.lang.reflect.Field f = UpdaterTest.class.getDeclaredField("base");
+            f.setAccessible(true);
+            host.updater = new Updater(f.get(gh) + "/update.json", gh.tmp.newFolder(), 24, "2.12.24", "tv",
+                    apk -> Events.add("(teste) o Android abriria a instalação de " + apk.getName()), System::currentTimeMillis);
+            host.updater.checkAsync();
+        }
         HttpServer server = new HttpServer(host, pairing);
         if (!server.open(18080, 20)) throw new IllegalStateException("no port");
         server.start();

@@ -90,6 +90,7 @@ public class RemoteActivity extends Activity {
         takeOpen(getIntent());
         publishShortcuts(null);
         if (prefs().getBoolean("quickNotif", false)) QuickControls.show(this);
+        AppUpdates.schedule(this); // a new version on GitHub shows up in Ajustes (and as a banner)
         if (android.os.Build.VERSION.SDK_INT >= 33) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 0);
     }
 
@@ -291,6 +292,23 @@ public class RemoteActivity extends Activity {
             } catch (Exception e) {
                 return "?";
             }
+        }
+
+        /**
+         * This phone app's own updates (GitHub releases): "status", "check" or "install". The answer comes back
+         * through tvdropNative(id, status). Installing opens Android's confirmation.
+         */
+        @JavascriptInterface
+        public void update(String action, String id) {
+            Updater u = AppUpdates.get(RemoteActivity.this);
+            if ("check".equals(action)) u.checkAsync();
+            else if ("install".equals(action)) u.installAsync();
+            org.json.JSONObject st = u.status();
+            try {
+                st.put("ok", true);
+            } catch (org.json.JSONException ignored) {
+            }
+            runOnUiThread(() -> web.evaluateJavascript("tvdropNative(" + JSONObject.quote(id) + "," + st + ")", null));
         }
 
         /** Google's code scanner (no camera permission needed by TV Drop): reads the QR code on the TV. */

@@ -48,7 +48,7 @@ APK: `TV-Drop.apk` da release `tv-drop-v2.11.21`, SHA-256 `d3c478864b92307d461c2
 ## 3. O que foi corrigido (2.12)
 
 1. **Dois APKs do mesmo app** (mesmo pacote `com.pereiranord.tvdrop`, mesma assinatura, mesmo código, mesmo versionCode):
-   - `TV-Drop-Celular.apk`: **sem** acessibilidade, leitor de notificações, `REQUEST_INSTALL_PACKAGES`, `REQUEST_DELETE_PACKAGES`, `SYSTEM_ALERT_WINDOW`, `PACKAGE_USAGE_STATS`, `RECEIVE_BOOT_COMPLETED` e os receptores de boot e de instalação. São 9 permissões em vez de 14. Nada que o celular usa foi removido: todos esses recursos rodam só no servidor da TV, que no celular nunca é ligado.
+   - `TV-Drop-Celular.apk`: **sem** acessibilidade, leitor de notificações, `REQUEST_INSTALL_PACKAGES`, `REQUEST_DELETE_PACKAGES`, `SYSTEM_ALERT_WINDOW`, `PACKAGE_USAGE_STATS`, `RECEIVE_BOOT_COMPLETED` e os receptores de boot e de instalação. Eram 9 permissões em vez de 14 na 2.12; desde a atualização automática o celular voltou a ter `REQUEST_INSTALL_PACKAGES` (10), só para instalar as próprias atualizações, sempre com confirmação do Android. Ela não está entre as permissões que o Play Protect bloqueia. Nada que o celular usa foi removido: todos esses recursos rodam só no servidor da TV, que no celular nunca é ligado.
    - `TV-Drop.apk`: igual ao de antes, para a TV, instalado por ADB como sempre.
    - Implementado com variantes do Gradle (`flavors/celular/AndroidManifest.xml`). Não é ocultação: o APK do celular simplesmente não contém esses serviços.
 2. **targetSdk 35** (Android 15), mantendo o layout de sempre nas telas (`windowOptOutEdgeToEdgeEnforcement`).

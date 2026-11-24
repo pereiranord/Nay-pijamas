@@ -569,6 +569,14 @@ main { padding-left: calc(16px + var(--safe-l)); padding-right: calc(16px + var(
 .pwa-arrow { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 14px solid #1f2328; margin-top: -1px; }
 .pwa-sheet.top .pwa-arrow { border-top: 0; border-bottom: 14px solid #1f2328; margin: 0 0 -1px; align-self: flex-end; margin-right: 18%; }
 
+/* ---------- updates ---------- */
+.upd-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line, rgba(255,255,255,.08)); }
+.upd-row:first-child { border-top: 0; }
+.upd-row > div { flex: 1; min-width: 0; }
+.upd-row b { display: block; }
+.upd-row small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.upd-notice { width: 100%; text-align: left; font: inherit; color: var(--text); background: rgba(61,220,132,.1); cursor: pointer; border: 1px solid rgba(61,220,132,.35); }
+
 </style>
 </head>
 <body>
@@ -1131,6 +1139,54 @@ function nativeAtv(action, arg = '') {
     setTimeout(() => { if (nativeWaiters[id]) { delete nativeWaiters[id]; resolve({ ok: false, message: 'O celular não respondeu.' }); } }, 25000);
   });
 }
+/* ---------------------------------------------------------------- updates (GitHub releases) */
+// The TV and the phone app look for new versions on GitHub by themselves. Here: show it and start the update.
+// The TV downloads its APK and Android asks for an OK on the TV (with the remote); the phone app asks on the phone.
+function nativeUpdate(action) {
+  if (!NATIVE || !NATIVE.update) return Promise.resolve(null);
+  const id = 'u' + (++nativeSeq);
+  return new Promise((resolve) => {
+    nativeWaiters[id] = resolve;
+    NATIVE.update(action, id);
+    setTimeout(() => { if (nativeWaiters[id]) { delete nativeWaiters[id]; resolve(null); } }, 10000);
+  });
+}
+async function loadUpdates() {
+  const [tv, app] = await Promise.all([api('/api/v2/update').catch(() => null), nativeUpdate('status')]);
+  S.upTv = tv; S.upApp = app;
+  return { tv, app };
+}
+function updateLine(u, who) {
+  if (!u) return '';
+  const busy = u.state === 'downloading' ? `Baixando… ${u.progress || 0}%` : u.state === 'installing' ? (u.message || 'Confirme a instalação') : u.state === 'checking' ? 'Procurando versão nova…' : '';
+  const status = busy || (u.available ? `<b style="color:var(--green)">Nova versão ${esc(u.latest)}</b>` : u.state === 'error' ? `<span style="color:var(--red,#ff6b6b)">${esc(u.message || 'Erro')}</span>` : u.latest ? 'Na versão mais nova' : 'Ainda não verificou');
+  const btn = u.available && !busy ? `<button class="btn primary small" data-upd="${who}">${who === 'tv' ? 'Atualizar a TV' : 'Atualizar o app'}</button>` : '';
+  return `<div class="upd-row"><div><b>${who === 'tv' ? 'TV' : 'Este celular'}</b><small>Versão ${esc(u.current)} · ${status}</small></div>${btn}</div>`;
+}
+async function startUpdate(who) {
+  try {
+    if (who === 'tv') { const r = await api('/api/v2/update/install', { method: 'POST' }); toast(r.message || 'Baixando na TV'); }
+    else { await nativeUpdate('install'); toast('Baixando a atualização…'); }
+  } catch (e) { toast(e.message, false); }
+  pollUpdates();
+}
+let updTimer = 0;
+function pollUpdates() {
+  clearTimeout(updTimer);
+  updTimer = setTimeout(async () => {
+    const { tv, app } = await loadUpdates();
+    if (S.view === 'settings' && $('#updBox')) drawUpdates();
+    const busy = [tv, app].some((u) => u && (u.state === 'downloading' || u.state === 'checking'));
+    if (busy) pollUpdates();
+  }, 1500);
+}
+function drawUpdates() {
+  const box = $('#updBox');
+  if (!box) return;
+  box.innerHTML = (updateLine(S.upTv, 'tv') + updateLine(S.upApp, 'app')) || '<p class="sub">Indisponível neste aparelho.</p>';
+  box.querySelectorAll('[data-upd]').forEach((b) => { b.onclick = () => { b.disabled = true; startUpdate(b.dataset.upd); }; });
+}
+
 async function loadNativeAtv() {
   if (!NATIVE || !NATIVE.atv) return;
   S.nativeAtv = await nativeAtv('state');
@@ -1219,6 +1275,7 @@ function renderHome() {
       <button id="findTv">${icon('bell')}Encontrar TV</button>
     </div>
     ${spaceNotice()}
+    ${(S.upTv && S.upTv.available) || (S.upApp && S.upApp.available) ? `<button class="notice upd-notice" id="updNotice">${icon('info')}<div>Nova versão do TV Drop: <b>${esc((S.upTv && S.upTv.available ? S.upTv : S.upApp).latest)}</b>${S.upTv && S.upTv.available && S.upApp && S.upApp.available ? ' para a TV e este celular' : S.upTv && S.upTv.available ? ' para a TV' : ' para este celular'}. Toque para atualizar.</div></button>` : ''}
     <button class="games-hero" id="gamesBtn">${icon('game')}<span><b>Jogos na TV</b><small id="gamesSub">De 2 a 6 jogadores. Cada celular vira o controle.</small></span><em>Jogar</em></button>
     <div class="card" id="npCard"></div>
     <div class="card" id="extCard" hidden></div>
@@ -1233,6 +1290,7 @@ function renderHome() {
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
   $('#findTv').onclick = findTv;
   $('#gamesBtn').onclick = openGames;
+  if ($('#updNotice')) $('#updNotice').onclick = () => go('settings');
   api('/api/v2/games').then((g) => { if (g.open && $('#gamesSub')) $('#gamesSub').textContent = `Sala ${g.code} aberta · ${g.players} no jogo. Toque para entrar.`; }, () => { const b = $('#gamesBtn'); if (b) b.hidden = true; });
   updateNowPlaying();
   drawTimer();
@@ -2714,6 +2772,10 @@ async function renderSettings() {
       ${toggle('sound', p.sound, 'Som ao tocar', 'Um clique curto em cada tecla')}
       ${toggle('liveTyping', store.get('liveTyping', false), 'Teclado: digitar ao vivo por padrão')}
       <label class="slider-row">Sensibilidade do touchpad<input type="range" id="setSens" min="0.6" max="4" step="0.1" value="${S.sensitivity}"></label></div>
+    <div class="card"><h2>Atualizações</h2>
+      <p class="sub">A TV e o app procuram versões novas no GitHub sozinhos. Atualizar não precisa de computador nem ADB: confirme a instalação na tela (na TV, com o controle).</p>
+      <div id="updBox"><p class="sub">Verificando…</p></div>
+      <button class="btn small" id="updCheck" style="margin-top:10px">Verificar agora</button></div>
     ${!NATIVE && !STANDALONE && (PWA.ios || PWA.android) && !PWA.installed() ? `<div class="card"><h2>Instalar no celular</h2>
       <p class="sub">Coloque o TV Drop na tela de início: abre em tela cheia e fica conectado à sua TV.</p>
       <button class="btn primary" id="setPwa" style="margin-top:8px">${icon('grid')}Como instalar</button></div>` : ''}
@@ -2744,6 +2806,8 @@ async function renderSettings() {
   if ($('#setQr')) $('#setQr').onclick = () => NATIVE.scanQr();
   if ($('#setSwitch')) $('#setSwitch').onclick = showConnect;
   if ($('#setPwa')) $('#setPwa').onclick = () => pwaOffer(true);
+  loadUpdates().then(drawUpdates);
+  $('#updCheck').onclick = async () => { try { await api('/api/v2/update/check', { method: 'POST' }); } catch (e) { /* TV without updates */ } await nativeUpdate('check'); toast('Procurando versão nova…'); pollUpdates(); };
   if ($('#setTmdb')) $('#setTmdb').onclick = () => { store.del('tmdbKey'); renderSettings(); };
   if ($('#setOs')) $('#setOs').onclick = () => { store.del('osKey'); renderSettings(); };
   try {
@@ -2904,6 +2968,8 @@ async function start() {
   go(store.get('view', 'home'));
   refreshStatus();
   S.started = true;
+  loadUpdates().then(() => { if (S.view === 'home') renderHome(); });
+  setTimeout(() => loadUpdates().then(() => { if (S.view === 'home' && ((S.upTv && S.upTv.available) || (S.upApp && S.upApp.available))) renderHome(); }), 9000);
   if (PWA.installed()) pwaKeep(); else setTimeout(() => pwaOffer(), 1500);
   if (S.pendingOpen) { const o = S.pendingOpen; S.pendingOpen = null; window.tvdropOpen(o[0], o[1]); }
 }

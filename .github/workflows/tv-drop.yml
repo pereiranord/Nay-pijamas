@@ -79,6 +79,10 @@ jobs:
       - name: Release notes
         run: bash tv-drop/tools/release_notes.sh "2.12.${{ github.run_number }}" tv-drop/build > tv-drop/build/RELEASE_NOTES.md
 
+      # what the installed apps read to update themselves (Updater.java)
+      - name: update.json
+        run: python3 tv-drop/tools/update_json.py "2.12.${{ github.run_number }}" "${{ github.run_number }}" "tv-drop-v2.12.${{ github.run_number }}" "pereiranord/Nay-pijamas" tv-drop/build
+
       - name: Remove the signing key from the runner
         if: always()
         run: rm -f "$RUNNER_TEMP/tvdrop-signing.jks"
@@ -96,4 +100,5 @@ jobs:
             tv-drop/build/TV-Drop-Celular.apk
             tv-drop/build/SHA256SUMS.txt
             tv-drop/build/SIGNING.txt
+            tv-drop/build/update.json
             tv-drop/build/index.html

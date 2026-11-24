@@ -558,3 +558,11 @@ main { padding-left: calc(16px + var(--safe-l)); padding-right: calc(16px + var(
 .pwa-acts .btn { flex: 1; }
 .pwa-arrow { width: 0; height: 0; border-left: 12px solid transparent; border-right: 12px solid transparent; border-top: 14px solid #1f2328; margin-top: -1px; }
 .pwa-sheet.top .pwa-arrow { border-top: 0; border-bottom: 14px solid #1f2328; margin: 0 0 -1px; align-self: flex-end; margin-right: 18%; }
+
+/* ---------- updates ---------- */
+.upd-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line, rgba(255,255,255,.08)); }
+.upd-row:first-child { border-top: 0; }
+.upd-row > div { flex: 1; min-width: 0; }
+.upd-row b { display: block; }
+.upd-row small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.upd-notice { width: 100%; text-align: left; font: inherit; color: var(--text); background: rgba(61,220,132,.1); cursor: pointer; border: 1px solid rgba(61,220,132,.35); }

@@ -23,13 +23,17 @@ public class InstallReceiver extends BroadcastReceiver {
                     Events.add("Confirme a instalação na TV: " + name);
                 } catch (Exception e) {
                     Events.add("Não consegui abrir a confirmação (" + e.getMessage() + "). Abra o TV Drop e tente de novo.");
+                    if (AppUpdates.isOurs(name)) AppUpdates.result(false, "Não consegui abrir a confirmação. Abra o TV Drop e tente de novo.");
                 }
             }
         } else if (status == PackageInstaller.STATUS_SUCCESS) {
             Events.add("Instalado com sucesso: " + name);
+            if (AppUpdates.isOurs(name)) AppUpdates.result(true, null);
         } else {
             String msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE);
             Events.add("Falha ao instalar " + name + ": " + msg);
+            if (AppUpdates.isOurs(name)) AppUpdates.result(false, status == PackageInstaller.STATUS_FAILURE_ABORTED
+                    ? "Instalação cancelada." : "A instalação falhou: " + msg);
         }
     }
 }

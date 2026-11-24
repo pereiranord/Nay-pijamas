@@ -20,6 +20,17 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 10 — Investigação dos Impostores | ⏭️ Próximo (depois de os jogos 4–9b serem jogados na TV de verdade) |
 | 11 — Testes e acabamento | Pendente |
 
+## Atualização dentro do app (24/11/2026)
+
+- **Como funciona**: a TV e o app do celular consultam a release mais nova do Nay-pijamas (`releases/latest/download/update.json`) ao abrir e a cada 12 h. O `update.json` é gerado no CI por `tools/update_json.py` e traz a versão e, para cada APK (`tv`, `celular`), o endereço, o tamanho e o SHA-256.
+- **Instalação**: o app baixa o APK do seu tipo, confere tamanho e SHA-256, recusa endereços fora do GitHub e entrega ao instalador do Android, que exige o OK na tela e a mesma assinatura.
+- **Onde aparece**:
+  - na tela da TV, cartão "Atualização";
+  - no celular, aviso no Início e "Ajustes → Atualizações", para o app do celular e para a TV;
+  - pela API: `/api/v2/update`, `/update/check`, `/update/install`. O celular pede, a TV baixa, e o OK é dado com o controle.
+- **Permissões**: o APK do celular voltou a ter `REQUEST_INSTALL_PACKAGES`, só para se atualizar. Continua sem acessibilidade e sem leitor de notificações.
+- **Testes**: `UpdaterTest` (6) e `UpdateApiTest` (3), com um GitHub simulado; prints das telas com `TVDROP_DEV_UPDATE=1`. Falta verificar num aparelho real o instalador do Android aceitando a atualização; o fluxo é o mesmo já usado para instalar APKs recebidos.
+
 ## Site, PWA e código do Google sem abrir o TV Drop (24/11/2026)
 
 - **PWA**: a página que a TV serve vira app no celular. Tem manifesto, ícones (incluindo o "maskable" e o `apple-touch-icon`) e as tags de tela cheia do iPhone.

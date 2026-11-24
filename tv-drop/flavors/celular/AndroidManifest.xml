@@ -7,9 +7,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- TV only: installing and uninstalling apps sent to the TV, opening apps over others, storage per app,
-         starting the receiver when the TV turns on -->
-    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" tools:node="remove" />
+    <!-- TV only: uninstalling apps, opening apps over others, storage per app, starting the receiver when the TV
+         turns on. REQUEST_INSTALL_PACKAGES stays: the phone app installs its own updates (Android asks to confirm). -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" tools:node="remove" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" tools:node="remove" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:node="remove" />
@@ -19,6 +18,5 @@
         <service android:name=".TvDropAccessibility" tools:node="remove" />
         <service android:name=".MediaListener" tools:node="remove" />
         <receiver android:name=".BootReceiver" tools:node="remove" />
-        <receiver android:name=".InstallReceiver" tools:node="remove" />
     </application>
 </manifest>

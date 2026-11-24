@@ -76,6 +76,7 @@ public class ServerService extends Service {
             }
         }
         if (server != null) advertise(server.port());
+        AppUpdates.schedule(this); // new versions on GitHub: offered on the TV screen and to the phones
         if (getPackageManager().hasSystemFeature("android.software.leanback")) {
             mirror = new MirrorServer(this, pairing(this));
             if (mirror.open()) mirror.start();

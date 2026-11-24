@@ -85,6 +85,16 @@ No celular também: **widget** na tela inicial (play/pausa, volume, mudo), **con
 
 O app do celular abre direto na interface nova (a mesma do `index.html`, embutida no APK): ele procura as TVs na rede, conecta na última usada e pede o PIN só na primeira vez. A tela antiga continua em **Dispositivos → Modo clássico do app**.
 
+### Atualizar (sem ADB)
+
+A TV e o app do celular procuram versões novas no GitHub sozinhos: ao abrir e a cada 12 horas.
+
+- **Na TV**: tela do TV Drop → **Atualização → Atualizar para X**. O Android abre a tela de instalação; aperte **OK** no controle.
+- **Pelo celular**: aparece um aviso no **Início**. Em **Ajustes → Atualizações**, toque em **Atualizar a TV**: a TV baixa sozinha e só pede o OK no controle.
+- **App do celular**: **Ajustes → Atualizações → Atualizar o app**, e confirme no celular. Na primeira vez o Android pede para permitir que o TV Drop instale apps.
+- **Segurança**: a TV baixa o `TV-Drop.apk` e o celular o `TV-Drop-Celular.apk`, sempre da release mais nova deste repositório (`update.json`). O SHA-256 é conferido antes de instalar, e o Android recusa qualquer APK que não tenha a mesma assinatura do TV Drop instalado.
+- **Ainda precisa de ADB**: só a primeira instalação na TV. Depois disso, as atualizações dispensam o ADB.
+
 ## 3. Conectar e usar
 
 1. Abra o **TV Drop** na TV (ele também liga sozinho quando a TV liga).

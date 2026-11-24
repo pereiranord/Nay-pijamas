@@ -105,6 +105,7 @@ final class ApiV2 {
             if (get && "/apps".equals(p)) { Http.json(out, 200, apps()); return; }
             if (get && "/apps/icon".equals(p)) { icon(r); return; }
             if (get && "/devices".equals(p)) { Http.json(out, 200, devices(r)); return; }
+            if (p.equals("/update") || p.startsWith("/update/")) { update(r, p, get, post); return; }
             if (get && "/ping".equals(p)) {
                 Http.json(out, 200, new JSONObject().put("ok", true).put("t", System.currentTimeMillis()));
                 return;
@@ -567,6 +568,29 @@ final class ApiV2 {
             hub.close();
             host.closeGames();
             Http.ok(r.out, "Jogos encerrados");
+            return;
+        }
+        Http.error(r.out, 404, "not_found", "Rota não encontrada");
+    }
+
+    // ---- updating TV Drop itself (GitHub releases) ----
+
+    /**
+     *   GET  /api/v2/update            {current, latest?, available?, state, progress, message?}
+     *   POST /api/v2/update/check      looks at GitHub now
+     *   POST /api/v2/update/install    downloads the TV's APK, checks its SHA-256 and opens Android's installer on the
+     *                                  TV (someone presses OK with the remote: Android always asks)
+     */
+    private void update(Http.Request r, String p, boolean get, boolean post) throws IOException, JSONException {
+        Updater u = host.updater();
+        if (u == null) { Http.error(r.out, 404, "not_supported", "Atualização automática indisponível aqui"); return; }
+        if (get && "/update".equals(p)) { Http.json(r.out, 200, u.status().put("ok", true)); return; }
+        if (post && "/update/check".equals(p)) { u.checkAsync(); Http.json(r.out, 200, u.status().put("ok", true)); return; }
+        if (post && "/update/install".equals(p)) {
+            if (!u.available()) { Http.error(r.out, 409, "no_update", "A TV já está na versão mais nova (ou ainda não verificou)."); return; }
+            u.installAsync();
+            Events.add("Atualização do TV Drop pedida por um celular: confirme na TV");
+            Http.json(r.out, 200, u.status().put("ok", true).put("message", "Baixando na TV. Depois confirme a instalação na TV, com o controle."));
             return;
         }
         Http.error(r.out, 404, "not_found", "Rota não encontrada");

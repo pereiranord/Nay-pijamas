@@ -47,7 +47,9 @@ public class MainActivity extends Activity {
     private ImageView qr;
     private LinearLayout pinBox;
     private LinearLayout filesBox, permButtons, devicesBox;
-    private Button legacyButton;
+    private Button legacyButton, updateButton;
+    private TextView updateText;
+    private LinearLayout updateCard;
     private String lastFiles = "", lastDevices = "", lastQr = "";
     private Pairing pairing;
 
@@ -124,6 +126,19 @@ public class MainActivity extends Activity {
         LinearLayout right = column();
         right.setPadding(28, 40, 56, 40);
 
+        // a new version on GitHub: one press here (then OK on Android's screen); no computer, no adb
+        updateCard = card();
+        updateCard.addView(text("Atualização", 20, TEXT));
+        updateText = text("", 15, MUTED);
+        updateCard.addView(updateText);
+        updateButton = button("Atualizar agora", v -> {
+            Updater u = AppUpdates.get(this);
+            if (u.available()) u.installAsync();
+            else u.checkAsync();
+        });
+        updateCard.addView(updateButton);
+        right.addView(updateCard);
+
         LinearLayout devicesCard = card();
         devicesCard.addView(text("Aparelhos pareados", 20, TEXT));
         devicesBox = column();
@@ -197,6 +212,8 @@ public class MainActivity extends Activity {
         } else {
             address.setText("Iniciando o servidor…");
         }
+
+        drawUpdate();
 
         // remote status
         TvDropAccessibility acc = TvDropAccessibility.get();
@@ -334,6 +351,24 @@ public class MainActivity extends Activity {
     }
 
     // ---- tiny view helpers ----
+
+    private void drawUpdate() {
+        org.json.JSONObject u = AppUpdates.get(this).status();
+        String state = u.optString("state"), latest = u.optString("latest", ""), current = u.optString("current", "?");
+        boolean available = u.optBoolean("available");
+        String text;
+        switch (state) {
+            case "checking": text = "Procurando versão nova no GitHub…"; break;
+            case "downloading": text = "Baixando a versão " + latest + "… " + u.optInt("progress") + "%"; break;
+            case "installing": text = "Confirme a instalação na tela que o Android abriu (OK no controle)."; break;
+            case "error": text = u.optString("message", "Erro") + (available ? "" : " Tente de novo mais tarde."); break;
+            default: text = available ? "Nova versão " + latest + " disponível (esta é a " + current + ")."
+                    : latest.isEmpty() ? "Versão " + current + "." : "Versão " + current + ": a mais nova.";
+        }
+        updateText.setText(text);
+        updateButton.setText(available ? "Atualizar para " + latest : "Procurar versão nova");
+        updateButton.setEnabled(!"downloading".equals(state) && !"installing".equals(state) && !"checking".equals(state));
+    }
 
     private LinearLayout column() {
         LinearLayout l = new LinearLayout(this);

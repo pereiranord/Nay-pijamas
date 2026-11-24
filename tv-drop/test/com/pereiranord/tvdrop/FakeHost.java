@@ -32,6 +32,8 @@ class FakeHost implements TvHost {
     @Override public int sdk() { return 31; }
     @Override public String androidRelease() { return "12"; }
     @Override public String appVersion() { return "2.0-test"; }
+    Updater updater; // set by tests that exercise /api/v2/update
+    @Override public Updater updater() { return updater; }
 
     final java.util.Map<String, byte[]> assets = new java.util.HashMap<>();
 

@@ -48,6 +48,11 @@ final class AndroidTvHost implements TvHost {
     @Override public String androidRelease() { return Build.VERSION.RELEASE; }
 
     @Override
+    public Updater updater() {
+        return AppUpdates.get(ctx);
+    }
+
+    @Override
     public String appVersion() {
         try {
             return ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName;

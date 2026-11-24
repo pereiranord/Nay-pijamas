@@ -18,6 +18,11 @@ public interface TvHost {
     int sdk();
     String androidRelease();
     String appVersion();
+
+    /** TV Drop updating itself from GitHub (null where it can't, e.g. tests). */
+    default Updater updater() {
+        return null;
+    }
     /** Bytes of a bundled web file (assets/web/...), or null if there is none. */
     byte[] webAsset(String name) throws IOException;
 
