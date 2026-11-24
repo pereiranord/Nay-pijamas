@@ -87,11 +87,17 @@ O app do celular abre direto na interface nova (a mesma do `index.html`, embutid
 
 ## 3. Conectar e usar
 
-1. Abra o **TV Drop** na TV. Ela mostra um **QR Code**, um **PIN de 6 números** (muda a cada 2 minutos), o endereço `http://…:8080` e o código de endereço (ex.: `1G58-28FG`).
-2. **No app do celular**: ele encontra a TV sozinho (ou use o código de endereço) e pede o PIN **só na primeira vez**.
-   **No navegador**: aponte a câmera para o QR Code, ou abra o endereço e digite o PIN.
-3. No app, **Controle remoto, apps e mais** abre a nova interface. **Transmitir vídeo do celular** e **Compartilhar → TV Drop** continuam funcionando como antes.
-4. Para o controle completo (todas as teclas, Liga/Desliga e teclado), abra **Dispositivos → Parear controle** e digite o código que a TV mostrar. É o mesmo pareamento do app oficial "Google TV", feito uma vez só.
+1. Abra o **TV Drop** na TV (ele também liga sozinho quando a TV liga).
+2. **No app do celular** (ele encontra a TV sozinho) ou **no navegador** (`http://IP_DA_TV:8080`), toque em **Conectar**.
+3. A TV mostra o **código do Google** (o mesmo do app oficial "Google TV"): **6 caracteres**, números e letras de A a F. Digite no celular.
+4. Pronto: **só esse código, uma vez**. O aparelho fica salvo, e o TV Drop ganha o controle completo da TV (todas as teclas, Liga/Desliga, teclado).
+   - **Sem atalho para digitar**: aponte a câmera para o QR Code da tela do TV Drop.
+   - **TV sem o código do Google** (aparelhos sem o "Android TV Remote Service"): o app avisa e a tela do TV Drop mostra um código de 6 números só nesse caso.
+
+**Validade**:
+- O código do Google vale só enquanto aparece na tela. Se errar, a TV mostra outro.
+- Depois de aceito, **não expira**: o aparelho continua conectado até ser removido em **Dispositivos**, até a TV ser restaurada de fábrica ou até os dados do serviço de controle remoto da TV serem apagados.
+- Opcional: o **"Controle direto pelo celular"** (em Dispositivos) faz o celular ligar a TV em standby sem passar pelo TV Drop. Ele é um segundo pareamento com o Google, feito só se você quiser.
 
 A página antiga continua em `http://IP_DA_TV:8080/classic.html`.
 

@@ -29,7 +29,7 @@ import java.util.Set;
  *   POST /api/control?cmd=    toggle | stop | fwd | back | seek&ms= | external | volup | voldown | mute
  *
  * TV Drop 2.0 routes live under /api/v2 (see ApiV2). Every /api route except
- * /api/hello, /api/v2/info and /api/v2/pair needs a paired device's token, unless
+ * /api/hello, /api/v2/info and /api/v2/pair (+ /pair/start, /pair/pin) needs a paired device's token, unless
  * "legacyOpen" is on, which lets 1.0 apps use the 1.0 routes without pairing.
  */
 public class HttpServer extends Thread {
@@ -37,6 +37,7 @@ public class HttpServer extends Thread {
     static final Set<String> LEGACY = new HashSet<>(Arrays.asList(
             "/api/status", "/api/upload", "/api/play", "/api/install", "/api/delete", "/api/control"));
     static final Set<String> OPEN = new HashSet<>(Arrays.asList("/api/hello", "/api/v2/info", "/api/v2/pair",
+            "/api/v2/pair/start", "/api/v2/pair/pin",
             "/api/v2/games/ws", "/api/v2/games/qr")); // game guests join with the room code, not with pairing
 
     private final TvHost host;

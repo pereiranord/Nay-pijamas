@@ -13,15 +13,25 @@ import java.util.Locale;
 import java.util.function.LongSupplier;
 
 /**
- * Who may control this TV. A phone or browser proves it is in the room by typing
- * the 6-digit PIN shown on the TV (or scanning the QR code, which carries the
- * same short-lived PIN). It then gets a random token that it sends with every
- * request. Only a hash of each token is stored. PINs rotate every 2 minutes and
- * after 5 wrong tries, so guessing is not practical.
+ * Who may control this TV. A phone or browser proves it is in the room once, then gets a random token that it
+ * sends with every request; the device stays saved (tokens don't expire) until it is removed in Dispositivos.
+ * Only a hash of each token is stored.
+ *
+ * Ways to prove it, in order of preference:
+ *  - the code Google's "Android TV Remote Service" shows on the TV (6 characters, 0-9 and A-F). TV Drop asks the
+ *    service for a pairing, the person types the code on the phone, and the TV itself checks it. One code does
+ *    everything: the device is saved and TV Drop gets full remote control of the TV (see ApiV2 /pair/start).
+ *    A wrong code ends that pairing (the next try shows a new code on the TV), and starts are rate limited.
+ *  - the QR code on TV Drop's screen (carries a short-lived PIN, nothing to type);
+ *  - TV Drop's own 6-digit PIN, only for TVs without Google's service. It is shown on the TV only when a phone
+ *    asks for it. PINs rotate every 2 minutes and after 5 wrong tries.
  */
 public class Pairing {
     public static final long PIN_TTL_MS = 120_000;
     static final int MAX_FAILURES = 5;
+    /** How long the TV keeps a Google pairing open, and how often/many times one may be started. */
+    static final long REMOTE_SESSION_MS = 10 * 60_000, REMOTE_MIN_GAP_MS = 3_000, REMOTE_WINDOW_MS = 60 * 60_000;
+    static final int REMOTE_MAX_PER_WINDOW = 30;
     private static final String K_DEVICES = "pair.devices";
     private static final String K_LEGACY = "pair.legacyOpen";
 
@@ -74,6 +84,10 @@ public class Pairing {
     private String pin;
     private long pinExpires;
     private int failures;
+    private long pinShownUntil;
+    private String remoteSession;
+    private long remoteStarted;
+    private final java.util.ArrayDeque<Long> remoteStarts = new java.util.ArrayDeque<>();
 
     public Pairing(KeyValueStore store) {
         this(store, System::currentTimeMillis, new SecureRandom());
@@ -104,6 +118,53 @@ public class Pairing {
         failures = 0;
     }
 
+    /** A phone without Google's code asks to see the PIN: the TV shows it (fresh) for the next 2 minutes. */
+    public synchronized void showPin() {
+        rotate();
+        pinShownUntil = pinExpires;
+    }
+
+    /** Whether TV Drop's screen should show the PIN now (only after a phone asked for it). */
+    public synchronized boolean pinVisible() {
+        return clock.getAsLong() < pinShownUntil;
+    }
+
+    // ---- pairing with Google's code ----
+
+    /** Opens a pairing with the code Google's service shows on the TV. Returns the session id the phone sends back. */
+    public synchronized String beginRemote() throws Refused {
+        long now = clock.getAsLong();
+        while (!remoteStarts.isEmpty() && now - remoteStarts.peekFirst() > REMOTE_WINDOW_MS) remoteStarts.pollFirst();
+        if (!remoteStarts.isEmpty() && now - remoteStarts.peekLast() < REMOTE_MIN_GAP_MS) {
+            throw new Refused("Aguarde alguns segundos e toque em Conectar de novo.");
+        }
+        if (remoteStarts.size() >= REMOTE_MAX_PER_WINDOW) {
+            throw new Refused("Muitas tentativas de conexão. Espere um pouco antes de tentar de novo.");
+        }
+        remoteStarts.addLast(now);
+        byte[] raw = new byte[12];
+        random.nextBytes(raw);
+        remoteSession = hex(raw);
+        remoteStarted = now;
+        return remoteSession;
+    }
+
+    /** True when {@code id} is the pairing opened last and it hasn't expired. It can be used once. */
+    public synchronized boolean takeRemote(String id) {
+        boolean ok = id != null && constantTimeEquals(id, remoteSession) && clock.getAsLong() - remoteStarted < REMOTE_SESSION_MS;
+        if (ok) remoteSession = null;
+        return ok;
+    }
+
+    public synchronized void endRemote() {
+        remoteSession = null;
+    }
+
+    /** Saves a device that proved it is in the room (Google's code accepted by the TV) and gives it its token. */
+    public synchronized Result issue(String deviceName) {
+        return newDevice(deviceName);
+    }
+
     /** Exchanges the PIN shown on the TV for a token. */
     public synchronized Result pair(String typedPin, String deviceName) throws Refused {
         String current = pin();
@@ -116,6 +177,13 @@ public class Pairing {
             }
             throw new Refused("Código incorreto. Confira o código de 6 números na tela da TV.");
         }
+        Result res = newDevice(deviceName);
+        pinShownUntil = 0;
+        rotate(); // a PIN works once
+        return res;
+    }
+
+    private Result newDevice(String deviceName) {
         byte[] raw = new byte[32];
         random.nextBytes(raw);
         String token = hex(raw);
@@ -125,7 +193,6 @@ public class Pairing {
         Device d = new Device(hash.substring(0, 10), name, hash, now, now);
         devices.add(d);
         save();
-        rotate(); // a PIN works once
         return new Result(token, d);
     }
 

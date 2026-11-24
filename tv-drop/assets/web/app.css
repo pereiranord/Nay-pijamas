@@ -98,7 +98,7 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 .pair .box { width: 100%; max-width: 420px; text-align: center; }
 .pair .logo { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 20px; background: var(--surface); display: grid; place-items: center; color: var(--green); }
 .pair .logo svg { width: 32px; height: 32px; }
-.pin { width: 100%; text-align: center; font-size: 34px; letter-spacing: .35em; font-weight: 700; padding-left: .35em; min-height: 72px; }
+.pin { width: 100%; text-align: center; font-size: 34px; letter-spacing: .35em; font-weight: 700; padding-left: .35em; min-height: 72px; text-transform: uppercase; }
 
 /* ---------- home ---------- */
 .quick { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px; }

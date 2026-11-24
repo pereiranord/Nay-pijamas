@@ -20,6 +20,15 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 10 — Investigação dos Impostores | ⏭️ Próximo (depois de os jogos 4–9b serem jogados na TV de verdade) |
 | 11 — Testes e acabamento | Pendente |
 
+## Conexão com um código só (24/11/2026)
+
+- Antes eram dois códigos: o PIN do TV Drop (para o celular entrar) e depois o código do Google (para o controle completo).
+- Agora, ao tocar em **Conectar** (app ou navegador), o TV Drop pede ao serviço de controle do Google da TV um pareamento. A TV mostra o código do Google, a pessoa digita e **a própria TV confere**. Se a TV aceitar, o aparelho fica salvo (token sem validade) e o TV Drop fica pareado com o controle da TV no mesmo passo.
+- Segurança: código errado encerra a sessão (a TV mostra outro); no máximo um pedido a cada 3 s e 30 por hora; sessão de uso único, válida por 10 min. O código do Google só vale enquanto está na tela; depois de aceito, o pareamento não expira.
+- O PIN do TV Drop virou reserva para TVs sem o serviço do Google: escondido, aparece na tela do TV Drop só quando um aparelho pede. O QR Code continua conectando sem digitar.
+- O "Controle direto pelo celular" (ligar a TV em standby) continua sendo um pareamento opcional à parte.
+- Testes: `GoogleCodePairingTest` (7 casos) e `tools/qa/check-pairing.js` (8 verificações no navegador); suíte completa e verificações antigas verdes. Não testado em TV real: o caminho depende do serviço "Android TV Remote Service" da TV aceitar o pareamento, o mesmo que já era usado em "Parear controle".
+
 ## Módulo prioritário — Google Play Protect (17/11/2026)
 
 - **Causa confirmada**: o APK único declarava serviço de acessibilidade e leitor de notificações; o Play Protect bloqueia automaticamente a instalação, a partir de downloads da internet, de qualquer app com um deles (regra documentada, não detecção de malware). No celular o APK é baixado; na TV vai por ADB, por isso "só em alguns aparelhos".

@@ -175,7 +175,7 @@ async function api(path, { method = 'GET', json, body, timeout = 10000 } = {}) {
   setOnline(true);
   let data = {};
   try { data = await r.json(); } catch (e) { /* not JSON */ }
-  if (r.status === 401) { showPairing('Este aparelho não está mais autorizado. Conecte de novo com o código da TV.'); throw new ApiError(data.message || 'Não autorizado', 401, 'unauthorized'); }
+  if (r.status === 401) { showPairing('Este aparelho não está mais autorizado. Toque em Conectar de novo.'); throw new ApiError(data.message || 'Não autorizado', 401, 'unauthorized'); }
   if (!r.ok || data.ok === false) throw new ApiError(data.message || ('Erro ' + r.status), r.status, data.error);
   return data;
 }
@@ -198,27 +198,74 @@ function deviceName() {
   return 'Navegador';
 }
 
+// Connecting needs one code: the one Google's remote service shows on the TV (6 characters, 0-9 and A-F).
+// TV Drop asks the TV to show it; the TV itself checks it; this device is then saved for good.
+// TVs without Google's service fall back to TV Drop's own 6-digit PIN, shown on the TV only when asked for.
+// The QR code on the TV connects without typing anything (it carries a short-lived PIN).
+const PAIR = { mode: 'google', session: null };
+
+function pairStep(mode, hint) {
+  PAIR.mode = mode;
+  const form = $('#pairForm'), input = $('#pinInput');
+  $('#pairStart').hidden = mode !== 'start';
+  form.hidden = mode === 'start';
+  $('#pairHint').textContent = hint;
+  if (mode === 'google') { input.setAttribute('inputmode', 'text'); input.placeholder = 'A1B2C3'; input.maxLength = 6; }
+  if (mode === 'pin') { input.setAttribute('inputmode', 'numeric'); input.placeholder = '000000'; input.maxLength = 7; }
+  $('#pairAgain').hidden = mode !== 'google';
+  input.value = '';
+  if (mode !== 'start') setTimeout(() => input.focus(), 50);
+}
+
+function pairMsg(text, err) {
+  $('#pairMsg').textContent = text || '';
+  $('#pairMsg').className = 'msg' + (text && err ? ' err' : '');
+}
+
 function showPairing(message) {
   saveToken('');
   wsClose();
   $('#appView').hidden = true;
   $('#pairView').hidden = false;
-  $('#pairMsg').textContent = message || '';
-  $('#pairMsg').className = 'msg' + (message ? ' err' : '');
-  setTimeout(() => $('#pinInput').focus(), 50);
+  pairStep('start', 'Toque em Conectar. A TV vai mostrar um código do Google com 6 caracteres. É só uma vez: este aparelho fica salvo.');
+  pairMsg(message, true);
 }
 
-async function doPair(pin) {
-  $('#pairBtn').disabled = true;
+/** Asks the TV to show Google's code (or, on TVs without it, TV Drop's PIN). */
+async function pairStart(note, retried) {
+  $('#pairStart').disabled = true; $('#pairAgain').disabled = true;
+  pairMsg('');
   try {
-    const r = await api('/api/v2/pair', { method: 'POST', json: { pin, name: deviceName() } });
+    const r = await api('/api/v2/pair/start', { method: 'POST', json: { name: deviceName() }, timeout: 20000 });
+    PAIR.session = r.session;
+    pairStep('google', 'Digite o código de 6 caracteres que apareceu na TV (números e letras de A a F).');
+    if (note) pairMsg(note, true);
+  } catch (e) {
+    if (e.code === 'no_google_code') {
+      try { await api('/api/v2/pair/pin', { method: 'POST', json: {} }); } catch (e2) { /* the PIN screen still explains */ }
+      pairStep('pin', 'Esta TV não tem o código do Google. Abra o app TV Drop na TV: ele está mostrando um código de 6 números. Digite-o aqui.');
+    } else if (e.code === 'slow_down' && !retried) { // the TV takes a new pairing every few seconds
+      pairMsg(note || 'Pedindo um código novo para a TV…', !!note);
+      setTimeout(() => pairStart(note, true), 3200);
+      return;
+    } else pairMsg(e.message, true);
+  } finally { $('#pairStart').disabled = false; $('#pairAgain').disabled = false; }
+}
+
+async function doPair(value) {
+  $('#pairBtn').disabled = true;
+  const google = PAIR.mode === 'google';
+  const json = google ? { session: PAIR.session, code: String(value).trim().toUpperCase(), name: deviceName() } : { pin: value, name: deviceName() };
+  try {
+    const r = await api('/api/v2/pair', { method: 'POST', json, timeout: 20000 });
     saveToken(r.token);
     $('#pairView').hidden = true;
     await start();
-    toast('Conectado à TV');
+    toast('Conectado à TV. Este aparelho fica salvo.');
   } catch (e) {
-    $('#pairMsg').textContent = e.message;
-    $('#pairMsg').className = 'msg err';
+    // a wrong Google code ends that pairing: the TV shows a new code
+    if (google && (e.code === 'bad_code' || e.code === 'expired')) { pairStart(e.message); return; }
+    pairMsg(e.message, true);
   } finally { $('#pairBtn').disabled = false; }
 }
 
@@ -2146,7 +2193,7 @@ async function doConnect(input) {
     store.set('base', BASE);
     $('#connectView').hidden = true;
     S.connecting = false;
-    if (S.qrPin) { const pin = S.qrPin; S.qrPin = null; saveToken(''); $('#pairView').hidden = false; $('#pinInput').value = pin; doPair(pin); return; }
+    if (S.qrPin) { const pin = S.qrPin; S.qrPin = null; saveToken(''); $('#pairView').hidden = false; pairStep('pin', 'Conectando pelo QR Code…'); $('#pinInput').value = pin; doPair(pin); return; }
     if (S.token) start(); else showPairing();
   } catch (e) {
     S.connecting = false;
@@ -2163,12 +2210,14 @@ function boot() {
   if (STANDALONE) $('#pairSwitch').hidden = false;
   $$('.nav button').forEach((b) => b.onclick = () => go(b.dataset.view));
   $('#pairForm').onsubmit = (e) => { e.preventDefault(); doPair($('#pinInput').value); };
+  $('#pairStart').onclick = () => pairStart();
+  $('#pairAgain').onclick = () => pairStart();
   // Token handed over by the Android app: #token=...
   const hash = new URLSearchParams(location.hash.slice(1));
   if (hash.get('token')) { saveToken(hash.get('token')); history.replaceState(null, '', location.pathname); }
   // QR code from the TV: /?pair=123456
   const pin = new URLSearchParams(location.search).get('pair');
-  if (pin) { history.replaceState(null, '', location.pathname); if (!S.token) { $('#pairView').hidden = false; $('#pinInput').value = pin; doPair(pin); return; } }
+  if (pin) { history.replaceState(null, '', location.pathname); if (!S.token) { $('#pairView').hidden = false; pairStep('pin', 'Conectando pelo QR Code…'); $('#pinInput').value = pin; doPair(pin); return; } }
   if (STANDALONE && !BASE) { showConnect(); return; }
   if (!S.token) { showPairing(); return; }
   start();

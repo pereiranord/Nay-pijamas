@@ -34,7 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * TV screen: QR code + PIN to pair a phone, paired devices, what the remote can
+ * TV screen: how to connect (Google's code, QR code; PIN only when a phone asks), paired devices, what the remote can
  * do, permissions, received files and a log.
  */
 public class MainActivity extends Activity {
@@ -45,6 +45,7 @@ public class MainActivity extends Activity {
     private TextView pinView, pinTimer, address, codeView, status, perms, log, storage;
     private long lastStorage;
     private ImageView qr;
+    private LinearLayout pinBox;
     private LinearLayout filesBox, permButtons, devicesBox;
     private Button legacyButton;
     private String lastFiles = "", lastDevices = "", lastQr = "";
@@ -73,15 +74,16 @@ public class MainActivity extends Activity {
 
         LinearLayout connect = card();
         connect.addView(text("Conectar um celular", 20, TEXT));
-        connect.addView(text("Aponte a câmera do celular para o QR Code, ou abra o app TV Drop e digite o código:", 15, MUTED));
+        connect.addView(text("No celular, abra o app TV Drop (ou o navegador no endereço abaixo) e toque em Conectar: a TV mostra um código do Google. É só uma vez, o aparelho fica salvo. Ou aponte a câmera para o QR Code.", 15, MUTED));
         LinearLayout qrRow = new LinearLayout(this);
         qrRow.setOrientation(LinearLayout.HORIZONTAL);
         qrRow.setGravity(Gravity.CENTER_VERTICAL);
         qrRow.setPadding(0, 16, 0, 8);
         qr = new ImageView(this);
         qrRow.addView(qr, new LinearLayout.LayoutParams(220, 220));
-        LinearLayout pinBox = column();
+        pinBox = column();
         pinBox.setPadding(32, 0, 0, 0);
+        pinBox.addView(text("Código do TV Drop, pedido por um celular:", 14, MUTED));
         pinView = text("------", 52, GREEN);
         pinView.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         pinView.setLetterSpacing(0.08f);
@@ -179,8 +181,10 @@ public class MainActivity extends Activity {
         String ip = Actions.ip();
         String pin = pairing.pin();
         long left = Math.max(0, (pairing.pinExpiresAt() - System.currentTimeMillis()) / 1000);
+        // TV Drop's own PIN is only for TVs without Google's code: it shows up when a phone asks for it
+        pinBox.setVisibility(pairing.pinVisible() ? View.VISIBLE : View.GONE);
         pinView.setText(pin.substring(0, 3) + " " + pin.substring(3));
-        pinTimer.setText("Código novo em " + left + " s");
+        pinTimer.setText("Vale por " + left + " s");
         if (port != 0) {
             String url = "http://" + ip + ":" + port + "/?pair=" + pin;
             if (!url.equals(lastQr)) {

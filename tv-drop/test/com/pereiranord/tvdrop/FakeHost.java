@@ -192,7 +192,9 @@ class FakeHost implements TvHost {
             return null;
         }
 
-        @Override public String pairStart() { return null; }
+        String pairStartError; // set to simulate a TV without Google's remote service
+        int pairStarts;
+        @Override public String pairStart() { pairStarts++; return pairStartError; }
 
         @Override
         public String pairFinish(String code) {

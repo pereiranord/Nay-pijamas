@@ -4,7 +4,7 @@ Base: `http://<IP da TV>:8080` (ou a próxima porta livre até 8089). Respostas 
 
 **CORS:** todas as respostas levam `Access-Control-Allow-Origin: *` (e `Allow-Private-Network`), e `OPTIONS` responde `204`. É o que permite usar o `index.html` independente. Continua seguro porque toda rota que faz algo exige o token. A opção "apps antigos sem pareamento" nunca vale para pedidos com `Origin` de outra página.
 
-**Autenticação:** toda rota `/api/*` exige o token de um aparelho pareado, exceto `GET /api/hello`, `GET /api/v2/info` e `POST /api/v2/pair`. O token vai em `X-TVDrop-Token: <token>`, em `Authorization: Bearer <token>` ou em `?token=<token>`. Sem token: `401 unauthorized`.
+**Autenticação:** toda rota `/api/*` exige o token de um aparelho pareado, exceto `GET /api/hello`, `GET /api/v2/info`, `POST /api/v2/pair`, `POST /api/v2/pair/start` e `POST /api/v2/pair/pin`. Os tokens não expiram: valem até o aparelho ser removido. O token vai em `X-TVDrop-Token: <token>`, em `Authorization: Bearer <token>` ou em `?token=<token>`. Sem token: `401 unauthorized`.
 
 ## Rotas 1.0 (mantidas)
 
@@ -27,7 +27,10 @@ O 2.0 trouxe dois acréscimos compatíveis: o campo `modified` em `files` e o ti
 | Método e rota | Corpo (JSON) | Observações |
 |---|---|---|
 | `GET /api/v2/info` (aberta) | — | `app, api, version, name, model, android, sdk, code, requiresPairing, legacyOpen` |
-| `POST /api/v2/pair` (aberta) | `{pin, name}` | `{token, device}`; PIN errado: `403 bad_pin` |
+| `POST /api/v2/pair/start` (aberta) | `{name}` | Pede ao serviço de controle do Google na TV um pareamento: a TV mostra o código (6 caracteres 0-9/A-F). `{session, expiresIn}`. Sem o serviço: `503 no_google_code` com `fallback: "pin"`. Mais de um pedido a cada 3 s ou de 30 por hora: `429 slow_down` |
+| `POST /api/v2/pair` (aberta) | `{session, code, name}` | A TV confere o código; certo: `{token, device}` e o TV Drop fica pareado com o controle da TV também. Formato errado: `400 bad_format` (pode tentar de novo). Código errado: `403 bad_code` com `restart: true` (a sessão acabou; peça outro). Sessão usada ou vencida (10 min): `400 expired` |
+| `POST /api/v2/pair` (aberta) | `{pin, name}` | Reserva para TVs sem o código do Google: `{token, device}`; PIN errado: `403 bad_pin` |
+| `POST /api/v2/pair/pin` (aberta) | — | Mostra o PIN do TV Drop na tela da TV por 2 minutos (ele fica escondido até alguém pedir). O QR Code da tela continua conectando sem digitar |
 | `GET /api/v2/session` | — | o aparelho dono do token |
 | `GET /api/v2/capabilities` | — | `remote.keys[]`, `remote.via{tecla: remote/accessibility/media/system}`, `remote.text`, `remote.pointer`, `remote.power`, `remote.atv{available,paired,connected}`, `remote.accessibility{enabled,dpad,enableCommand}`, `apps`, `player`, `files` |
 | `POST /api/v2/remote/key` | `{key}` | teclas em `Keys.java`: `up down left right ok back home menu settings search info guide captions playpause play pause stop next prev ff rew volup voldown mute power chup chdown input assistant red green yellow blue apps num0…num9 del enter space recents`. Indisponível: `409` |

@@ -143,7 +143,7 @@ public class PhoneActivity extends Activity {
     }
 
     /**
-     * TV Drop 2.0 TVs need this phone to be paired once (PIN shown on the TV);
+     * TV Drop 2.0 TVs need this phone to be paired once (Google's code shown on the TV);
      * 1.0 TVs have no /api/v2 and work as before.
      */
     private void connect(String key, String name) {
@@ -163,8 +163,68 @@ public class PhoneActivity extends Activity {
             Net.token = prefs.getString("token:" + key, null);
             int session = Net.token == null ? 401 : Net.status("http://" + key + "/api/v2/session", 4000);
             if (session == 200) ui.post(() -> connected(key, name));
-            else ui.post(() -> askPin(key, name, null));
+            else startPairing(key, name, null);
         });
+    }
+
+    /**
+     * Pairing with one code: the TV shows Google's remote code, the person types it here, and this phone is saved.
+     * TVs without Google's remote service show TV Drop's own PIN instead (asked for on demand).
+     */
+    private void startPairing(String key, String name, String error) {
+        io.execute(() -> {
+            try {
+                Net.token = null;
+                String r = Net.post("http://" + key + "/api/v2/pair/start", "{}");
+                String session = Net.str(r, "session");
+                if (session != null) { ui.post(() -> askCode(key, name, session, error)); return; }
+                if ("pin".equals(Net.str(r, "fallback"))) {
+                    Net.post("http://" + key + "/api/v2/pair/pin", "{}");
+                    ui.post(() -> askPin(key, name, "Esta TV não tem o código do Google. Abra o TV Drop na TV para ver o código dele."));
+                    return;
+                }
+                String m = Net.str(r, "message");
+                ui.post(() -> say(m == null ? "A TV não respondeu ao pedido de conexão." : m, false));
+            } catch (Exception e) {
+                ui.post(() -> say("Erro ao conectar: " + e.getMessage(), false));
+            }
+        });
+    }
+
+    private void askCode(String key, String name, String session, String error) {
+        EditText code = new EditText(this);
+        code.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        code.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.AllCaps(), new android.text.InputFilter.LengthFilter(6)});
+        code.setHint("A1B2C3");
+        code.setTextSize(28);
+        code.setGravity(Gravity.CENTER);
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("Conectar a " + name)
+                .setMessage((error != null ? error + "\n\n" : "") + "Digite o código de 6 caracteres (números e letras A–F) que apareceu na TV. É só uma vez: este celular fica salvo.")
+                .setView(code)
+                .setPositiveButton("Conectar", (d, w) -> {
+                    String typed = code.getText().toString();
+                    io.execute(() -> {
+                        try {
+                            JSONObject body = new JSONObject().put("session", session).put("code", typed).put("name", "App TV Drop (" + Build.MODEL + ")");
+                            String r = Net.post("http://" + key + "/api/v2/pair", body.toString());
+                            String token = Net.str(r, "token");
+                            if (token == null) {
+                                String m = Net.str(r, "message");
+                                if (Net.bool(r, "restart")) startPairing(key, name, m);
+                                else ui.post(() -> askCode(key, name, session, m == null ? "Código recusado." : m));
+                                return;
+                            }
+                            Net.token = token;
+                            prefs.edit().putString("token:" + key, token).apply();
+                            ui.post(() -> connected(key, name));
+                        } catch (Exception e) {
+                            ui.post(() -> say("Erro: " + e.getMessage(), false));
+                        }
+                    });
+                })
+                .setNegativeButton("Cancelar", (d, w) -> status.setText("Não conectado"))
+                .show();
     }
 
     private void askPin(String key, String name, String error) {
@@ -175,7 +235,7 @@ public class PhoneActivity extends Activity {
         pin.setGravity(Gravity.CENTER);
         new android.app.AlertDialog.Builder(this)
                 .setTitle("Parear com " + name)
-                .setMessage((error != null ? error + "\n\n" : "") + "Digite o código de 6 números que aparece na tela da TV.")
+                .setMessage((error != null ? error + "\n\n" : "") + "Digite o código de 6 números que aparece na tela do TV Drop na TV.")
                 .setView(pin)
                 .setPositiveButton("Conectar", (d, w) -> {
                     String code = pin.getText().toString();

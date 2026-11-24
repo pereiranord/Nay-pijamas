@@ -18,7 +18,9 @@ import java.util.Map;
  * TV Drop 2.0 API. All responses are JSON: {"ok":true,...} or {"ok":false,"error":..,"message":..}.
  *
  *   GET  /api/v2/info                 who this TV is (no token needed)
- *   POST /api/v2/pair                 {"pin","name"} -> {"token","device"} (no token needed)
+ *   POST /api/v2/pair/start           {"name"} -> {"session"}: Google's code appears on the TV (no token needed)
+ *   POST /api/v2/pair                 {"session","code","name"} or {"pin","name"} -> {"token","device"} (no token needed)
+ *   POST /api/v2/pair/pin             shows TV Drop's own PIN on the TV, for TVs without Google's code (no token needed)
  *   GET  /api/v2/session              the device this token belongs to
  *   GET  /api/v2/capabilities         what this TV can do right now, and through which path
  *   POST /api/v2/remote/key           {"key":"up"}           (see Keys)
@@ -85,6 +87,13 @@ final class ApiV2 {
         try {
             if (get && "/info".equals(p)) { Http.json(out, 200, info()); return; }
             if (post && "/pair".equals(p)) { pair(r); return; }
+            if (post && "/pair/start".equals(p)) { pairStart(r); return; }
+            if (post && "/pair/pin".equals(p)) {
+                pairing.showPin();
+                Events.add("Um aparelho pediu o código do TV Drop: ele está na tela do TV Drop por 2 minutos");
+                Http.ok(out, "O código apareceu na tela do app TV Drop na TV");
+                return;
+            }
             if (get && "/ws".equals(p)) { webSocket(r, s); return; }
             if (p.startsWith("/games")) { games(r, s, p); return; }
             if (get && "/session".equals(p)) {
@@ -580,8 +589,56 @@ final class ApiV2 {
                 .put("legacyOpen", pairing.legacyOpen());
     }
 
+    /**
+     * One code for everything: TV Drop asks Google's remote service on this TV for a pairing, so the TV shows its
+     * code. When the person types it on the phone, the TV itself checks it (pair, with "session"). If the TV accepts,
+     * the phone is saved and TV Drop is paired with the TV's remote service as well (full control).
+     */
+    private void pairStart(Http.Request r) throws IOException, JSONException {
+        String session;
+        try {
+            session = pairing.beginRemote();
+        } catch (Pairing.Refused e) {
+            Http.error(r.out, 429, "slow_down", e.getMessage());
+            return;
+        }
+        String err = host.remote().pairStart();
+        if (err != null) {
+            pairing.endRemote();
+            Http.json(r.out, 503, new JSONObject().put("ok", false).put("error", "no_google_code").put("fallback", "pin")
+                    .put("message", "Esta TV não mostrou o código do Google (" + err + ")"));
+            return;
+        }
+        Http.json(r.out, 200, new JSONObject().put("ok", true).put("session", session)
+                .put("expiresIn", Pairing.REMOTE_SESSION_MS / 1000)
+                .put("message", "A TV mostrou um código de 6 caracteres. Digite-o aqui."));
+    }
+
     private void pair(Http.Request r) throws IOException, JSONException {
         JSONObject b = r.json();
+        String name = b.optString("name", "Aparelho");
+        if (b.has("session")) {
+            String code = b.optString("code").trim().toUpperCase(java.util.Locale.ROOT);
+            if (!code.matches("[0-9A-F]{6}")) { // a typo: keep the pairing open
+                Http.error(r.out, 400, "bad_format", "O código tem 6 caracteres: números de 0 a 9 e letras de A a F.");
+                return;
+            }
+            if (!pairing.takeRemote(b.optString("session"))) {
+                Http.json(r.out, 400, new JSONObject().put("ok", false).put("error", "expired").put("restart", true)
+                        .put("message", "Esse código já foi usado ou expirou. Toque em Conectar para a TV mostrar outro."));
+                return;
+            }
+            String err = host.remote().pairFinish(code);
+            if (err != null) {
+                Http.json(r.out, 403, new JSONObject().put("ok", false).put("error", "bad_code").put("restart", true)
+                        .put("message", err + " Toque em Conectar: a TV vai mostrar um código novo."));
+                return;
+            }
+            Pairing.Result res = pairing.issue(name);
+            Events.add("Novo aparelho conectado com o código do Google: " + res.device.name);
+            Http.json(r.out, 200, new JSONObject().put("ok", true).put("token", res.token).put("device", res.device.toJson()));
+            return;
+        }
         try {
             Pairing.Result res = pairing.pair(b.optString("pin"), b.optString("name", "Aparelho"));
             Events.add("Novo aparelho pareado: " + res.device.name);

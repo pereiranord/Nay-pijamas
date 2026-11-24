@@ -30,10 +30,12 @@
   <div class="box">
     <div class="logo" data-icon="tv"></div>
     <h1 style="margin:0 0 6px;font-size:26px">Conectar à TV</h1>
-    <p class="sub">Digite o código de 6 números que aparece na tela da TV (no app TV Drop).</p>
-    <form id="pairForm" autocomplete="off">
-      <input class="field pin" id="pinInput" inputmode="numeric" pattern="[0-9 ]*" maxlength="7" placeholder="000000" aria-label="Código da TV" required>
-      <button class="btn primary" style="width:100%;margin-top:14px" id="pairBtn">Conectar</button>
+    <p class="sub" id="pairHint">Toque em Conectar. A TV vai mostrar um código do Google com 6 caracteres. É só uma vez: este aparelho fica salvo.</p>
+    <button class="btn primary" style="width:100%;margin-top:14px" id="pairStart" type="button">Conectar</button>
+    <form id="pairForm" autocomplete="off" hidden>
+      <input class="field pin" id="pinInput" maxlength="7" placeholder="A1B2C3" aria-label="Código que apareceu na TV" autocapitalize="characters" autocorrect="off" spellcheck="false" required>
+      <button class="btn primary" style="width:100%;margin-top:14px" id="pairBtn">Confirmar</button>
+      <button class="btn small" style="width:100%;margin-top:10px" id="pairAgain" type="button">A TV não mostrou? Pedir outro código</button>
     </form>
     <div class="msg" id="pairMsg"></div>
     <p class="sub" style="margin-top:22px">Dica: aponte a câmera do celular para o QR Code da TV para conectar sem digitar.</p>
