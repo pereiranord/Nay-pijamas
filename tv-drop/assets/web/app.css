@@ -583,54 +583,72 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 
 /* =====================================================================
    Remote on an upright phone: the whole screen, like the Google TV remote.
-   No page title, no tab bar, no status chips on top: a slim bar (leave, TV,
-   power), the mode switch, the direction pad as big as the screen allows,
-   Back/Home/Menu, volume/mute/play/channel and the action bar. Status,
-   apps and panels follow below (scroll). Side/tablet layouts don't change.
+   No page title, tab bar or status on top. A bar (close, the TV in green,
+   power), a slim row (mode, play/pause, keyboard, more), the direction pad as
+   big as the screen allows, Back / Home / mic and mute / volume. Below the
+   fold (scroll): action bar, status, channel and media keys, apps, panels.
+   Lying phones, tablets and computers keep their layout.
    ===================================================================== */
-.rtop, .rbar { display: none; }
+.rtop, .rtool, .rnav, .rvol { display: none; }
 @media (max-width: 759px) and (orientation: portrait) {
   body.rmode .nav, body.rmode #main > .top { display: none; }
-  body.rmode main { padding-top: calc(6px + var(--safe-t)); padding-bottom: calc(18px + var(--safe-b)); }
+  body.rmode main { padding-top: calc(8px + var(--safe-t)); padding-bottom: calc(18px + var(--safe-b)); }
+  /* a wrapping row: every block takes a line, except the mode switch and the tools, which share one */
   body.rmode .rview {
-    /* everything on the first screen except the pad: bar 48 + mode 40 + Back/Home 60 + volume row 56 + action bar 60, gaps and margins */
-    --rchrome: calc(338px + var(--safe-t) + var(--safe-b));
+    flex-direction: row; flex-wrap: wrap; align-items: center;
+    /* first screen without the pad: bar 48 + tools 44 + Back/Home/mic 80 + volume 60, margins, padding */
+    --rchrome: calc(318px + var(--safe-t) + var(--safe-b));
     --dpad: clamp(170px, min(100vw - 44px, 100vh - var(--rchrome)), 380px);
   }
   @supports (height: 100dvh) { body.rmode .rview { --dpad: clamp(170px, min(100vw - 44px, 100dvh - var(--rchrome)), 380px); } }
+  body.rmode .r-pad > *, body.rmode .r-side > * { flex: 0 0 100%; min-width: 0; }
   body.rmode .rview .rtop { display: flex; order: 0; }
-  body.rmode .rview .rstatus { order: 9; margin-top: 4px; }
-  body.rmode .rview .top4, body.rmode .rview .rockers { display: none; }
-  body.rmode .rview .rbar { display: flex; order: 7; }
-  body.rmode .rview .seg { margin: 6px 0 4px; }
-  body.rmode .rview .seg button { min-height: 40px; font-size: 14px; }
-  body.rmode .rview .dpad { width: var(--dpad); margin: 6px auto 4px; }
-  body.rmode .rview .pad { height: var(--dpad); margin-top: 6px; }
+  body.rmode .rview .seg { order: 3; flex: 0 0 auto; margin: 8px 0 0; width: auto; }
+  body.rmode .rview .seg button { min-height: 44px; min-width: 46px; padding: 0 10px; }
+  body.rmode .rview .seg button span { display: none; }
+  body.rmode .rview .seg button svg { display: block; width: 20px; height: 20px; }
+  body.rmode .rview .rtool { display: flex; order: 4; flex: 1 1 auto; justify-content: flex-end; gap: 8px; margin: 8px 0 0; }
+  body.rmode .rview .notice { order: 5; margin-top: 8px; }
+  body.rmode .rview #surface { order: 6; }
+  body.rmode .rview .rnav { display: flex; order: 7; }
+  body.rmode .rview .rvol { display: flex; order: 8; }
+  body.rmode .rview .actionbar { order: 9; margin: 22px 0 12px; }
+  body.rmode .rview .rstatus { order: 10; }
+  body.rmode .rview .rockers { order: 11; }
+  body.rmode .rview .top4, body.rmode .rview .nav3 { display: none; }
+  body.rmode .rview .dpad { width: var(--dpad); margin: 12px auto 10px; }
+  body.rmode .rview .dpad .ok { font-size: 0; }
+  body.rmode .rview .pad { height: var(--dpad); margin-top: 12px; }
   body.rmode .rview #surface:has(.padbar) .pad { height: calc(var(--dpad) - 96px); min-height: 150px; } /* touchpad: its buttons and sensitivity fit on the first screen too */
   body.rmode .rview .padbar { margin-top: 8px; } body.rmode .rview #surface .slider-row { margin: 6px 0 0; }
-  body.rmode .rview .nav3 { margin: 6px 0; }
-  body.rmode .rview .nav3 .key.big { width: 84px; height: 56px; border-radius: 20px; }
-  body.rmode .rview .actionbar { margin: 10px 0 12px; }
-  body.rmode .rview .abtn { min-height: 60px; padding: 8px 4px; gap: 3px; }
-  body.rmode .toast { top: calc(56px + var(--safe-t)); bottom: auto; transform: translateX(-50%) translateY(-16px); }
+  body.rmode .toast { top: calc(60px + var(--safe-t)); bottom: auto; transform: translateX(-50%) translateY(-16px); }
   body.rmode .toast.show { transform: translateX(-50%) translateY(0); }
 }
-.rtop { align-items: center; gap: 8px; height: 48px; }
-.rt-exit { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); flex: none; }
+.rtop { align-items: center; justify-content: space-between; gap: 10px; height: 48px; }
+.rt-exit { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--text); background: var(--key); flex: none; }
 .rt-exit:active { background: var(--key-hi); }
-.rt-tv { flex: 1; min-width: 0; height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 999px; background: var(--surface); font-size: 14px; color: var(--text); }
-.rt-tv .dot { width: 8px; height: 8px; }
-.rt-tv.ok .dot { background: var(--green); } .rt-tv.bad .dot { background: var(--red); } .rt-tv.wait .dot { background: var(--amber); animation: pulse 1.2s infinite; }
-.rt-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-weight: 650; }
-.rt-app { color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; font-size: 13px; }
+.rt-tv { flex: 1 1 auto; max-width: 280px; min-width: 0; justify-content: center; height: 46px; display: flex; align-items: center; gap: 10px; padding: 0 12px 0 16px; border-radius: 999px; background: var(--surface-2); font-size: 15px; color: var(--text); }
+.rt-tv > svg:first-child { width: 22px; height: 22px; }
+.rt-tv.ok { background: var(--green); color: var(--green-ink); }
+.rt-tv.bad { background: #4a2424; } .rt-tv.wait > svg:first-child { color: var(--amber); animation: pulse 1.2s infinite; }
+.rt-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-weight: 700; }
+.rt-app { display: none; opacity: .7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; font-size: 13px; }
 .rt-app:not(:empty)::before { content: "· "; }
-.rtop .key.rt-power { width: 48px; height: 48px; flex: none; background: rgba(255, 107, 107, .12); }
-.rbar { align-items: center; gap: 8px; margin: 6px 0 0; }
-.rbar .key { width: 56px; height: 56px; flex: none; }
-.hrock { flex: 1; min-width: 0; height: 56px; display: flex; align-items: center; border-radius: 28px; background: var(--key); box-shadow: inset 0 0 0 1px #24292e; overflow: hidden; }
-.hrock button { flex: 1; height: 100%; min-width: 40px; display: grid; place-items: center; color: var(--text); touch-action: none; transition: background .1s; }
-.hrock button:active, .hrock button.hit { background: var(--key-hi); color: var(--green); }
-.hrock button.off { opacity: .32; }
-.hrock .rk-label { padding: 0 2px; font-size: 11px; }
-@media (max-width: 359px) { .rbar { gap: 6px; } .rbar .key { width: 48px; height: 48px; } .hrock .rk-label { display: none; } }
-:root[data-theme="light"] .rt-tv { background: #fff; }
+.rt-chev { display: grid; place-items: center; padding-left: 8px; margin-left: 2px; border-left: 2px solid rgba(0, 0, 0, .18); height: 100%; }
+.rt-chev svg { width: 20px; height: 20px; }
+.rtop .key.rt-power { width: 48px; height: 48px; flex: none; }
+.rtool .key.tool { width: 44px; height: 44px; }
+.rtool .key.tool svg { width: 22px; height: 22px; }
+.rnav { align-items: center; justify-content: space-between; gap: 12px; }
+.rnav .key.circ { width: 76px; height: 76px; }
+.rnav .key.homepill { width: auto; flex: 0 1 136px; height: 84px; border-radius: 42px; }
+.rnav .key svg { width: 28px; height: 28px; }
+.rvol { align-items: center; gap: 10px; margin-top: 14px; }
+.rvol .key.circ { width: 64px; height: 58px; border-radius: 29px; flex: none; }
+.vpill { flex: 1; min-width: 0; height: 58px; border-radius: 29px; background: var(--key); color: var(--text); display: grid; place-items: center; touch-action: none; transition: background .1s, transform .08s; }
+.vpill:active, .vpill.hit { background: var(--key-hi); transform: scale(.97); }
+.vpill.off { opacity: .32; }
+.rnav .key, .rvol .key, .vpill, .rt-exit, .rtop .key { box-shadow: inset 0 0 0 1px #24292e; }
+@media (max-width: 359px) { .rnav .key.circ { width: 64px; height: 64px; } .rnav .key.homepill { height: 72px; } .rtool { gap: 4px; } body.rmode .rview .seg button { min-width: 42px; padding: 0 8px; } }
+:root[data-theme="light"] .rt-tv:not(.ok) { background: #fff; }
+:root[data-theme="light"] .rnav .key, :root[data-theme="light"] .rvol .key, :root[data-theme="light"] .vpill, :root[data-theme="light"] .rt-exit, :root[data-theme="light"] .rtop .key { box-shadow: inset 0 0 0 1px #d6dbe1; }

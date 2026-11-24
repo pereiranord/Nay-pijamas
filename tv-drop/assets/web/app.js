@@ -62,6 +62,7 @@ const ICONS = {
   remote: '<rect x="7" y="2" width="10" height="20" rx="4"/><circle cx="12" cy="8" r="2"/><path d="M10 14h.01M14 14h.01M10 17h.01M14 17h.01"/>',
   grid: '<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>',
   tv: '<rect x="2" y="5" width="20" height="13" rx="2"/><path d="M8 21h8"/>',
+  close: '<path d="M6 6l12 12M18 6L6 18"/>', minus: '<path d="M5 12h14"/>',
   up: '<path d="M6 15l6-6 6 6"/>', down: '<path d="M6 9l6 6 6-6"/>', left: '<path d="M15 6l-6 6 6 6"/>', right: '<path d="M9 6l6 6-6 6"/>',
   back: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
   menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
@@ -350,12 +351,13 @@ function pwaKeep() {
   document.addEventListener('dblclick', (e) => { if (!editable(e.target)) e.preventDefault(); }, { passive: false });
   document.addEventListener('contextmenu', (e) => { if (!editable(e.target)) e.preventDefault(); });
   document.addEventListener('selectstart', (e) => { if (!editable(e.target)) e.preventDefault(); });
-  // older iOS still zooms on a fast second tap outside buttons: on the remote, a second tap within 350 ms never zooms
+  // older iOS still zooms on a fast second tap on empty space: on the remote, a second tap there within 350 ms never zooms
   let lastEnd = 0;
   document.addEventListener('touchend', (e) => {
     const quick = e.timeStamp - lastEnd < 350;
     lastEnd = e.timeStamp;
-    if (quick && e.cancelable && !editable(e.target) && e.target.closest && e.target.closest('.rview')) e.preventDefault();
+    // buttons are left alone (touch-action already stops the zoom there, and a fast second press must still count)
+    if (quick && e.cancelable && !editable(e.target) && e.target.closest && e.target.closest('.rview') && !e.target.closest('button, a, label, .pad')) e.preventDefault();
   }, { passive: false });
 })();
 
@@ -1025,12 +1027,15 @@ function renderRemote() {
     <div class="rview">
      <div class="r-pad">
         <div class="rtop">
-          <button class="rt-exit" data-go="home" aria-label="Sair do controle">${icon('left')}</button>
-          <button class="rt-tv" data-go="devices" aria-label="TV conectada (trocar de TV)"><span class="dot"></span><span class="rt-name" id="rtName">TV</span><span class="rt-app" id="rtApp"></span></button>
-          ${rkey('power', 'power rt-power')}
+          <button class="rt-exit" data-go="home" aria-label="Fechar o controle">${icon('close')}</button>
+          <button class="rt-tv" data-go="devices" aria-label="TV conectada (trocar de TV)">${icon('tv')}<span class="rt-name" id="rtName">TV</span><span class="rt-app" id="rtApp"></span><span class="rt-chev">${icon('down')}</span></button>
+          ${rkey('power', 'rt-power')}
         </div>
+        <div class="rtool">${rkey('playpause', 'tool')}<button class="key tool" data-act="kbd" aria-label="Teclado">${icon('keyboard')}</button><button class="key tool" data-act="more" aria-label="Mais teclas">${icon('plus')}</button></div>
         <div id="surface"></div>
         <div class="key-row nav3">${rkey('back', 'big')}${rkey('home', 'big')}${rkey('menu', 'big')}</div>
+        <div class="rnav">${rkey('back', 'circ')}${rkey('home', 'homepill')}<button class="key circ" data-act="voice" aria-label="Voz">${icon('mic')}</button></div>
+        <div class="rvol">${rkey('mute', 'circ')}<button class="vpill ${S.caps && !has('voldown') ? 'off' : ''}" data-rk="voldown" aria-label="Diminuir volume">${icon('voldown')}</button><button class="vpill ${S.caps && !has('volup') ? 'off' : ''}" data-rk="volup" aria-label="Aumentar volume">${icon('volup')}</button></div>
      </div>
      <div class="r-side">
       <div class="rstatus" id="rstatus"></div>
@@ -1057,19 +1062,6 @@ function renderRemote() {
             <button class="rk-down ${S.caps && !has('chdown') ? 'off' : ''}" data-rk="chdown" aria-label="Canal anterior">${icon('down')}</button>
           </div>
         </div>
-        <div class="rbar">
-          <div class="hrock" aria-label="Volume">
-            <button class="${S.caps && !has('voldown') ? 'off' : ''}" data-rk="voldown" aria-label="Diminuir volume"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-            <span class="rk-label">VOL</span>
-            <button class="${S.caps && !has('volup') ? 'off' : ''}" data-rk="volup" aria-label="Aumentar volume">${icon('plus')}</button>
-          </div>
-          ${rkey('mute')}${rkey('playpause')}
-          <div class="hrock" aria-label="Canal">
-            <button class="${S.caps && !has('chdown') ? 'off' : ''}" data-rk="chdown" aria-label="Canal anterior">${icon('down')}</button>
-            <span class="rk-label">CH</span>
-            <button class="${S.caps && !has('chup') ? 'off' : ''}" data-rk="chup" aria-label="Próximo canal">${icon('up')}</button>
-          </div>
-        </div>
         <div class="actionbar">
           <button class="abtn" id="kbdBtn">${icon('keyboard')}<span>Teclado</span></button>
           <button class="abtn" id="micBtn">${icon('mic')}<span>Voz</span></button>
@@ -1084,7 +1076,7 @@ function renderRemote() {
         </div>
         <div class="card panel" id="morePanel" hidden>
           <div class="colors">${['red', 'green', 'yellow', 'blue'].map((c) => `<button class="ckey c-${c} ${S.caps && !has(c) ? 'off' : ''}" data-rk="${c}" aria-label="Botão ${c}"></button>`).join('')}</div>
-          <div class="more-grid">${['input', 'settings', 'assistant', 'search', 'guide', 'captions', 'recents', 'apps', 'stop', 'prev', 'next', 'info'].map((k) => `<div class="key-wrap">${rkey(k)}<div class="key-label">${KEY_INFO[k][1]}</div></div>`).join('')}</div>
+          <div class="more-grid">${['input', 'settings', 'assistant', 'menu', 'search', 'guide', 'captions', 'recents', 'apps', 'stop', 'prev', 'next', 'info'].map((k) => `<div class="key-wrap">${rkey(k)}<div class="key-label">${KEY_INFO[k][1]}</div></div>`).join('')}</div>
           <button class="btn" style="width:100%;margin-top:12px" id="peekBtn" ${S.caps && S.caps.screenshot === false ? 'aria-disabled="true"' : ''}>${icon('eye')}Ver a tela da TV no celular</button>
         </div>
         <div class="quickapps" id="quickApps"></div>
@@ -1105,7 +1097,7 @@ function renderRemote() {
     </div>`;
   renderConn();
   $$('[data-go]', main).forEach((b) => b.onclick = () => go(b.dataset.go));
-  $$('[data-mode]', main).forEach((b) => b.onclick = () => { S.remoteMode = b.dataset.mode; store.set('remoteMode', S.remoteMode); $$('[data-mode]').forEach((x) => x.setAttribute('aria-pressed', x === b)); renderSurface(); });
+  $$('[data-mode]', main).forEach((b) => b.onclick = () => { S.remoteMode = b.dataset.mode; store.set('remoteMode', S.remoteMode); $$('[data-mode]').forEach((x) => x.setAttribute('aria-pressed', x.dataset.mode === S.remoteMode)); renderSurface(); });
   $$('[data-rk]', main).forEach((b) => bindKey(b, b.dataset.rk));
   const panel = (id) => { const ids = ['numPanel', 'morePanel', 'kbd', 'voice']; ids.forEach((x) => { if (x !== id) $('#' + x).hidden = true; }); const p = $('#' + id); p.hidden = !p.hidden; return !p.hidden; };
   $('#numBtn').onclick = () => panel('numPanel');
@@ -1116,6 +1108,14 @@ function renderRemote() {
   setupVoice();
   const voiceToggle = $('#micBtn').onclick; // from setupVoice: toggles the card and explains when there is no mic
   $('#micBtn').onclick = () => { ['numPanel', 'morePanel'].forEach((x) => { $('#' + x).hidden = true; }); voiceToggle(); };
+  // upright phone: the same actions from the top tools and the mic next to Home; the panel opens below, so show it
+  const reveal = (id) => { const el = $('#' + id); if (el && !el.hidden) setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60); };
+  $$('[data-act]', main).forEach((b) => b.onclick = () => {
+    const a = b.dataset.act;
+    if (a === 'kbd') { $('#kbdBtn').click(); reveal('kbd'); }
+    else if (a === 'more') { $('#moreBtn').click(); reveal('morePanel'); }
+    else if (a === 'voice') { $('#micBtn').click(); reveal('voice'); }
+  });
   renderSurface();
   drawRemoteStatus();
   drawQuickApps();
@@ -1619,6 +1619,7 @@ async function drawTimer(state) {
   const box = $('#timerCard');
   if (!box) return;
   if (!state) { try { state = await api('/api/v2/timer'); } catch (e) { return; } }
+  if (!box.isConnected) return; // the screen changed while asking the TV
   clearInterval(timerTick);
   const powerOk = has('power');
   const labels = { pause: 'pausar', mute: 'silenciar', stop: 'encerrar a reprodução', power: 'desligar a TV' };
