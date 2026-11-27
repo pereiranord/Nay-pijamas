@@ -30,6 +30,8 @@ final class Http {
         OutputStream out;
         long length;
         String remoteIp = "";
+        /** The paired device that sent this request (set by HttpServer; null for open routes). */
+        Pairing.Device device;
 
         static Request read(InputStream in, OutputStream out) throws IOException {
             String line = readLine(in);

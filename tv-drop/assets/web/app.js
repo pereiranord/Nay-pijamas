@@ -121,7 +121,7 @@ function toast(text, ok = true) {
   toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
 }
 /* ---------------------------------------------------------------- PREFERENCES (Ajustes) */
-const PREF_DEFAULTS = { theme: 'dark', size: 'normal', vibrate: true, sound: false, volKeys: true, quickNotif: false };
+const PREF_DEFAULTS = { theme: 'dark', size: 'normal', vibrate: true, sound: false, volKeys: true, quickNotif: false, shake: false };
 const prefs = () => ({ ...PREF_DEFAULTS, ...store.get('prefs', {}) });
 function setPref(k, v) {
   const p = prefs(); p[k] = v; store.set('prefs', p);
@@ -471,7 +471,7 @@ async function loadNativeAtv() {
 }
 
 async function loadCaps() {
-  try { S.caps = await api('/api/v2/capabilities'); } catch (e) { /* keep last */ }
+  try { S.caps = await api('/api/v2/capabilities'); rememberWake(); hideLocked(); } catch (e) { if (e.status === 403 && /horário/.test(e.message)) showLocked(e.message); /* else keep last */ }
   return S.caps;
 }
 
@@ -513,6 +513,7 @@ function wsSend(obj, wantAck, timeoutMs = 4000) {
 }
 
 async function sendKey(key, el) {
+  if (key === 'power' && S.online === false) return wakeTv(); // deep standby: Wake-on-LAN from the app, or how to
   buzz();
   if (el) { el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 140); }
   const native = async () => { const r = await nativeAtv('key', key); if (!r.ok) toast(r.message || 'A TV recusou o comando', false); return r.ok; };
@@ -629,13 +630,13 @@ async function drawExternal() {
       <button class="key" data-ext="prev" aria-label="Anterior">${icon('prev')}</button>
       <button class="key" data-ext="back" aria-label="Voltar 10 segundos">${icon('rew')}</button>
       <button class="key" data-ext="toggle" aria-label="Pausar ou continuar">${icon(m.playing ? 'pause' : 'play')}</button>
-      <button class="key" data-ext="fwd" aria-label="Avançar 30 segundos">${icon('ff')}</button>
+      <button class="key" data-ext="fwd" aria-label="Avançar 10 segundos">${icon('ff')}</button>
       <button class="key" data-ext="next" aria-label="Próximo">${icon('next')}</button>
     </div>`;
   $$('[data-ext]', box).forEach((b) => b.onclick = () => {
     buzz();
     let action = b.dataset.ext, ms = 0;
-    if (action === 'back' || action === 'fwd') { if (!(m.position >= 0)) { toast('Este app não informa a posição', false); return; } ms = Math.max(0, m.position + (action === 'back' ? -10000 : 30000)); action = 'seek'; }
+    if (action === 'back' || action === 'fwd') { if (!(m.position >= 0)) { toast('Este app não informa a posição', false); return; } ms = Math.max(0, m.position + (action === 'back' ? -10000 : 10000)); action = 'seek'; }
     api('/api/v2/media/control', { method: 'POST', json: { action, ms } }).then(() => setTimeout(drawExternal, 600), (e) => toast(e.message, false));
   });
   extTick = setTimeout(drawExternal, m.playing ? 5000 : 10000);
@@ -1055,6 +1056,7 @@ function renderRemote() {
         <div class="rvol">${rkey('mute', 'circ')}<button class="vpill ${S.caps && !has('voldown') ? 'off' : ''}" data-rk="voldown" aria-label="Diminuir volume">${icon('voldown')}</button><button class="vpill ${S.caps && !has('volup') ? 'off' : ''}" data-rk="volup" aria-label="Aumentar volume">${icon('volup')}</button></div>
      </div>
      <div class="r-side">
+      <div class="mybtns" id="myBtns"></div>
       <div class="rstatus" id="rstatus"></div>
       ${limited ? `<div class="notice">${icon('info')}<div>Algumas teclas estão apagadas porque o controle ainda não foi pareado. <button class="btn small" data-go="devices" style="margin-top:8px">Parear controle</button></div></div>` : ''}
       <div class="seg" role="group" aria-label="Modo do controle">
@@ -1096,9 +1098,14 @@ function renderRemote() {
           <div class="more-grid">${['input', 'settings', 'assistant', 'menu', 'search', 'guide', 'captions', 'recents', 'apps', 'stop', 'prev', 'next', 'info'].map((k) => `<div class="key-wrap">${rkey(k)}<div class="key-label">${KEY_INFO[k][1]}</div></div>`).join('')}</div>
           <div class="row ch-mode"><span class="sub grow" style="margin:0">Botões de canal (CH)</span>
             <div class="seg" role="group" aria-label="Botões de canal"><button data-ch="ch" aria-pressed="${store.get('chMode', 'ch') !== 'arrows'}">Tecla de canal</button><button data-ch="arrows" aria-pressed="${store.get('chMode', 'ch') === 'arrows'}">Setas ↑↓</button></div></div>
+          ${NATIVE && NATIVE.setPref ? `<div class="xtoggles"><label class="slider-row"><input type="checkbox" id="optVol" ${prefs().volKeys ? 'checked' : ''} style="flex:none;width:20px;height:20px"> Botões de volume do celular mudam o volume da TV</label>
+            <label class="slider-row"><input type="checkbox" id="optShake" ${prefs().shake ? 'checked' : ''} style="flex:none;width:20px;height:20px"> Chacoalhar o celular = play/pausa</label></div>` : ''}
+          <p class="sub" style="margin:10px 0 0">Dica: no modo Deslizante, dois dedos para cima ou para baixo mudam o volume.</p>
           <button class="btn" style="width:100%;margin-top:12px" id="peekBtn" ${S.caps && S.caps.screenshot === false ? 'aria-disabled="true"' : ''}>${icon('eye')}Ver a tela da TV no celular</button>
         </div>
+        <div class="card ext-card" id="extCard" hidden></div>
         <div class="quickapps" id="quickApps"></div>
+        <div class="card" id="routinesCard"></div>
         <div class="card kbd" id="kbd" hidden><div class="row kbd-head"><h2 class="grow" style="margin:0">Teclado</h2>
           <label class="slider-row" style="margin:0;flex:none"><input type="checkbox" id="kbdLive" ${store.get('liveTyping', false) ? 'checked' : ''} style="width:20px;height:20px"> Digitar ao vivo</label>
           <button class="sheet-x" id="kbdClose" aria-label="Fechar o teclado">${icon('close')}</button></div>
@@ -1107,12 +1114,14 @@ function renderRemote() {
           <div class="kbd-input"><textarea id="kbdText" placeholder="Ex.: filmes de ação" autocapitalize="off" autocomplete="off" spellcheck="false" enterkeyhint="search"></textarea>
             <button class="kbd-mic" id="kbdMic" aria-label="Falar o texto">${icon('mic')}</button></div>
           <div class="kbd-recent" id="kbdRecent"></div>
+          <div class="kbd-where" id="kbdWhere"></div>
           <div class="row" style="margin-top:10px" id="kbdSendRow"><button class="btn" id="kbdSend">Enviar</button><button class="btn primary grow" id="kbdSearch">${icon('search')}Buscar</button></div>
           <div class="row" style="margin-top:10px">
             <button class="btn small" data-rk="del">${icon('del')}Apagar</button><button class="btn small" id="kbdEnter">${icon('enter')}Enter</button><button class="btn small" id="kbdSpace">Espaço</button><button class="btn small" id="kbdClear">Limpar campo</button></div></div>
         <div class="card" id="voice" hidden><div class="row kbd-head"><h2 class="grow" style="margin:0">Voz e comandos</h2><button class="sheet-x" id="voiceClose" aria-label="Fechar">${icon('close')}</button></div><p class="sub" id="voiceHint">Fale, por exemplo: “abrir YouTube”, “volume em 20”, “voltar”, “pesquisar filmes de ação”.</p>
           <button class="mic" id="voiceGo" aria-label="Falar">${icon('mic')}</button>
           <div class="row" style="margin-top:14px"><input class="field grow" id="cmdText" placeholder="Ou digite: abrir Netflix, volume em 20…" autocomplete="off" enterkeyhint="go"><button class="btn primary" id="cmdGo" aria-label="Executar">${icon('bolt')}</button></div>
+          <button class="btn" id="cmdGoogle" style="width:100%;margin-top:10px">${icon('search')}Perguntar ao Google da TV</button>
           <div class="vchips">${['Abrir YouTube', 'Volume em 15', 'Pesquisar filmes de ação', 'Próximo canal', 'Canal 5', 'Pausar', 'Desligar a TV'].map((c) => `<button class="vchip" data-cmd="${c}">${c}</button>`).join('')}</div>
           <div class="msg" id="voiceMsg" style="text-align:center"></div><div class="row" id="voiceConfirm" hidden><button class="btn primary" data-yes>Executar</button><button class="btn" data-no>Cancelar</button></div></div>
         <div class="card" id="timerCard"></div>
@@ -1147,10 +1156,16 @@ function renderRemote() {
     else if (a === 'more') { $('#moreBtn').click(); reveal('morePanel'); }
     else if (a === 'voice') { $('#micBtn').click(); reveal('voice'); }
   });
+  if ($('#optVol')) $('#optVol').onchange = (e) => setPref('volKeys', e.target.checked);
+  if ($('#optShake')) $('#optShake').onchange = (e) => setPref('shake', e.target.checked);
+  $('#cmdGoogle').onclick = () => { const v = $('#cmdText').value.trim(); if (v) googleAsk(v).then((ok) => { if (ok) $('#cmdText').value = ''; }); else askGoogle(); };
   renderSurface();
   drawRemoteStatus();
   drawQuickApps();
   drawTimer();
+  drawMyButtons();
+  drawExternal();
+  drawRoutines();
   wsConnect();
   startImeWatch();
 }
@@ -1284,6 +1299,8 @@ function setupKeyboard() {
   $('#kbdLive').onchange = (e) => { if (e.isTrusted) store.set('liveTyping', e.target.checked); last = ta.value; hint(); };
   S.kbdSync = (v) => { flush(); ta.value = v; last = v; };
   drawRecent();
+  drawSearchWhere();
+  loadApps().then(drawSearchWhere);
   $('#kbdMic').onclick = () => dictate((text) => {
     const v = (ta.value && !/\s$/.test(ta.value) ? ta.value + ' ' : ta.value) + text;
     if (live()) sendText(v, { replace: true }); // the whole field, so a dictated phrase lands in one go
@@ -1354,7 +1371,7 @@ function renderSurface() {
     $$('[data-rk]', box).forEach((b) => bindKey(b, b.dataset.rk));
   } else if (S.remoteMode === 'swipe') {
     box.innerHTML = `<div class="pad" id="pad" aria-label="Área de deslizar"><div>${dpadOk ? 'Deslize para navegar<br><small>Toque = OK · segure após deslizar = continua</small>' : 'O modo deslizante precisa das setas: pareie o controle em Dispositivos.'}</div></div>`;
-    if (dpadOk) setupSwipe($('#pad'));
+    if (dpadOk) { setupSwipe($('#pad')); setupTwoFingerVolume($('#pad')); }
   } else {
     const ok = !S.caps || (S.caps.remote && S.caps.remote.pointer);
     box.innerHTML = `<div class="pad" id="pad" aria-label="Touchpad"><div>${ok ? 'Arraste para mover o cursor<br><small>Toque = clique · dois toques = clique duplo · dois dedos = rolar</small>' : 'O touchpad precisa da acessibilidade do TV Drop ativada na TV (veja Dispositivos).'}</div></div>
@@ -1387,7 +1404,7 @@ function setupSwipe(pad) {
   const armHold = () => { stopHold(); holdTimer = setTimeout(() => { if (lastKey) release = holdKey(lastKey); }, 450); };
   pad.onpointerdown = (e) => { pad.setPointerCapture(e.pointerId); sx = e.clientX; sy = e.clientY; moved = false; start = Date.now(); lastKey = null; };
   pad.onpointermove = (e) => {
-    if (sx == null) return;
+    if (sx == null || S.twoFinger) return;
     const dx = e.clientX - sx, dy = e.clientY - sy;
     if (Math.max(Math.abs(dx), Math.abs(dy)) < 55) return;
     moved = true;
@@ -1398,7 +1415,7 @@ function setupSwipe(pad) {
     sx = e.clientX; sy = e.clientY;
     armHold();
   };
-  const end = (e) => { stopHold(); if (sx != null && !moved && Date.now() - start < 400) { buzz(); sendKey('ok'); ripple(pad, e.clientX, e.clientY); } sx = sy = null; };
+  const end = (e) => { stopHold(); if (sx != null && !moved && !S.twoFinger && Date.now() - start < 400) { buzz(); sendKey('ok'); ripple(pad, e.clientX, e.clientY); } sx = sy = null; };
   pad.onpointerup = end;
   pad.onpointercancel = () => { stopHold(); sx = sy = null; };
 }
@@ -1569,7 +1586,10 @@ async function execute(cmd) {
 /** Interprets a sentence and runs it; important or uncertain commands wait for a tap. */
 function runCommand(text, confidence, msg, confirmBox) {
   const cmd = window.TVDropAssistant ? TVDropAssistant.interpret(text, assistantContext()) : null;
-  if (!cmd) { msg.innerHTML = `“${esc(text)}”: não entendi o comando.`; msg.className = 'msg err'; return; }
+  if (!cmd) {
+    if (S.caps && S.caps.googleSearch) { msg.innerHTML = `“${esc(text)}”: não é um comando do TV Drop, então <b>perguntei ao Google da TV</b>.`; msg.className = 'msg ok'; googleAsk(text); return; }
+    msg.innerHTML = `“${esc(text)}”: não entendi o comando.`; msg.className = 'msg err'; return;
+  }
   const why = incompatible(cmd);
   if (why) { msg.innerHTML = `“${esc(text)}” → ${esc(cmd.label)}: <b>${esc(why)}</b>.`; msg.className = 'msg err'; return; }
   msg.innerHTML = `“${esc(text)}” → <b>${esc(cmd.label)}</b>`;
@@ -2124,6 +2144,8 @@ async function renderDevices() {
   const r = S.caps ? S.caps.remote : null;
   const atv = r && r.atv ? r.atv : {};
   const acc = r && r.accessibility ? r.accessibility : {};
+  if (!isOwner()) { renderDevicesGuest(); return; }
+  await loadRoutines();
   main.innerHTML = header('Dispositivos') + `
     <div class="card"><h2>${esc(S.info ? S.info.name : 'TV')}</h2>
       <p class="sub">${S.online ? '<span class="pill ok">Online</span>' : '<span class="pill warn">Offline</span>'} · Android ${esc(S.info ? S.info.android : '?')} (SDK ${esc(S.info ? S.info.sdk : '?')}) · ${esc(location.host)}</p>
@@ -2150,8 +2172,12 @@ async function renderDevices() {
 
     <div class="card" id="storageCard"><h2>Armazenamento da TV</h2><div class="empty">Analisando…</div></div>
 
+    ${wakeCard()}
+    ${inviteCard()}
     <div class="card"><h2>Aparelhos autorizados</h2><div class="list" id="devList"><div class="empty">Carregando…</div></div>
       <label class="slider-row" style="margin-top:12px"><input type="checkbox" id="legacy" style="flex:none;width:20px;height:20px"> Permitir apps antigos (TV Drop 1.0) sem pareamento</label></div>
+
+    ${siriCard()}
 
     <div class="card"><h2>Diagnóstico de conexão</h2><p class="sub">Mede a rede entre este aparelho e a TV (não é a velocidade da internet).</p>
       <div class="diag" id="diag"><div><small>Latência</small><b id="dLat">—</b></div><div><small>Download (TV → aqui)</small><b id="dDown">—</b></div>
@@ -2161,6 +2187,7 @@ async function renderDevices() {
     <div class="card"><h2>Este aparelho</h2><p class="sub">${esc(deviceName())}${STANDALONE ? ' · conectado a ' + esc(BASE.replace('http://', '')) : ''}</p>
       <div class="row">${STANDALONE ? '<button class="btn small" id="switchTv">Trocar de TV</button>' : ''}${NATIVE && NATIVE.classic ? '<button class="btn small" id="classicApp">Modo clássico do app</button>' : ''}<button class="btn small" id="classic">Página clássica</button><button class="btn small danger" id="logout">Desconectar este aparelho</button></div></div>`;
   renderConn();
+  bindWakeCard(); bindInviteCard(); bindSiriCard();
   $('#beep').onclick = findTv;
   if ($('#atvStart')) $('#atvStart').onclick = atvPairStart;
   if ($('#atvUnpair')) $('#atvUnpair').onclick = async () => { if (!confirm('Remover o pareamento do controle?')) return; try { await api('/api/v2/remote/unpair', { method: 'POST' }); await renderDevices(); } catch (e) { toast(e.message, false); } };
@@ -2220,6 +2247,7 @@ async function renderSettings() {
       <button class="btn primary" id="setPwa" style="margin-top:8px">${icon('grid')}Como instalar</button></div>` : ''}
     ${NATIVE ? `<div class="card"><h2>No celular</h2>
       ${NATIVE.setPref ? toggle('volKeys', p.volKeys, 'Botões de volume do celular controlam a TV', 'Enquanto o app está aberto') : ''}
+      ${NATIVE.setPref ? toggle('shake', p.shake, 'Chacoalhar o celular = play/pausa', 'Enquanto o app está aberto') : ''}
       ${NATIVE.setPref ? toggle('quickNotif', p.quickNotif, 'Controle rápido na notificação', 'Play/pausa e volume na barra de notificações e na tela de bloqueio') : ''}
       ${NATIVE.scanQr ? `<button class="btn" id="setQr" style="margin-top:8px">${icon('grid')}Ler QR Code da TV</button>` : ''}
       <p class="sub" style="margin-top:12px">Widget: toque e segure a tela inicial do celular → Widgets → TV Drop. Atalhos: toque e segure o ícone do TV Drop.</p></div>` : ''}
@@ -2324,6 +2352,22 @@ async function drawAppSizes() {
   } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
+/** A visitor's or a child's phone: what it is, Siri links for it, and leaving. */
+function renderDevicesGuest() {
+  const main = $('#main');
+  const role = S.caps && S.caps.role === 'kids' ? 'criança' : 'visita';
+  main.innerHTML = header('Dispositivos') + `
+    <div class="card"><h2>${esc(S.info ? S.info.name : 'TV')}</h2>
+      <p class="sub">Este aparelho entrou com um convite de <b>${role}</b>: ele usa o controle, transmite e abre apps, mas não muda os ajustes da TV.</p>
+      <div class="row"><button class="btn" id="beep">${icon('bell')}Encontrar minha TV</button></div></div>
+    ${siriCard()}
+    <div class="card"><h2>Este aparelho</h2><p class="sub">${esc(deviceName())}</p><div class="row"><button class="btn small danger" id="logout">Desconectar este aparelho</button></div></div>`;
+  renderConn();
+  bindSiriCard();
+  $('#beep').onclick = findTv;
+  $('#logout').onclick = () => { if (confirm('Desconectar este aparelho da TV?')) { saveToken(null); location.reload(); } };
+}
+
 async function loadDevices() {
   const box = $('#devList');
   try {
@@ -2331,7 +2375,7 @@ async function loadDevices() {
     $('#legacy').checked = r.legacyOpen;
     $('#legacy').onchange = (e) => api('/api/v2/settings', { method: 'POST', json: { legacyOpen: e.target.checked } }).then(() => toast('Ajuste salvo'), (er) => toast(er.message, false));
     box.innerHTML = r.devices.map((d) => `<div class="item"><div class="fileicon">${icon('phone')}</div>
-      <div class="t"><b>${esc(d.name)}${d.current ? ' <span class="pill ok">este</span>' : ''}</b><small>Último acesso: ${fmtDate(d.lastSeen)}</small></div>
+      <div class="t"><b>${esc(d.name)}${d.current ? ' <span class="pill ok">este</span>' : ''}${roleBadge(d)}</b><small>Último acesso: ${fmtDate(d.lastSeen)}${roleDetails(d)}</small></div>
       <button class="btn small" data-rename="${esc(d.id)}" aria-label="Renomear">${icon('edit')}</button>
       ${d.current ? '' : `<button class="btn small danger" data-revoke="${esc(d.id)}" aria-label="Remover">${icon('trash')}</button>`}</div>`).join('') || '<div class="empty">Nenhum aparelho.</div>';
     $$('[data-rename]', box).forEach((b) => b.onclick = () => { const n = prompt('Novo nome (ex.: Celular da sala):'); if (n) api('/api/v2/devices/rename', { method: 'POST', json: { id: b.dataset.rename, name: n } }).then(loadDevices, (e) => toast(e.message, false)); });
@@ -2547,6 +2591,9 @@ function boot() {
   // Token handed over by the Android app: #token=...
   const hash = new URLSearchParams(location.hash.slice(1));
   if (hash.get('token')) { saveToken(hash.get('token')); history.replaceState(null, '', location.pathname); }
+  // invite for a visitor or a child: /?convite=CODE
+  const invite = new URLSearchParams(location.search).get('convite');
+  if (invite) { history.replaceState(null, '', location.pathname); if (!S.token) { redeemInvite(invite); return; } }
   // QR code from the TV: /?pair=123456
   const pin = new URLSearchParams(location.search).get('pair');
   if (pin) { history.replaceState(null, '', location.pathname); if (!S.token) { $('#pairView').hidden = false; pairStep('pin', 'Conectando pelo QR Code…'); $('#pinInput').value = pin; doPair(pin); return; } }

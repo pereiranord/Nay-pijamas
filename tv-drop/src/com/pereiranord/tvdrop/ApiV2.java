@@ -89,6 +89,17 @@ final class ApiV2 {
             if (get && "/info".equals(p)) { Http.json(out, 200, info()); return; }
             if (post && "/pair".equals(p)) { pair(r); return; }
             if (post && "/pair/start".equals(p)) { pairStart(r); return; }
+            if (post && "/pair/invite".equals(p)) {
+                JSONObject b = r.json();
+                try {
+                    Pairing.Result res = pairing.redeem(b.optString("code"), b.optString("name", "Aparelho"));
+                    Events.add("Aparelho de " + (res.device.isKids() ? "criança" : "visita") + " conectado: " + res.device.name);
+                    Http.json(out, 200, new JSONObject().put("ok", true).put("token", res.token).put("device", res.device.toJson()));
+                } catch (Pairing.Refused e) {
+                    Http.error(out, 403, "bad_invite", e.getMessage());
+                }
+                return;
+            }
             if (post && "/pair/pin".equals(p)) {
                 pairing.showPin();
                 Events.add("Um aparelho pediu o código do TV Drop: ele está na tela do TV Drop por 2 minutos");
@@ -102,7 +113,21 @@ final class ApiV2 {
                 Http.json(out, 200, new JSONObject().put("ok", true).put("device", d == null ? null : d.toJson()));
                 return;
             }
-            if (get && "/capabilities".equals(p)) { Http.json(out, 200, capabilities()); return; }
+            if (get && "/capabilities".equals(p)) { Http.json(out, 200, capabilities().put("role", r.device == null ? "owner" : r.device.role())); return; }
+            if ("/act".equals(p) && (get || post)) { act(r); return; }
+            if (get && "/qr".equals(p)) {
+                String text = r.query.get("text");
+                if (text == null || !text.startsWith("http://" + host.ip() + ":" + server.port() + "/?convite=")) { Http.fail(out, "QR só para convites"); return; }
+                image(out, host.qrPng(text, 480), "image/png", "Sem QR Code");
+                return;
+            }
+            if (get && "/routines".equals(p)) { Http.json(out, 200, new JSONObject().put("ok", true).put("routines", server.routines.toJson())); return; }
+            if (get && "/invites".equals(p)) {
+                JSONArray a = new JSONArray();
+                for (Pairing.Invite i : pairing.invites()) a.put(i.toJson().put("url", inviteUrl(i.code)));
+                Http.json(out, 200, new JSONObject().put("ok", true).put("invites", a));
+                return;
+            }
             if (get && "/apps".equals(p)) { Http.json(out, 200, apps()); return; }
             if (get && "/apps/icon".equals(p)) { icon(r); return; }
             if (get && "/devices".equals(p)) { Http.json(out, 200, devices(r)); return; }
@@ -170,7 +195,53 @@ final class ApiV2 {
                 return;
             }
             switch (p) {
-                case "/remote/key": done(out, host.remote().key(body.optString("key")), "OK"); return;
+                case "/remote/key": {
+                    String k = body.optString("key");
+                    String no = Access.denyKey(r.device, k, Access.minuteNow(System.currentTimeMillis()));
+                    if (no != null) { Http.error(out, 403, "forbidden", no); return; }
+                    done(out, host.remote().key(k), "OK");
+                    return;
+                }
+                case "/remote/search": done(out, host.globalSearch(body.optString("query")), "Buscando no Google da TV"); return;
+                case "/routines/save": {
+                    try {
+                        JSONObject saved = server.routines.save(body.optJSONObject("routine") == null ? body : body.getJSONObject("routine"));
+                        Http.json(out, 200, new JSONObject().put("ok", true).put("routine", saved).put("message", "Rotina salva"));
+                    } catch (IllegalArgumentException e) {
+                        Http.fail(out, e.getMessage());
+                    }
+                    return;
+                }
+                case "/routines/delete": {
+                    if (server.routines.delete(body.optString("id"))) Http.ok(out, "Rotina apagada");
+                    else Http.error(out, 404, "not_found", "Rotina não encontrada");
+                    return;
+                }
+                case "/routines/run": {
+                    JSONObject rt = server.routines.get(body.optString("id"));
+                    if (rt == null) { Http.error(out, 404, "not_found", "Rotina não encontrada"); return; }
+                    runRoutine(rt, "pelo celular");
+                    Http.ok(out, "Rotina \"" + rt.optString("name") + "\" rodando na TV");
+                    return;
+                }
+                case "/invites": {
+                    JSONArray bl = body.optJSONArray("blocked");
+                    java.util.List<String> blocked = new java.util.ArrayList<>();
+                    if (bl != null) for (int i = 0; i < bl.length(); i++) blocked.add(bl.optString(i));
+                    try {
+                        Pairing.Invite inv = pairing.invite(body.optString("role", "guest"), body.optLong("deviceHours", 24),
+                                body.optString("hours", "").isEmpty() ? null : body.optString("hours"), blocked, body.optString("label", ""));
+                        Http.json(out, 200, inv.toJson().put("ok", true).put("url", inviteUrl(inv.code)));
+                    } catch (IllegalArgumentException e) {
+                        Http.fail(out, e.getMessage());
+                    }
+                    return;
+                }
+                case "/invites/cancel": {
+                    if (pairing.cancelInvite(body.optString("code"))) Http.ok(out, "Convite cancelado");
+                    else Http.error(out, 404, "not_found", "Convite não encontrado");
+                    return;
+                }
                 case "/remote/hold": {
                     String owner = "http:" + Pairing.sha256(String.valueOf(r.token())).substring(0, 12);
                     String k = body.optString("key");
@@ -212,7 +283,12 @@ final class ApiV2 {
                     Http.ok(out, "OK");
                     return;
                 }
-                case "/apps/launch": appAction(out, body.optString("pkg"), "launch"); return;
+                case "/apps/launch": {
+                    String no = Access.denyApp(r.device, body.optString("pkg"));
+                    if (no != null) { Http.error(out, 403, "forbidden", no); return; }
+                    appAction(out, body.optString("pkg"), "launch");
+                    return;
+                }
                 case "/apps/uninstall": appAction(out, body.optString("pkg"), "uninstall"); return;
                 case "/apps/store": appAction(out, body.optString("pkg"), "store"); return;
                 case "/devices/revoke": {
@@ -227,7 +303,8 @@ final class ApiV2 {
                 }
                 case "/settings": {
                     if (body.has("legacyOpen")) pairing.setLegacyOpen(body.optBoolean("legacyOpen"));
-                    Http.json(out, 200, new JSONObject().put("ok", true).put("legacyOpen", pairing.legacyOpen()));
+                    if (body.has("keepAwake")) host.setKeepAwake(body.optBoolean("keepAwake"));
+                    Http.json(out, 200, new JSONObject().put("ok", true).put("legacyOpen", pairing.legacyOpen()).put("keepAwake", host.keepAwake()));
                     return;
                 }
                 case "/beep": host.beep(); Http.ok(out, "A TV está tocando um som"); return;
@@ -699,6 +776,10 @@ final class ApiV2 {
                 .put("files", new JSONObject().put("upload", true).put("install", host.canInstall()))
                 .put("autoOpen", host.canOverlay())
                 .put("beep", true)
+                .put("wake", new JSONObject().put("mac", host.mac() == null ? JSONObject.NULL : host.mac()).put("ip", host.ip())
+                        .put("keepAwake", host.keepAwake()))
+                .put("googleSearch", true)
+                .put("routines", true)
                 .put("mirror", new JSONObject().put("active", host.mirrorActive()).put("port", MirrorProtocol.PORT))
                 .put("storage", storageHealth())
                 .put("screenshot", host.sdk() >= 30 && c.optJSONObject("accessibility") != null && c.optJSONObject("accessibility").optBoolean("enabled"));
@@ -839,10 +920,11 @@ final class ApiV2 {
         s.setSoTimeout(0);
         Http.WebSocket ws = Http.WebSocket.accept(r);
         String owner = "ws:" + System.identityHashCode(ws) + ":" + System.nanoTime();
+        Pairing.Device device = r.device;
         try {
             String msg;
             while ((msg = ws.receive()) != null) {
-                String reply = handleWs(msg, owner);
+                String reply = handleWs(msg, owner, device);
                 if (reply != null) ws.sendText(reply);
             }
         } finally {
@@ -852,11 +934,23 @@ final class ApiV2 {
 
     /** Handles one WebSocket message; returns the reply, or null when none is due (pointer moves). */
     String handleWs(String msg, String owner) {
+        return handleWs(msg, owner, null);
+    }
+
+    String handleWs(String msg, String owner, Pairing.Device device) {
         try {
             JSONObject m = new JSONObject(msg);
             String t = m.optString("t");
             String id = m.optString("id", null);
             String err;
+            if (("key".equals(t) || "hold".equals(t)) && device != null && !device.isOwner()) {
+                String no = Access.denyKey(device, m.optString("k"), Access.minuteNow(System.currentTimeMillis()));
+                if (no != null) {
+                    JSONObject o = new JSONObject().put("t", "ack").put("ok", false).put("message", no);
+                    if (id != null) o.put("id", id);
+                    return o.toString();
+                }
+            }
             switch (t) {
                 case "key": err = host.remote().key(m.optString("k")); break;
                 case "hold": {
@@ -883,6 +977,110 @@ final class ApiV2 {
         } catch (JSONException e) {
             return "{\"t\":\"ack\",\"ok\":false,\"message\":\"JSON inválido\"}";
         }
+    }
+
+    // ---- one-line actions (Siri Shortcuts, home automation): GET /api/v2/act?token=...&key=power ----
+
+    /**
+     * One action from a link: key (with times), app, link, text, search (Google TV), routine (id or name), volume
+     * (up/down with times), power (on/off). The token goes in the link (?token=) or in a header.
+     */
+    private void act(Http.Request r) throws IOException, JSONException {
+        java.util.Map<String, String> q = r.query;
+        if ("POST".equals(r.method) && r.length > 0) {
+            JSONObject b = r.json();
+            java.util.Iterator<String> it = b.keys();
+            while (it.hasNext()) { String k = it.next(); q.put(k, b.optString(k)); }
+        }
+        int minute = Access.minuteNow(System.currentTimeMillis());
+        int times = Math.max(1, Math.min(20, parseInt(q.get("times"), 1)));
+        String err, msg;
+        if (q.get("key") != null) {
+            String k = q.get("key");
+            err = Access.denyKey(r.device, k, minute);
+            for (int i = 0; i < times && err == null; i++) err = host.remote().key(k);
+            msg = "Tecla " + k + " enviada";
+        } else if (q.get("app") != null) {
+            String pkg = resolveApp(q.get("app"));
+            err = pkg == null ? "App não encontrado: " + q.get("app") : Access.denyApp(r.device, pkg);
+            if (err == null) err = host.launchApp(pkg) ? null : "A TV não abriu o app";
+            msg = "Abrindo " + q.get("app");
+        } else if (q.get("link") != null) {
+            err = host.remote().launchLink(q.get("link"));
+            msg = "Abrindo o link na TV";
+        } else if (q.get("text") != null) {
+            err = host.remote().text(q.get("text"), false, "1".equals(q.get("submit")));
+            msg = "Texto enviado";
+        } else if (q.get("search") != null) {
+            err = host.globalSearch(q.get("search"));
+            msg = "Buscando no Google da TV";
+        } else if (q.get("routine") != null) {
+            JSONObject rt = server.routines.get(q.get("routine"));
+            err = rt == null ? "Rotina não encontrada: " + q.get("routine") : null;
+            if (rt != null) runRoutine(rt, "por atalho");
+            msg = rt == null ? "" : "Rotina " + rt.optString("name") + " rodando";
+        } else if (q.get("volume") != null) {
+            String dir = q.get("volume");
+            err = dir.matches("up|down|mute") ? null : "volume: use up, down ou mute";
+            for (int i = 0; i < times && err == null; i++) host.volume(dir);
+            msg = "Volume " + dir;
+        } else if (q.get("power") != null) {
+            err = Access.denyKey(r.device, "power", minute);
+            if (err == null) err = "on".equals(q.get("power")) ? host.remote().setPower(true) : "off".equals(q.get("power")) ? host.remote().setPower(false) : host.remote().key("power");
+            msg = "on".equals(q.get("power")) ? "Ligando a TV" : "off".equals(q.get("power")) ? "Desligando a TV" : "Liga/desliga enviado";
+        } else {
+            Http.fail(r.out, "Diga o que fazer: key, app, link, text, search, routine, volume ou power");
+            return;
+        }
+        if (err == null) Http.ok(r.out, msg);
+        else Http.error(r.out, 409, "unavailable", err);
+    }
+
+    private static int parseInt(String s, int def) {
+        try { return s == null ? def : Integer.parseInt(s.trim()); } catch (NumberFormatException e) { return def; }
+    }
+
+    /** A package name, or an installed app's name ("netflix" → com.netflix.ninja). */
+    private String resolveApp(String nameOrPkg) {
+        if (nameOrPkg.matches("[a-zA-Z][\\w]*(\\.[\\w]+)+")) return nameOrPkg;
+        String n = lower(nameOrPkg).replaceAll("[^a-z0-9]", "");
+        try {
+            JSONArray apps = apps().optJSONArray("apps");
+            if (apps != null) for (int i = 0; i < apps.length(); i++) {
+                JSONObject a = apps.getJSONObject(i);
+                String label = lower(a.optString("label")).replaceAll("[^a-z0-9]", "");
+                if (!label.isEmpty() && (label.equals(n) || label.startsWith(n))) return a.optString("pkg");
+            }
+        } catch (JSONException ignored) {
+        }
+        return null;
+    }
+
+    /** Runs a routine in the background on the TV; problems go to the TV's log. */
+    void runRoutine(JSONObject rt, String how) {
+        Thread t = new Thread(() -> {
+            java.util.List<String> problems = Routines.run(rt, routineActions(), Thread::sleep);
+            Events.add("Rotina \"" + rt.optString("name") + "\" (" + how + ")" + (problems.isEmpty() ? "" : ": " + String.join("; ", problems)));
+        }, "tvdrop-routine");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    Routines.Actions routineActions() {
+        return new Routines.Actions() {
+            @Override public String key(String key) { return host.remote().key(key); }
+            @Override public String app(String pkg) { String p = resolveApp(pkg); return p != null && host.launchApp(p) ? null : "não abriu " + pkg; }
+            @Override public String link(String url) { return host.remote().launchLink(url); }
+            @Override public String text(String text) { return host.remote().text(text, false, false); }
+            @Override public String search(String query) { return host.globalSearch(query); }
+            @Override public String volume(String dir) { host.volume(dir); return null; }
+            @Override public String timer(long minutes, String action) { server.timer.set(minutes, action); return null; }
+            @Override public String power(boolean on) { return host.remote().setPower(on); }
+        };
+    }
+
+    private String inviteUrl(String code) {
+        return "http://" + host.ip() + ":" + server.port() + "/?convite=" + code;
     }
 
     /** The TV's keyboard, for the phone to offer its own (see RemoteControl.ime). */

@@ -183,6 +183,12 @@ final class AndroidRemote implements TvHost.RemoteControl {
         return r.error;
     }
 
+    @Override
+    public String setPower(boolean on) {
+        android.os.PowerManager pm = ctx.getSystemService(android.os.PowerManager.class);
+        return pm.isInteractive() == on ? null : power();
+    }
+
     @SuppressWarnings("deprecation")
     private static void wakeScreen(android.os.PowerManager pm) {
         android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK

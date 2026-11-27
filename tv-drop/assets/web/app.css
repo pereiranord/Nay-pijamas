@@ -612,9 +612,12 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
   body.rmode .rview #surface { order: 6; }
   body.rmode .rview .rnav { display: flex; order: 7; }
   body.rmode .rview .rvol { display: flex; order: 8; }
-  body.rmode .rview .actionbar { order: 9; margin: 22px 0 12px; }
-  body.rmode .rview .rstatus { order: 10; }
-  body.rmode .rview .rockers { order: 11; }
+  body.rmode .r-side > * { order: 30; }
+  body.rmode .rview .mybtns { order: 9; margin-top: 16px; }
+  body.rmode .rview .ext-card { order: 10; margin-top: 14px; }
+  body.rmode .rview .actionbar { order: 11; margin: 16px 0 12px; }
+  body.rmode .rview .rstatus { order: 12; }
+  body.rmode .rview .rockers { order: 13; }
   body.rmode .rview .top4, body.rmode .rview .nav3 { display: none; }
   body.rmode .rview .dpad { width: var(--dpad); margin: 12px auto 10px; }
   body.rmode .rview .dpad .ok { font-size: 0; }
@@ -692,3 +695,52 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .ch-mode > .sub { flex: 1 0 100%; }
 .ch-mode .seg { flex: 1 1 100%; }
 .ch-mode .seg button { white-space: nowrap; }
+
+
+/* =====================================================================
+   Remote extras: my buttons, sheets, routines, invites, Siri links
+   ===================================================================== */
+.mybtns { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 4px; scrollbar-width: none; width: 100%; min-width: 0; max-width: 100%; }
+.mybtns::-webkit-scrollbar { display: none; }
+.mbtn { flex: none; display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; border-radius: 24px; background: var(--key); color: var(--text); font-size: 14px; font-weight: 600; box-shadow: inset 0 0 0 1px #24292e; white-space: nowrap; touch-action: manipulation; }
+.mbtn svg { width: 20px; height: 20px; color: var(--muted); }
+.mbtn img { width: 26px; height: 26px; border-radius: 7px; object-fit: contain; background: var(--surface-2); }
+.mbtn:active, .mbtn.hit { background: var(--key-hi); transform: scale(.97); }
+.mbtn.ghost { background: none; color: var(--muted); }
+.xsheet-wrap { position: fixed; inset: 0; z-index: 60; background: rgba(0, 0, 0, .45); display: flex; align-items: flex-end; justify-content: center; animation: fade-in .15s; }
+.xsheet { width: 100%; max-width: 560px; margin: 0; max-height: 86vh; overflow-y: auto; border-radius: 24px 24px 0 0; padding: 16px calc(16px + var(--safe-r)) calc(18px + var(--safe-b)) calc(16px + var(--safe-l)); margin-bottom: var(--kb-inset, 0px); animation: sheet-up .22s ease-out; }
+@media (min-width: 760px) { .xsheet-wrap { align-items: center; } .xsheet { border-radius: 24px; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.xh { font-size: 14px; color: var(--muted); margin: 16px 0 8px; font-weight: 700; }
+.xpick { display: flex; flex-wrap: wrap; gap: 8px; }
+.xchip { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 999px; background: var(--surface-2); font-size: 14px; cursor: pointer; }
+.xchip input { width: 18px; height: 18px; margin: 0; accent-color: var(--green); }
+.xchip svg { width: 16px; height: 16px; color: var(--muted); }
+.xchip:has(input:checked) { background: rgba(61, 220, 132, .16); color: var(--green); }
+.xdays { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.xdays .vchip { min-width: 46px; justify-content: center; }
+.vchip.on { background: rgba(61, 220, 132, .18); color: var(--green); }
+.xsteps { padding-left: 20px; margin: 8px 0; color: var(--text); }
+.xsteps li { margin: 8px 0; line-height: 1.45; }
+.xtoggles { margin-top: 12px; display: grid; gap: 4px; }
+.kbd-where { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 2px; align-items: center; scrollbar-width: none; }
+.kbd-where > .sub { flex: none; margin: 0; }
+.siri-row { padding: 10px 0; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.siri-row:first-child { border-top: 0; }
+.siri-row .field { font-size: 12px; min-height: 40px; }
+.invite-out { margin-top: 12px; padding: 12px; border-radius: 16px; background: var(--surface-2); }
+.invite-qr { display: block; width: 180px; height: 180px; margin: 12px auto; border-radius: 12px; background: #fff; }
+.ext-card .transport { display: flex; justify-content: space-between; gap: 6px; margin-top: 8px; }
+.ext-card .transport { gap: 4px; }
+.ext-card .transport .key { width: auto; flex: 1 1 0; min-width: 40px; max-width: 60px; height: 50px; border-radius: 18px; }
+:root[data-theme="light"] .mbtn { box-shadow: inset 0 0 0 1px #d6dbe1; }
+:root[data-theme="light"] .xchip { background: #e8ecf0; }
+
+.siri-row .row, #wakeCard .row, .invite-out .row { flex-wrap: nowrap; }
+.siri-row .row .btn, #wakeCard .row .btn, .invite-out .row .btn { flex: none; width: auto; }
+.siri-row .field, #wakeCard .row .field, .invite-out .field { flex: 1 1 auto; min-width: 0; width: auto; }
+#lockedView { position: fixed; inset: 0; z-index: 70; background: var(--bg); overflow: auto; display: grid; place-items: center; }
+/* tall phones (or the installed app): my buttons fit on the first screen too */
+@media (max-width: 759px) and (orientation: portrait) and (min-height: 760px) {
+  body.rmode .rview { --rchrome: calc(384px + var(--safe-t) + var(--safe-b)); }
+}

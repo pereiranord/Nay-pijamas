@@ -163,6 +163,33 @@ final class AndroidTvHost implements TvHost {
         return out.toByteArray();
     }
 
+    @Override public String mac() { return WakeOnLan.localMac(ip()); }
+    @Override public boolean keepAwake() { return StayReady.enabled(ctx); }
+    @Override public void setKeepAwake(boolean on) { StayReady.set(ctx, on); }
+
+    /** Google TV's search screen with the phrase (results from every app, and Assistant answers). */
+    @Override
+    public String globalSearch(String query) {
+        if (query == null || query.trim().isEmpty()) return "Diga ou digite o que procurar.";
+        String q = query.trim();
+        Intent[] tries = {
+                new Intent("android.search.action.GLOBAL_SEARCH").putExtra(android.app.SearchManager.QUERY, q),
+                new Intent(Intent.ACTION_WEB_SEARCH).putExtra(android.app.SearchManager.QUERY, q),
+                new Intent(Intent.ACTION_SEARCH).setPackage("com.google.android.katniss").putExtra(android.app.SearchManager.QUERY, q),
+        };
+        for (Intent i : tries) {
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            try {
+                ctx.startActivity(i);
+                Events.add("Busca do Google na TV: " + q);
+                return null;
+            } catch (Exception ignored) {
+                // next way
+            }
+        }
+        return "Esta TV não abriu a busca do Google.";
+    }
+
     @Override
     public boolean launchApp(String pkg) {
         PackageManager pm = ctx.getPackageManager();

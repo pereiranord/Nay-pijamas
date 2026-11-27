@@ -151,6 +151,55 @@ public class RemoteActivity extends Activity {
                 .build();
     }
 
+    // ---------- shake the phone: play / pause on the TV ----------
+
+    private android.hardware.SensorEventListener shake;
+    private long lastShake, firstPeak;
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        listenShake();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        stopShake();
+    }
+
+    private void stopShake() {
+        if (shake == null) return;
+        getSystemService(android.hardware.SensorManager.class).unregisterListener(shake);
+        shake = null;
+    }
+
+    /** Two strong shakes within half a second (with the option on and a TV connected) = play/pause. */
+    private void listenShake() {
+        stopShake();
+        if (!prefs().getBoolean("shake", false)) return;
+        android.hardware.SensorManager sm = getSystemService(android.hardware.SensorManager.class);
+        android.hardware.Sensor acc = sm == null ? null : sm.getDefaultSensor(android.hardware.Sensor.TYPE_ACCELEROMETER);
+        if (acc == null) return;
+        shake = new android.hardware.SensorEventListener() {
+            @Override
+            public void onSensorChanged(android.hardware.SensorEvent e) {
+                double g = Math.sqrt(e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]) / 9.81;
+                if (g < 2.6) return;
+                long now = android.os.SystemClock.elapsedRealtime();
+                if (now - lastShake < 1500) return;
+                if (now - firstPeak > 500) { firstPeak = now; return; }
+                lastShake = now;
+                firstPeak = 0;
+                if (token != null && tv != null) web.evaluateJavascript("window.tvdropShake && tvdropShake()", null);
+            }
+
+            @Override
+            public void onAccuracyChanged(android.hardware.Sensor s, int a) {}
+        };
+        sm.registerListener(shake, acc, android.hardware.SensorManager.SENSOR_DELAY_UI);
+    }
+
     // ---------- phone volume keys control the TV ----------
 
     @Override
@@ -275,11 +324,52 @@ public class RemoteActivity extends Activity {
             });
         }
 
-        /** Settings that the native side also needs (volume keys, quick-controls notification). */
+        /** The TV's network address, kept for turning it on later (widget and notification too). */
+        @JavascriptInterface
+        public void setWake(String hostPort, String mac) {
+            String m = WakeOnLan.normalize(mac);
+            if (hostPort == null || m == null) return;
+            getSharedPreferences("tvdrop", MODE_PRIVATE).edit().putString("wake:" + hostPort, m).apply();
+        }
+
+        /**
+         * Turns on a TV that can't answer (deep standby): Wake-on-LAN to its MAC, and WAKEUP through the phone's own
+         * pairing with the TV's remote service when there is one. The answer goes to tvdropNative(id, json).
+         */
+        @JavascriptInterface
+        public void wake(String mac, String ip, String id) {
+            io.execute(() -> {
+                JSONObject r = new JSONObject();
+                java.util.List<String> sent = new java.util.ArrayList<>();
+                String why = null;
+                try {
+                    String m = WakeOnLan.normalize(mac);
+                    if (m == null && tv != null) m = getSharedPreferences("tvdrop", MODE_PRIVATE).getString("wake:" + tv, null);
+                    if (m != null) { WakeOnLan.send(m, ip != null && !ip.isEmpty() ? ip : tv == null ? null : tv.split(":")[0]); sent.add("wol"); }
+                    else why = "A TV ainda não informou o endereço de rede (MAC). Veja Dispositivos → Ligar a TV pelo celular.";
+                } catch (Exception e) {
+                    why = e.getMessage();
+                }
+                try {
+                    if (tv != null && phoneAtv().isPaired()) { phoneAtv().sendKey(224); sent.add("atv"); }
+                } catch (Exception ignored) {
+                    // the TV's remote service sleeps too
+                }
+                try {
+                    r.put("ok", !sent.isEmpty()).put("sent", new org.json.JSONArray(sent));
+                    if (sent.isEmpty() && why != null) r.put("message", why);
+                } catch (org.json.JSONException ignored) {
+                }
+                runOnUiThread(() -> web.evaluateJavascript("tvdropNative(" + JSONObject.quote(id) + "," + r + ")", null));
+            });
+        }
+
+        /** Settings that the native side also needs (volume keys, quick-controls notification, shake). */
         @JavascriptInterface
         public void setPref(String key, String value) {
             boolean on = "true".equals(value);
             prefs().edit().putBoolean(key, on).apply();
+            if ("shake".equals(key)) runOnUiThread(RemoteActivity.this::listenShake);
             if ("quickNotif".equals(key)) runOnUiThread(() -> {
                 if (on) QuickControls.show(RemoteActivity.this); else QuickControls.hide(RemoteActivity.this);
             });

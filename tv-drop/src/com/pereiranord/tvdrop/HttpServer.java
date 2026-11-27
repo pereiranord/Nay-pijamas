@@ -37,7 +37,7 @@ public class HttpServer extends Thread {
     static final Set<String> LEGACY = new HashSet<>(Arrays.asList(
             "/api/status", "/api/upload", "/api/play", "/api/install", "/api/delete", "/api/control"));
     static final Set<String> OPEN = new HashSet<>(Arrays.asList("/api/hello", "/api/v2/info", "/api/v2/pair",
-            "/api/v2/pair/start", "/api/v2/pair/pin",
+            "/api/v2/pair/start", "/api/v2/pair/pin", "/api/v2/pair/invite",
             "/api/v2/games/ws", "/api/v2/games/qr")); // game guests join with the room code, not with pairing
 
     private final TvHost host;
@@ -47,8 +47,32 @@ public class HttpServer extends Thread {
     final SleepTimer timer;
     final KeyRepeater repeater;
     final GameHub games = new GameHub();
+    Routines routines = new Routines(new KeyValueStore.Memory(), System::currentTimeMillis);
+    private java.util.concurrent.ScheduledExecutorService routineClock;
     private ServerSocket socket;
     private volatile boolean running = true;
+
+    /** Where routines are kept (the TV's preferences; memory in tests). Call before start(). */
+    void useRoutineStore(KeyValueStore store) {
+        routines = new Routines(store, System::currentTimeMillis);
+    }
+
+    /** Checks every 20 s for routines whose time has come, and runs them on the TV. */
+    synchronized void startRoutines() {
+        if (routineClock != null) return;
+        routineClock = java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "tvdrop-routines");
+            t.setDaemon(true);
+            return t;
+        });
+        routineClock.scheduleWithFixedDelay(() -> {
+            try {
+                for (org.json.JSONObject due : routines.due()) v2.runRoutine(due, "no horário");
+            } catch (RuntimeException ignored) {
+                // next tick
+            }
+        }, 5, 20, java.util.concurrent.TimeUnit.SECONDS);
+    }
 
     /** For tests: in-memory library. */
     public HttpServer(TvHost host, Pairing pairing) {
@@ -173,6 +197,12 @@ public class HttpServer extends Thread {
             if (d == null && !legacyAllowed) {
                 Http.error(out, 401, "unauthorized",
                         "Este aparelho ainda não foi pareado. Digite o código de 6 números que aparece na TV.");
+                return;
+            }
+            r.device = d;
+            String no = Access.deny(d, path, Access.minuteNow(System.currentTimeMillis()));
+            if (no != null) {
+                Http.error(out, 403, "forbidden", no);
                 return;
             }
         }

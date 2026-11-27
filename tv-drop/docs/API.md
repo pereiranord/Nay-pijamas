@@ -36,6 +36,15 @@ O 2.0 trouxe dois acréscimos compatíveis: o campo `modified` em `files` e o ti
 | `GET /api/v2/capabilities` | — | `remote.keys[]`, `remote.via{tecla: remote/accessibility/media/system}`, `remote.text`, `remote.pointer`, `remote.power`, `remote.atv{available,paired,connected}`, `remote.accessibility{enabled,dpad,enableCommand}`, `apps`, `player`, `files` |
 | `POST /api/v2/remote/key` | `{key}` | teclas em `Keys.java`: `up down left right ok back home menu settings search info guide captions playpause play pause stop next prev ff rew volup voldown mute power chup chdown input assistant red green yellow blue apps num0…num9 del enter space recents`. Indisponível: `409`. `power` desliga e confere: tenta POWER, depois repouso (SLEEP) pelo controle do Google e, por fim, o "bloquear tela" da acessibilidade (Android 9+), até a tela da TV apagar; se continuar ligada, responde `409` dizendo isso |
 | `GET /api/v2/remote/ime` | — | o teclado da TV: `{active, value, label, via, known}`. `active` = a TV abriu o teclado num campo (busca, login); `value` = o texto que o campo já tem; `label` = a dica do campo. Também pelo WebSocket: `{"t":"ime","id"}` → `{"t":"ime","id",...}`. O celular consulta a cada ~1 s com o Controle aberto e abre o próprio teclado sozinho |
+| `GET\|POST /api/v2/act` | query ou JSON: `key` (+`times`), `app` (pacote ou nome), `link`, `text` (+`submit=1`), `search`, `routine` (id ou nome), `volume` (`up/down/mute` + `times`), `power` (`on/off`) | uma ação por link, para Atalhos da Siri e automações. O token pode ir no link (`?token=`) |
+| `POST /api/v2/remote/search` | `{query}` | abre a busca do Google TV (resultados de todos os apps e respostas do Google) |
+| `GET /api/v2/routines` | — | rotinas guardadas na TV. Começa com "Boa noite", "Desligar às 23:30" (pausada) e "Bom dia" (pausada) |
+| `POST /api/v2/routines/save` | `{routine:{id?, name, time:"HH:MM"\|null, days:[1..7], enabled, actions:[...]}}` | ações: `key{key,times}`, `volume{dir,steps}`, `app{pkg}`, `link{url}`, `text{text}`, `search{query}`, `timer{minutes,action}`, `power{state:on\|off}`, `wait{seconds}`. Com `time`, a TV roda sozinha no horário (dias: 1 = domingo; vazio = todo dia). Só dono |
+| `POST /api/v2/routines/run` · `/routines/delete` | `{id}` | roda agora na TV (em segundo plano) · apaga (só dono) |
+| `POST /api/v2/invites` | `{role:"guest"\|"kids", deviceHours (0 = sem fim), hours:"08:00-20:00" (criança), blocked:[pacotes] (criança), label}` | convite de uso único, válido por 24 h: `{code, url}` (`/?convite=CÓDIGO`). Só dono |
+| `GET /api/v2/invites` · `POST /api/v2/invites/cancel {code}` | — | convites abertos · cancelar |
+| `POST /api/v2/pair/invite` | `{code, name}` | rota aberta: o celular da visita troca o convite por um token com os limites do convite |
+| `GET /api/v2/qr?text=` | — | QR Code (PNG) de um link de convite desta TV |
 | `POST /api/v2/remote/text` | `{text, replace, submit}` | até 500 caracteres |
 | `POST /api/v2/remote/pointer` | `{action, dx, dy}` | `move, tap, longpress, scroll, hide` (precisa da acessibilidade) |
 | `POST /api/v2/remote/link` | `{link}` | só `http(s)://` e `market://` |
@@ -95,3 +104,16 @@ Mensagens de texto em JSON. Com `id`, a TV responde `{"t":"ack","id","ok","messa
 {"t":"move","dx":12,"dy":-4}      {"t":"tap"}   {"t":"longpress"}   {"t":"scroll","dy":-120}   {"t":"hide"}
 {"t":"volume","action":"up"}       {"t":"ping","id":"9"}
 ```
+
+
+## Visitas e crianças (papéis)
+
+Cada aparelho tem um papel: `owner` (dono, tudo), `guest` (visita) ou `kids` (criança). `GET /api/v2/capabilities` devolve `role`.
+
+- **Visita**: usa o controle, transmite, toca e abre apps. Recebe `403` em: aparelhos e convites, `/settings`, desinstalar/instalar apps, apagar arquivos e cache, atualizações, parear/desparear o controle, salvar/apagar rotinas e as rotas antigas `/api/install` e `/api/delete`.
+- **Criança**: o mesmo da visita, mais: fora do horário combinado toda rota responde `403` ("Fora do horário combinado"); as teclas `settings` e `input` e os apps bloqueados são recusados (inclusive pelo WebSocket).
+- Um aparelho com validade (`expires`) para de funcionar sozinho quando ela vence.
+
+## Ligar a TV
+
+`capabilities.wake = {mac, ip, keepAwake}`. O celular guarda o MAC enquanto a TV responde. O app Android manda Wake-on-LAN (UDP 9 e 7, broadcast e /24) e WAKEUP pelo próprio pareamento quando a TV não responde. `POST /api/v2/settings {"keepAwake":true}` deixa o TV Drop acordado com a TV em repouso (wake lock parcial + Wi-Fi), para que o Liga/Desliga e a Siri liguem a TV pela rede.

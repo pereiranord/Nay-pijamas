@@ -50,6 +50,16 @@ public interface TvHost {
     /** System volume: "up", "down" or "mute". */
     void volume(String action);
 
+    // ---- turning on from the phone ----
+    /** This TV's network address (MAC) for Wake-on-LAN, or null when Android hides it. */
+    default String mac() { return null; }
+    /** "Ready to turn on from the phone": TV Drop keeps itself awake while the TV is in standby. */
+    default boolean keepAwake() { return false; }
+    default void setKeepAwake(boolean on) {}
+
+    /** Google TV's own search (and Assistant answers) for a phrase, on the TV screen. Null on success or why not. */
+    default String globalSearch(String query) { return "Esta TV não tem a busca do Google."; }
+
     // ---- remote control (TV Drop 2.0) ----
     RemoteControl remote();
 
@@ -144,5 +154,8 @@ public interface TvHost {
          * asks for text, {"active": false} otherwise. Null when this TV can't tell.
          */
         default JSONObject ime() { return null; }
+
+        /** Turns the TV on or off, doing nothing when it already is (routines: "desligar às 23:30"). */
+        default String setPower(boolean on) { return key("power"); }
     }
 }

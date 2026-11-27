@@ -20,6 +20,25 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 10 — Investigação dos Impostores | ⏭️ Próximo (depois de os jogos 4–9b serem jogados na TV de verdade) |
 | 11 — Testes e acabamento | Pendente |
 
+## As 10 ideias do controle (27/11/2026)
+
+1. **Atalhos da Siri**: rota `/api/v2/act` (uma ação por link, token no link) e, em Dispositivos, a lista de links prontos para copiar (desligar, ligar, pausar, volume, mudo, YouTube, Netflix, Google da TV e cada rotina), com o passo a passo do app Atalhos. Também serve para Home Assistant.
+2. **Ligar a TV em repouso** (prioridade):
+   - a TV informa o MAC e o celular guarda; o app Android manda Wake-on-LAN e WAKEUP pelo pareamento do celular quando a TV não responde. O botão Liga/Desliga do widget e da notificação também;
+   - "Pronto para ligar pelo celular": a TV mantém o TV Drop acordado em repouso, e o Liga/Desliga do navegador, do iPhone e da Siri ligam a TV;
+   - no navegador sem resposta da TV, o Liga/Desliga explica o que ativar; MAC manual em Dispositivos.
+3. **Google da TV**: o que se fala ou digita abre na busca do Google TV (resultados de todos os apps e respostas do Google). Uma frase que não é comando do TV Drop vai para o Google da TV. Não envia o áudio em si (o protocolo de voz do Google não é documentado): manda o texto falado.
+4. **Meus botões**: até 8 botões escolhidos (ações, rotinas, teclas, apps) logo abaixo do volume; em celulares altos ficam na primeira tela.
+5. **Volume pelos botões do celular**: já existia no app Android; agora com opção visível no "Mais".
+6. **Tocando agora no controle**: capa, título, barra de tempo, ±10 s, anterior/próximo (precisa do acesso a notificações na TV).
+7. **Busca universal**: no teclado, "Buscar em": Google TV (todos os apps) e a busca de YouTube, Netflix, Prime Video, Globoplay, Disney+ e Max (os instalados). A do Google TV é a garantida; as dos apps dependem de cada app aceitar o link.
+8. **Rotinas na TV**: guardadas e executadas na própria TV (botão e horário, dias da semana), com editor de ações; prontas: Boa noite, Desligar às 23:30 e Bom dia.
+9. **Gestos**: dois dedos para cima/baixo no modo Deslizante mudam o volume; chacoalhar o celular = play/pausa (app Android, opção).
+10. **Visitas e crianças**: convite por link/QR de uso único (24 h). Visita usa o controle mas não mexe em ajustes, apps e aparelhos; criança também tem horário e apps bloqueados, e fora do horário vê "Agora não". Validade do aparelho: 4 h, 1 dia, 7 dias ou sem fim.
+
+- **Testes**: `RemoteExtrasTest` (9: Wake-on-LAN, `/act`, rotinas, agenda, visitas, crianças, horário e validade), suíte completa (137) verde; layouts (11 formatos × 2 tamanhos), pareamento, PWA, site e teclado verdes; prints de todas as telas.
+- **Não testado em aparelho real**: Wake-on-LAN (depende da TV e do roteador), "Pronto para ligar" (wake lock com a TV em repouso), busca do Google TV pelo intent, chacoalhar.
+
 ## Teclado automático, voz, liga/desliga e canais (27/11/2026)
 
 - **Teclado que aparece sozinho**: quando um campo abre o teclado da TV (busca do YouTube, login...), o Controle abre o teclado do celular sozinho, com o texto que o campo já tem e a dica do campo ("A TV está pedindo texto: Pesquisar").

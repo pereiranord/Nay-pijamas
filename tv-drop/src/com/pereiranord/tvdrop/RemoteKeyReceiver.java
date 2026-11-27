@@ -49,6 +49,16 @@ public class RemoteKeyReceiver extends BroadcastReceiver {
             String r = Net.post("http://" + tv + "/api/v2/remote/key", new JSONObject().put("key", key).toString());
             return Net.bool(r, "ok") ? null : "TV: " + Net.str(r, "message");
         } catch (Exception e) {
+            // a TV in deep standby doesn't answer: the power button sends Wake-on-LAN instead
+            String mac = p.getString("wake:" + tv, null);
+            if ("power".equals(key) && mac != null) {
+                try {
+                    WakeOnLan.send(mac, tv.split(":")[0]);
+                    return "A TV não respondeu: mandei o sinal de ligar pela rede.";
+                } catch (Exception ignored) {
+                    // fall through
+                }
+            }
             return "A TV não respondeu (desligada ou fora do Wi-Fi).";
         } finally {
             Net.token = old != null ? old : token;

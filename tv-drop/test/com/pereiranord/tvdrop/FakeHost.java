@@ -84,6 +84,13 @@ class FakeHost implements TvHost {
 
     @Override public String externalPlayerName() { return ""; }
     @Override public void volume(String action) { volume.add(action); }
+    // turning on from the phone, Google TV search
+    volatile boolean keepAwake;
+    volatile String searched;
+    @Override public String mac() { return "A4:5E:60:0B:1C:2D"; }
+    @Override public boolean keepAwake() { return keepAwake; }
+    @Override public void setKeepAwake(boolean on) { keepAwake = on; }
+    @Override public String globalSearch(String query) { searched = query; return null; }
     @Override public RemoteControl remote() { return remote; }
 
     @Override

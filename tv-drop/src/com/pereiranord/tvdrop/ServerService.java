@@ -64,13 +64,16 @@ public class ServerService extends Service {
                 .build();
         if (Build.VERSION.SDK_INT >= 34) startForeground(1, n, FGS_TYPE_SPECIAL_USE);
         else startForeground(1, n);
+        StayReady.apply(this); // "pronto para ligar pelo celular", if the owner turned it on
 
         synchronized (ServerService.class) {
             if (server == null) {
                 HttpServer s = new HttpServer(new AndroidTvHost(getApplicationContext()), pairing(this), library(this));
+                s.useRoutineStore(new PrefsStore(this, "routines"));
                 if (s.open()) {
                     server = s;
                     s.start();
+                    s.startRoutines();
                     Events.add("Servidor no ar: http://" + Actions.ip() + ":" + s.port());
                 }
             }

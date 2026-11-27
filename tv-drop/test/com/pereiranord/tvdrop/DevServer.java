@@ -49,6 +49,16 @@ public class DevServer {
             }
 
             @Override
+            public byte[] qrPng(String text, int size) { // a real QR for the screenshots
+                try {
+                    com.google.zxing.common.BitMatrix m = new com.google.zxing.qrcode.QRCodeWriter().encode(text, com.google.zxing.BarcodeFormat.QR_CODE, size, size);
+                    return png(m, size);
+                } catch (Exception e) {
+                    return null;
+                }
+            }
+
+            @Override
             public byte[] webAsset(String name) {
                 File f = new File("assets/web", name);
                 try {
@@ -81,5 +91,34 @@ public class DevServer {
             Thread.sleep(500);
         }
         server.shutdown();
+    }
+
+    /** Grayscale PNG of a QR matrix (no java.awt next to android.jar). */
+    static byte[] png(com.google.zxing.common.BitMatrix m, int size) throws IOException {
+        java.io.ByteArrayOutputStream raw = new java.io.ByteArrayOutputStream();
+        for (int y = 0; y < size; y++) {
+            raw.write(0);
+            for (int x = 0; x < size; x++) raw.write(m.get(x, y) ? 0 : 255);
+        }
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        out.write(new byte[]{(byte) 0x89, 'P', 'N', 'G', 13, 10, 26, 10});
+        java.nio.ByteBuffer ihdr = java.nio.ByteBuffer.allocate(13).putInt(size).putInt(size).put((byte) 8).put((byte) 0).put((byte) 0).put((byte) 0).put((byte) 0);
+        chunk(out, "IHDR", ihdr.array());
+        java.io.ByteArrayOutputStream z = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.DeflaterOutputStream d = new java.util.zip.DeflaterOutputStream(z)) { d.write(raw.toByteArray()); }
+        chunk(out, "IDAT", z.toByteArray());
+        chunk(out, "IEND", new byte[0]);
+        return out.toByteArray();
+    }
+
+    private static void chunk(java.io.ByteArrayOutputStream out, String type, byte[] data) throws IOException {
+        byte[] t = type.getBytes(StandardCharsets.US_ASCII);
+        out.write(java.nio.ByteBuffer.allocate(4).putInt(data.length).array());
+        out.write(t);
+        out.write(data);
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        crc.update(t);
+        crc.update(data);
+        out.write(java.nio.ByteBuffer.allocate(4).putInt((int) crc.getValue()).array());
     }
 }
