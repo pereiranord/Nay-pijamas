@@ -652,3 +652,43 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 @media (max-width: 359px) { .rnav .key.circ { width: 64px; height: 64px; } .rnav .key.homepill { height: 72px; } .rtool { gap: 4px; } body.rmode .rview .seg button { min-width: 42px; padding: 0 8px; } }
 :root[data-theme="light"] .rt-tv:not(.ok) { background: #fff; }
 :root[data-theme="light"] .rnav .key, :root[data-theme="light"] .rvol .key, :root[data-theme="light"] .vpill, :root[data-theme="light"] .rt-exit, :root[data-theme="light"] .rtop .key { box-shadow: inset 0 0 0 1px #d6dbe1; }
+
+/* =====================================================================
+   Keyboard and voice: the TV asks for text → the phone's keyboard comes up
+   by itself (like the Google TV remote). On an upright phone both open as a
+   sheet over the bottom of the remote, above the phone's own keyboard
+   (--kb-inset, from visualViewport); elsewhere they stay cards.
+   ===================================================================== */
+.kbd-head { align-items: center; gap: 10px; }
+.sheet-x { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); flex: none; }
+.sheet-x svg { width: 20px; height: 20px; }
+.kbd-field { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; border-radius: 12px; background: rgba(61, 220, 132, .12); color: var(--green); font-size: 14px; font-weight: 600; }
+.kbd-field svg { width: 18px; height: 18px; }
+.kbd-input { position: relative; }
+.kbd-input textarea { padding-right: 60px; }
+.kbd-mic { position: absolute; right: 8px; top: 8px; width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; color: var(--text); }
+.kbd-mic.on { background: var(--green); color: var(--green-ink); animation: pulse 1s infinite; }
+.kbd-recent, .vchips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 2px; scrollbar-width: none; }
+.kbd-recent:empty { display: none; }
+.vchip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: 14px; white-space: nowrap; }
+.vchip svg { width: 16px; height: 16px; color: var(--muted); }
+.vchip.ghost { background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+.vchip:active { transform: scale(.97); }
+.ch-mode { margin-top: 14px; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ch-mode .seg { flex: 1 1 220px; }
+.ch-mode .seg button { min-height: 40px; font-size: 13px; }
+@media (max-width: 759px) and (orientation: portrait) {
+  body.rmode #kbd:not([hidden]), body.rmode #voice:not([hidden]) {
+    position: fixed; left: 0; right: 0; bottom: var(--kb-inset, 0px); z-index: 45; margin: 0;
+    border-radius: 24px 24px 0 0; padding: 16px calc(16px + var(--safe-r)) calc(14px + var(--safe-b)) calc(16px + var(--safe-l));
+    box-shadow: 0 -18px 50px rgba(0, 0, 0, .55); max-height: 78vh; overflow-y: auto; animation: sheet-up .22s ease-out;
+  }
+  body.rmode #kbd textarea { min-height: 64px; }
+}
+@keyframes sheet-up { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+:root[data-theme="light"] .vchip, :root[data-theme="light"] .sheet-x, :root[data-theme="light"] .kbd-mic { background: #e8ecf0; }
+#cmdGo { flex: none; width: 56px; padding: 0; }
+#voice .row .field { min-width: 0; }
+.ch-mode > .sub { flex: 1 0 100%; }
+.ch-mode .seg { flex: 1 1 100%; }
+.ch-mode .seg button { white-space: nowrap; }

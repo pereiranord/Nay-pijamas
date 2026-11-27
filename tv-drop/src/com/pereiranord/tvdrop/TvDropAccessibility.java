@@ -93,6 +93,36 @@ public class TvDropAccessibility extends AccessibilityService {
         return ok ? null : "O app da TV não aceitou o texto.";
     }
 
+    /**
+     * The TV's on-screen keyboard is up: {text in the focused field, its hint}, so the phone can offer its own
+     * keyboard. Null when it isn't. The keyboard window is the signal; without the window list (older setups) a
+     * focused text field is used instead.
+     */
+    public String[] keyboard() {
+        boolean windowsKnown = false, imeUp = false;
+        try {
+            for (android.view.accessibility.AccessibilityWindowInfo w : getWindows()) {
+                windowsKnown = true;
+                if (w.getType() == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD) { imeUp = true; break; }
+            }
+        } catch (RuntimeException ignored) {
+            // no window list: fall back to the focused field below
+        }
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        AccessibilityNodeInfo node = root == null ? null : root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+        boolean editable = node != null && node.isEditable();
+        if (windowsKnown ? !imeUp : !editable) return null;
+        String text = "", hint = "";
+        if (editable) {
+            if (node.getText() != null && !isHint(node)) text = node.getText().toString();
+            CharSequence h = Build.VERSION.SDK_INT >= 26 ? node.getHintText() : null;
+            if (h == null || h.length() == 0) h = node.getContentDescription();
+            if (h == null && isHint(node)) h = node.getText();
+            if (h != null) hint = h.toString();
+        }
+        return new String[]{text, hint};
+    }
+
     private static boolean isHint(AccessibilityNodeInfo n) {
         return Build.VERSION.SDK_INT >= 26 && n.isShowingHintText();
     }

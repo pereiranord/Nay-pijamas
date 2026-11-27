@@ -138,5 +138,11 @@ public interface TvHost {
         String pairFinish(String code);
         String unpair();
         String launchLink(String link);
+
+        /**
+         * The TV's keyboard: {"active": true, "value": text in the field, "label": its hint, "via"} while the TV
+         * asks for text, {"active": false} otherwise. Null when this TV can't tell.
+         */
+        default JSONObject ime() { return null; }
     }
 }

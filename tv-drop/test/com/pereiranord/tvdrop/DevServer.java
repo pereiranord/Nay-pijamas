@@ -37,7 +37,9 @@ public class DevServer {
 
             @Override
             public String key(String name) {
-                return Keys.get(name) == null ? "Tecla desconhecida" : null;
+                if (Keys.get(name) == null) return "Tecla desconhecida";
+                trackIme(name);
+                return null;
             }
         };
         FakeHost host = new FakeHost(inbox) {

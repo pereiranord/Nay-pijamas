@@ -179,13 +179,35 @@ class FakeHost implements TvHost {
             if (Keys.get(name) == null) return "Tecla desconhecida: " + name;
             if (name.equals("power")) return "Esta tecla precisa do pareamento do controle.";
             keys.add(name);
+            trackIme(name);
             return null;
         }
 
         @Override
         public String text(String text, boolean replace, boolean submit) {
             texts.add(text + (replace ? "|replace" : "") + (submit ? "|submit" : ""));
+            if (imeOpen) imeText = replace ? text : imeText + text;
+            if (submit) imeOpen = false;
             return null;
+        }
+
+        // the TV's keyboard: Search opens it (with what was typed before), Back/Home/Enter put it away
+        volatile boolean imeOpen;
+        volatile String imeText = "";
+
+        void trackIme(String key) {
+            if (key.equals("search")) imeOpen = true;
+            else if (key.equals("back") || key.equals("home") || key.equals("enter")) imeOpen = false;
+        }
+
+        @Override
+        public JSONObject ime() {
+            try {
+                return imeOpen ? new JSONObject().put("active", true).put("value", imeText).put("label", "Pesquisar").put("via", "test")
+                        : new JSONObject().put("active", false);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override

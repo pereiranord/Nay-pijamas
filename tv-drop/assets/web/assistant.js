@@ -58,6 +58,15 @@
       if (sc) return { intent: 'shortcut', args: { name: sc }, label: 'executar "' + sc + '"' };
     }
 
+    // channels and TV keys come before "abrir/coloca <app>" ("coloca no canal 5" is not an app)
+    if ((m = t.match(/^(coloca(r)? (no |o )?|muda(r)? (pro|para o) |vai (pro|para o) |sintoniza(r)? (o )?)?canal\s+(?<n>.+)$/)) && number(m.groups.n) !== null) {
+      const n = number(m.groups.n);
+      return { intent: 'channel', args: { number: n }, label: 'canal ' + n };
+    }
+    if (/^(proximo canal|canal (acima|seguinte|proximo|da frente)|sobe (o )?canal|subir (o )?canal|muda(r)? (de|o) canal|troca(r)? (de|o) canal)$/.test(t)) return { intent: 'key', args: { key: 'chup' }, label: 'próximo canal' };
+    if (/^(canal anterior|canal (abaixo|de tras)|desce (o )?canal|descer (o )?canal|volta(r)? (o |um )?canal)$/.test(t)) return { intent: 'key', args: { key: 'chdown' }, label: 'canal anterior' };
+    if (/^((liga(r)?|ativa(r)?|desliga(r)?|tira(r)?|mostra(r)?) (a |as )?)?legendas?$/.test(t)) return { intent: 'key', args: { key: 'captions' }, label: 'legendas' };
+    if (/^(fonte|entrada|hdmi|troca(r)? (a )?(fonte|entrada)|muda(r)? (a )?(fonte|entrada))$/.test(t)) return { intent: 'key', args: { key: 'input' }, label: 'trocar a fonte (entrada)' };
     if ((m = t.match(/^(abr(ir|a|e)|abre o|abra o|abrir o|abrir a|entra(r)? no|entra(r)? na|vai pro|vai para o|coloca(r)?|bota(r)?)\s+(o |a |no |na )?(.+)$/))) {
       const name = m[8].replace(/^(app|aplicativo)\s+(do |da |de )?/, '').trim();
       const key = name.replace(/\s+/g, '');

@@ -24,6 +24,7 @@ import java.util.Map;
  *   GET  /api/v2/session              the device this token belongs to
  *   GET  /api/v2/capabilities         what this TV can do right now, and through which path
  *   POST /api/v2/remote/key           {"key":"up"}           (see Keys)
+ *   GET  /api/v2/remote/ime                                   the TV's keyboard: {"active","value","label"} (also WebSocket {"t":"ime"})
  *   POST /api/v2/remote/hold          {"key","on"}  hold a key: the TV repeats it until on=false (continuous action)
  *   POST /api/v2/remote/text          {"text","replace","submit"}
  *   POST /api/v2/remote/pointer       {"action":"move|tap|longpress|scroll|hide","dx","dy"}
@@ -154,6 +155,7 @@ final class ApiV2 {
                 return;
             }
             if (post && "/speed".equals(p)) { speedUp(r); return; }
+            if (get && "/remote/ime".equals(p)) { Http.json(out, 200, imeState().put("ok", true)); return; }
             if (!post) { Http.error(out, 404, "not_found", "Rota não encontrada"); return; }
 
             JSONObject body = r.json();
@@ -871,6 +873,7 @@ final class ApiV2 {
                     break;
                 case "volume": host.volume(m.optString("action")); err = null; break;
                 case "ping": return new JSONObject().put("t", "pong").put("id", id).toString();
+                case "ime": return imeState().put("t", "ime").put("id", id).toString();
                 default: err = "Comando desconhecido: " + t;
             }
             JSONObject o = new JSONObject().put("t", "ack").put("ok", err == null);
@@ -880,6 +883,12 @@ final class ApiV2 {
         } catch (JSONException e) {
             return "{\"t\":\"ack\",\"ok\":false,\"message\":\"JSON inválido\"}";
         }
+    }
+
+    /** The TV's keyboard, for the phone to offer its own (see RemoteControl.ime). */
+    JSONObject imeState() throws JSONException {
+        JSONObject st = host.remote().ime();
+        return st == null ? new JSONObject().put("active", false).put("known", false) : new JSONObject(st.toString()).put("known", true);
     }
 
     static String lower(String s) {

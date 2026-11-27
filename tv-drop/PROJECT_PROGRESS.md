@@ -20,6 +20,18 @@ Registro vivo do andamento. Plano completo: [docs/CENTRAL-GAMER-PLANO.md](docs/C
 | 10 — Investigação dos Impostores | ⏭️ Próximo (depois de os jogos 4–9b serem jogados na TV de verdade) |
 | 11 — Testes e acabamento | Pendente |
 
+## Teclado automático, voz, liga/desliga e canais (27/11/2026)
+
+- **Teclado que aparece sozinho**: quando um campo abre o teclado da TV (busca do YouTube, login...), o Controle abre o teclado do celular sozinho, com o texto que o campo já tem e a dica do campo ("A TV está pedindo texto: Pesquisar").
+  - Como a TV avisa: pela acessibilidade do TV Drop, que agora vê a janela do teclado, ou pelo pedido de teclado do serviço de controle do Google (`remote_ime_show_request`). Rota `GET /api/v2/remote/ime` e WebSocket `{"t":"ime"}`.
+  - O teclado fecha sozinho quando a TV guarda o dela; fechado no X, não volta para o mesmo campo.
+  - Novas funções: "Buscar" sempre visível, buscas recentes para tocar de novo (com "Limpar"), microfone para ditar e Enter do celular buscando. No celular em pé, abre como aba por cima do controle, acima do teclado do iPhone.
+- **Voz**: o microfone usa o reconhecimento de voz quando existe (app Android, navegadores que liberam). Na página da TV (http), o navegador não libera o microfone; aí o toque abre o teclado do celular, cujo 🎤 dita o comando. Exemplos para tocar. Comandos novos: "canal 5", "próximo canal", "canal anterior", "legendas", "trocar a fonte".
+- **Liga/desliga**: a TV agora confere se desligou de verdade. Tenta POWER pelo controle do Google; se a tela continuar acesa, tenta o modo repouso (SLEEP) e depois o "bloquear tela" da acessibilidade, que põe a TV em repouso mesmo sem o pareamento do controle (Android 9+). Se nada apagar a tela, o celular é avisado (antes dizia OK). Ligar: WAKEUP, POWER e acender a tela.
+- **Canais**: "Mais → Botões de canal" escolhe entre a tecla de canal da TV (TV ao vivo, sintonizador) e as setas ↑/↓ (apps de TV ao vivo que mudam de canal com as setas).
+- **Testes**: `PowerSwitchTest` (5), `ImeApiTest` (3), teclado do Google em `AtvRemoteTest`, 9 frases novas no assistente; suíte completa (128) verde; layouts, pareamento, PWA e site verdes; prints do teclado automático, da voz e dos canais.
+- **Não testado** em TV e iPhone reais: os números exatos dos campos do pedido de teclado do Google e se cada modelo de TV aceita SLEEP ou o bloquear tela.
+
 ## Controle em tela cheia e toque travado no navegador (24/11/2026)
 
 - **Tela cheia no celular em pé, no modelo do controle do Google TV**: o Controle esconde o título, as abas de baixo e os avisos de status.

@@ -12,7 +12,7 @@ import java.util.Map;
 public final class Keys {
     /** Accessibility global actions (AccessibilityService.GLOBAL_ACTION_*). */
     static final int GA_NONE = 0, GA_BACK = 1, GA_HOME = 2, GA_RECENTS = 3, GA_NOTIFICATIONS = 4,
-            GA_DPAD_UP = 16, GA_DPAD_DOWN = 17, GA_DPAD_LEFT = 18, GA_DPAD_RIGHT = 19, GA_DPAD_CENTER = 20;
+            GA_LOCK_SCREEN = 8, GA_DPAD_UP = 16, GA_DPAD_DOWN = 17, GA_DPAD_LEFT = 18, GA_DPAD_RIGHT = 19, GA_DPAD_CENTER = 20;
 
     public static final class Key {
         public final String name;
@@ -63,7 +63,7 @@ public final class Keys {
         add("volup", 24, GA_NONE, 0, false);
         add("voldown", 25, GA_NONE, 0, false);
         add("mute", 164, GA_NONE, 0, false);
-        add("power", 26, GA_NONE, 0, false);
+        add("power", 26, GA_LOCK_SCREEN, 28, false); // accessibility "lock screen" puts the TV to sleep (Android 9+)
         add("chup", 166, GA_NONE, 0, false);
         add("chdown", 167, GA_NONE, 0, false);
         add("input", 178, GA_NONE, 0, false);       // TV input / source

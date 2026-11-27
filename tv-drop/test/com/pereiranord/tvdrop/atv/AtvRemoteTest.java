@@ -60,6 +60,32 @@ public class AtvRemoteTest {
     }
 
     @Test
+    public void theTvsKeyboardRequestIsRemembered() throws Exception {
+        AtvRemote r = new AtvRemote(new java.io.File(tmp.getRoot(), "k.p12"), new KeyValueStore.Memory(), "TV Drop",
+                Collections.singletonList("127.0.0.1"));
+        assertFalse(r.imeShown());
+        // remote_ime_show_request { remote_text_field_status { counter 5, value "star", label "Pesquisar" } }
+        r.handle(Proto.Msg.parse(new Proto().message(22, new Proto().message(2, new Proto().varint(1, 5).string(2, "star")
+                .varint(3, 4).varint(4, 4).string(6, "Pesquisar"))).toByteArray()));
+        assertTrue(r.imeShown());
+        assertEquals("star", r.imeValue());
+        assertEquals("Pesquisar", r.imeLabel());
+        assertTrue(r.imeReady());
+        // remote_ime_batch_edit from the TV: the field now says "star wars"
+        r.handle(Proto.Msg.parse(new Proto().message(21, new Proto().varint(1, 1).varint(2, 5)
+                .message(3, new Proto().varint(1, 1).message(2, new Proto().varint(1, 9).varint(2, 9).string(3, "star wars")))).toByteArray()));
+        assertEquals("star wars", r.imeValue());
+        r.imeHidden();
+        assertFalse(r.imeShown());
+        // shown again, then another app comes to the front: its keyboard is gone
+        r.handle(Proto.Msg.parse(new Proto().message(22, new Proto().message(2, new Proto().varint(1, 6))).toByteArray()));
+        assertTrue(r.imeShown());
+        r.handle(Proto.Msg.parse(new Proto().message(20, new Proto().message(1, new Proto().varint(1, 1).string(12, "com.netflix.ninja"))
+                .message(2, new Proto().varint(1, 6))).toByteArray()));
+        assertFalse(r.imeShown());
+    }
+
+    @Test
     public void unsignedBytesDropTheSignByte() {
         assertArrayEquals(new byte[]{1, 0, 1}, AtvRemote.unsigned(BigInteger.valueOf(65537)));
         assertArrayEquals(new byte[]{(byte) 0xff}, AtvRemote.unsigned(BigInteger.valueOf(255)));

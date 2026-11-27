@@ -77,7 +77,7 @@ final class AndroidRemote implements TvHost.RemoteControl {
                     .put("text", textPath != null)
                     .put("textVia", textPath == null ? JSONObject.NULL : textPath)
                     .put("pointer", acc != null)
-                    .put("power", paired)
+                    .put("power", paired || acc != null && sdk >= 28)
                     .put("links", true)
                     .put("atv", new JSONObject()
                             .put("available", serviceAvailable())
@@ -119,8 +119,10 @@ final class AndroidRemote implements TvHost.RemoteControl {
             case "volup": am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI); return null;
             case "voldown": am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI); return null;
             case "mute": am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI); return null;
+            case "power": return power();
             default: break;
         }
+        if (k.name.equals("back") || k.name.equals("home") || k.name.equals("enter")) atv.imeHidden();
         String atvError = null;
         if (atvPaired() && !k.name.equals("recents")) {
             try {
@@ -144,6 +146,67 @@ final class AndroidRemote implements TvHost.RemoteControl {
         return "Esta tecla precisa do pareamento do controle (Dispositivos → Parear controle).";
     }
 
+    // ---- power ----
+
+    /**
+     * Turns the TV off (or on, when its screen is off) and checks that it happened: the remote service's POWER,
+     * then its SLEEP (some TVs ignore POWER from the network), then accessibility's "lock screen", which puts the
+     * device to sleep. Waking: WAKEUP, POWER, then a wake lock that turns the screen on.
+     */
+    private String power() {
+        android.os.PowerManager pm = ctx.getSystemService(android.os.PowerManager.class);
+        TvDropAccessibility acc = TvDropAccessibility.get();
+        boolean paired = atvPaired();
+        boolean on = pm.isInteractive();
+        java.util.List<PowerSwitch.Step> steps = new java.util.ArrayList<>();
+        if (on) {
+            if (paired) {
+                steps.add(new PowerSwitch.Step("controle (POWER)", () -> { atv.sendKey(26); return null; }));
+                steps.add(new PowerSwitch.Step("controle (repouso)", () -> { atv.sendKey(223); return null; }));
+            }
+            if (acc != null && Build.VERSION.SDK_INT >= 28) {
+                steps.add(new PowerSwitch.Step("acessibilidade", () -> acc.global(Keys.GA_LOCK_SCREEN) ? null : "recusado"));
+            }
+        } else {
+            if (paired) {
+                steps.add(new PowerSwitch.Step("controle (WAKEUP)", () -> { atv.sendKey(224); return null; }));
+                steps.add(new PowerSwitch.Step("controle (POWER)", () -> { atv.sendKey(26); return null; }));
+            }
+            steps.add(new PowerSwitch.Step("sistema", () -> { wakeScreen(pm); return null; }));
+        }
+        PowerSwitch.Result r = PowerSwitch.run(steps, on ? () -> !pm.isInteractive() : pm::isInteractive, 2000, Thread::sleep,
+                "Para desligar pelo TV Drop, pareie o controle (Dispositivos → Parear controle) ou ative a acessibilidade do TV Drop",
+                on ? "Mandei desligar de " + "todas as formas que esta TV aceita, mas ela continua ligada. Alguns modelos não aceitam desligar pela rede."
+                        : "Mandei ligar, mas a tela da TV continua apagada.");
+        Events.add(r.error == null ? (on ? "TV desligada pelo celular (" : "TV ligada pelo celular (") + r.via + ")"
+                : "Liga/desliga não funcionou: " + r.error + (r.sent.isEmpty() ? "" : " — tentado: " + String.join(", ", r.sent)));
+        return r.error;
+    }
+
+    @SuppressWarnings("deprecation")
+    private static void wakeScreen(android.os.PowerManager pm) {
+        android.os.PowerManager.WakeLock wl = pm.newWakeLock(android.os.PowerManager.SCREEN_BRIGHT_WAKE_LOCK
+                | android.os.PowerManager.ACQUIRE_CAUSES_WAKEUP, "tvdrop:wake");
+        wl.acquire(3000);
+    }
+
+    // ---- the TV's keyboard ----
+
+    @Override
+    public JSONObject ime() {
+        try {
+            TvDropAccessibility acc = TvDropAccessibility.get();
+            String[] f = acc == null ? null : acc.keyboard();
+            if (f != null) return new JSONObject().put("active", true).put("value", f[0]).put("label", f[1]).put("via", "accessibility");
+            if (atvPaired() && atv.imeShown()) {
+                return new JSONObject().put("active", true).put("value", atv.imeValue()).put("label", atv.imeLabel()).put("via", "remote");
+            }
+            return new JSONObject().put("active", false);
+        } catch (JSONException e) {
+            return null;
+        }
+    }
+
     // ---- text ----
 
     @Override
@@ -156,7 +219,7 @@ final class AndroidRemote implements TvHost.RemoteControl {
                     if (atv.imeReady()) atv.sendText(text);
                     else typeKeys(text);
                 }
-                if (submit) atv.sendKey(66);
+                if (submit) { atv.sendKey(66); atv.imeHidden(); }
                 return null;
             } catch (IOException | IllegalStateException | IllegalArgumentException e) {
                 atvError = e.getMessage();

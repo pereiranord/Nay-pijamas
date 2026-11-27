@@ -74,6 +74,11 @@ public class AtvRemote {
     private volatile boolean configured;
     private volatile int imeCounter, fieldCounter;
     private volatile boolean hasImeCounter, hasFieldCounter;
+    /** The TV asked for its keyboard (remote_ime_show_request) and hasn't put it away since, as far as we know. */
+    private volatile boolean imeShown;
+    private volatile String imeValue = "", imeLabel = "";
+    private volatile long imeAt;
+    static final long IME_MAX_MS = 10 * 60_000;
     private volatile String currentApp = "";
     private volatile boolean isOn = true;
     private volatile int volumeLevel = -1, volumeMax = -1;
@@ -112,6 +117,13 @@ public class AtvRemote {
     }
 
     public String currentApp() { return currentApp; }
+
+    /** The TV's keyboard is up (it asked for it, and no Back/Home/Enter or app change since). */
+    public boolean imeShown() { return imeShown && System.currentTimeMillis() - imeAt < IME_MAX_MS; }
+    public String imeValue() { return imeValue; }
+    public String imeLabel() { return imeLabel; }
+    /** Back, Home, Enter or a search sent: the TV puts its keyboard away. */
+    public void imeHidden() { imeShown = false; }
     public boolean isOn() { return isOn; }
     public int volumeLevel() { return volumeLevel; }
     public int volumeMax() { return volumeMax; }
@@ -395,6 +407,7 @@ public class AtvRemote {
             Proto.Msg inj = m.msg(20);
             Proto.Msg app = inj.msg(1);
             String pkg = app.str(12);
+            if (pkg != null && !pkg.equals(currentApp)) imeShown = false; // another app: its keyboard is gone
             if (pkg != null) currentApp = pkg;
             imeCounter = (int) app.num(1, 0);
             fieldCounter = (int) inj.msg(2).num(1, 0);
@@ -402,14 +415,28 @@ public class AtvRemote {
             hasFieldCounter = fieldCounter != 0;
         } else if (m.has(22)) { // remote_ime_show_request
             Proto.Msg st = m.msg(22);
-            if (st.has(2)) {
-                fieldCounter = (int) st.msg(2).num(1, 0);
+            if (st.has(2)) { // remote_text_field_status: counter, value, start, end, ..., label
+                Proto.Msg f = st.msg(2);
+                fieldCounter = (int) f.num(1, 0);
                 hasFieldCounter = true;
+                imeValue = f.str(2) == null ? "" : f.str(2);
+                imeLabel = f.str(6) == null ? "" : f.str(6);
+                imeShown = true;
+                imeAt = System.currentTimeMillis();
+            } else {
+                imeShown = false;
             }
         } else if (m.has(21)) { // remote_ime_batch_edit
             Proto.Msg be = m.msg(21);
             if (!hasImeCounter) imeCounter = (int) be.num(1, 0);
             if (!hasFieldCounter) fieldCounter = (int) be.num(2, 0);
+            if (be.has(3)) { // edit_info: the field's text as the TV has it now
+                Proto.Msg info = be.msg(3);
+                if (info.has(2)) {
+                    String v = info.msg(2).str(3);
+                    if (v != null) imeValue = v;
+                }
+            }
         } else if (m.has(50)) { // remote_set_volume_level
             Proto.Msg v = m.msg(50);
             volumeMax = (int) v.num(6, -1);
