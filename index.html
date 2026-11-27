@@ -663,6 +663,46 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 :root[data-theme="light"] .rt-tv:not(.ok) { background: #fff; }
 :root[data-theme="light"] .rnav .key, :root[data-theme="light"] .rvol .key, :root[data-theme="light"] .vpill, :root[data-theme="light"] .rt-exit, :root[data-theme="light"] .rtop .key { box-shadow: inset 0 0 0 1px #d6dbe1; }
 
+/* =====================================================================
+   Keyboard and voice: the TV asks for text → the phone's keyboard comes up
+   by itself (like the Google TV remote). On an upright phone both open as a
+   sheet over the bottom of the remote, above the phone's own keyboard
+   (--kb-inset, from visualViewport); elsewhere they stay cards.
+   ===================================================================== */
+.kbd-head { align-items: center; gap: 10px; }
+.sheet-x { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); flex: none; }
+.sheet-x svg { width: 20px; height: 20px; }
+.kbd-field { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px; border-radius: 12px; background: rgba(61, 220, 132, .12); color: var(--green); font-size: 14px; font-weight: 600; }
+.kbd-field svg { width: 18px; height: 18px; }
+.kbd-input { position: relative; }
+.kbd-input textarea { padding-right: 60px; }
+.kbd-mic { position: absolute; right: 8px; top: 8px; width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; color: var(--text); }
+.kbd-mic.on { background: var(--green); color: var(--green-ink); animation: pulse 1s infinite; }
+.kbd-recent, .vchips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0 2px; scrollbar-width: none; }
+.kbd-recent:empty { display: none; }
+.vchip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: 999px; background: var(--surface-2); color: var(--text); font-size: 14px; white-space: nowrap; }
+.vchip svg { width: 16px; height: 16px; color: var(--muted); }
+.vchip.ghost { background: none; color: var(--muted); box-shadow: inset 0 0 0 1px var(--line); }
+.vchip:active { transform: scale(.97); }
+.ch-mode { margin-top: 14px; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ch-mode .seg { flex: 1 1 220px; }
+.ch-mode .seg button { min-height: 40px; font-size: 13px; }
+@media (max-width: 759px) and (orientation: portrait) {
+  body.rmode #kbd:not([hidden]), body.rmode #voice:not([hidden]) {
+    position: fixed; left: 0; right: 0; bottom: var(--kb-inset, 0px); z-index: 45; margin: 0;
+    border-radius: 24px 24px 0 0; padding: 16px calc(16px + var(--safe-r)) calc(14px + var(--safe-b)) calc(16px + var(--safe-l));
+    box-shadow: 0 -18px 50px rgba(0, 0, 0, .55); max-height: 78vh; overflow-y: auto; animation: sheet-up .22s ease-out;
+  }
+  body.rmode #kbd textarea { min-height: 64px; }
+}
+@keyframes sheet-up { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+:root[data-theme="light"] .vchip, :root[data-theme="light"] .sheet-x, :root[data-theme="light"] .kbd-mic { background: #e8ecf0; }
+#cmdGo { flex: none; width: 56px; padding: 0; }
+#voice .row .field { min-width: 0; }
+.ch-mode > .sub { flex: 1 0 100%; }
+.ch-mode .seg { flex: 1 1 100%; }
+.ch-mode .seg button { white-space: nowrap; }
+
 </style>
 </head>
 <body>
@@ -776,6 +816,15 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
       if (sc) return { intent: 'shortcut', args: { name: sc }, label: 'executar "' + sc + '"' };
     }
 
+    // channels and TV keys come before "abrir/coloca <app>" ("coloca no canal 5" is not an app)
+    if ((m = t.match(/^(coloca(r)? (no |o )?|muda(r)? (pro|para o) |vai (pro|para o) |sintoniza(r)? (o )?)?canal\s+(?<n>.+)$/)) && number(m.groups.n) !== null) {
+      const n = number(m.groups.n);
+      return { intent: 'channel', args: { number: n }, label: 'canal ' + n };
+    }
+    if (/^(proximo canal|canal (acima|seguinte|proximo|da frente)|sobe (o )?canal|subir (o )?canal|muda(r)? (de|o) canal|troca(r)? (de|o) canal)$/.test(t)) return { intent: 'key', args: { key: 'chup' }, label: 'próximo canal' };
+    if (/^(canal anterior|canal (abaixo|de tras)|desce (o )?canal|descer (o )?canal|volta(r)? (o |um )?canal)$/.test(t)) return { intent: 'key', args: { key: 'chdown' }, label: 'canal anterior' };
+    if (/^((liga(r)?|ativa(r)?|desliga(r)?|tira(r)?|mostra(r)?) (a |as )?)?legendas?$/.test(t)) return { intent: 'key', args: { key: 'captions' }, label: 'legendas' };
+    if (/^(fonte|entrada|hdmi|troca(r)? (a )?(fonte|entrada)|muda(r)? (a )?(fonte|entrada))$/.test(t)) return { intent: 'key', args: { key: 'input' }, label: 'trocar a fonte (entrada)' };
     if ((m = t.match(/^(abr(ir|a|e)|abre o|abra o|abrir o|abrir a|entra(r)? no|entra(r)? na|vai pro|vai para o|coloca(r)?|bota(r)?)\s+(o |a |no |na )?(.+)$/))) {
       const name = m[8].replace(/^(app|aplicativo)\s+(do |da |de )?/, '').trim();
       const key = name.replace(/\s+/g, '');
@@ -1200,6 +1249,15 @@ function pwaKeep() {
   }, { passive: false });
 })();
 
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+// The phone's keyboard covers the bottom of the screen: sheets sit above it (iPhone moves the visual viewport).
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const inset = () => document.documentElement.style.setProperty('--kb-inset', Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop)) + 'px');
+  vv.addEventListener('resize', inset); vv.addEventListener('scroll', inset);
+}
+
 const VIEWS = { home: renderHome, cast: renderCast, remote: renderRemote, apps: renderApps, library: renderLibrary, devices: renderDevices, settings: renderSettings };
 
 function go(view) {
@@ -1331,14 +1389,14 @@ function wsConnect() {
   };
 }
 function wsClose() { if (S.ws) { const w = S.ws; S.ws = null; w.onclose = null; try { w.close(); } catch (e) { /* ignore */ } } S.wsOk = false; }
-function wsSend(obj, wantAck) {
+function wsSend(obj, wantAck, timeoutMs = 4000) {
   if (!S.wsOk) return null;
   if (!wantAck) { S.ws.send(JSON.stringify(obj)); return Promise.resolve({ ok: true }); }
   const id = String(++S.wsSeq);
   return new Promise((resolve) => {
     S.wsWaiters[id] = resolve;
     S.ws.send(JSON.stringify({ ...obj, id }));
-    setTimeout(() => { if (S.wsWaiters[id]) { delete S.wsWaiters[id]; resolve({ ok: false, message: 'A TV não respondeu a tempo.' }); } }, 4000);
+    setTimeout(() => { if (S.wsWaiters[id]) { delete S.wsWaiters[id]; resolve({ ok: false, timeout: true, message: 'A TV não respondeu a tempo.' }); } }, timeoutMs);
   });
 }
 
@@ -1347,9 +1405,12 @@ async function sendKey(key, el) {
   if (el) { el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 140); }
   const native = async () => { const r = await nativeAtv('key', key); if (!r.ok) toast(r.message || 'A TV recusou o comando', false); return r.ok; };
   if (!receiverHas(key) && nativeAtvOk()) return native();
-  const viaWs = wsSend({ t: 'key', k: key }, true);
+  // power: the TV tries each way it has and checks that the screen really went off, which takes a few seconds
+  const viaWs = wsSend({ t: 'key', k: key }, true, key === 'power' ? 10000 : 4000);
+  if (key === 'power' && viaWs) toast('Enviando para a TV…');
   if (viaWs) {
     const r = await viaWs;
+    if (key === 'power' && r.ok) toast('Pronto: a TV recebeu o liga/desliga.');
     if (r.ok) return true;
     if (nativeAtvOk() && NATIVE_KEYS.includes(key)) return native();
     toast(r.message || 'A TV recusou o comando', false); return false;
@@ -1827,16 +1888,21 @@ function holdKey(key) {
   return () => { clearTimeout(timer); clearInterval(rep); };
 }
 
+/** Channel buttons send the TV's channel keys, or ↑/↓ (live-TV apps that change channel with the arrows). */
+const chMap = (k) => ((k === 'chup' || k === 'chdown') && store.get('chMode', 'ch') === 'arrows' ? (k === 'chup' ? 'up' : 'down') : k);
+
 /** Press = one key; hold = continuous (arrows, volume, channel...). Unavailable keys explain why. */
-function bindKey(el, key) {
+function bindKey(el, bound) {
   let release = null, pressed = false;
   const stop = () => {
     if (pressed && /^(volup|voldown|mute)$/.test(key)) setTimeout(() => loadCaps().then(drawRemoteStatus), 700);
     if (release) { release(); release = null; }
     pressed = false; el.classList.remove('hit');
   };
+  let key = bound;
   el.addEventListener('pointerdown', (e) => {
     if (e.button > 0) return;
+    key = chMap(bound);
     if (!has(key)) { toast(keyHint(key), false); return; }
     pressed = true;
     el.setPointerCapture && el.setPointerCapture(e.pointerId);
@@ -1846,7 +1912,7 @@ function bindKey(el, key) {
   });
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => el.addEventListener(t, stop));
   // keyboard activation (Enter/Space on a focused button)
-  el.addEventListener('click', (e) => { if (e.detail === 0) { if (has(key)) sendKey(key, el); else toast(keyHint(key), false); } });
+  el.addEventListener('click', (e) => { if (e.detail === 0) { key = chMap(bound); if (has(key)) sendKey(key, el); else toast(keyHint(key), false); } });
   el.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
@@ -1916,19 +1982,26 @@ function renderRemote() {
         <div class="card panel" id="morePanel" hidden>
           <div class="colors">${['red', 'green', 'yellow', 'blue'].map((c) => `<button class="ckey c-${c} ${S.caps && !has(c) ? 'off' : ''}" data-rk="${c}" aria-label="Botão ${c}"></button>`).join('')}</div>
           <div class="more-grid">${['input', 'settings', 'assistant', 'menu', 'search', 'guide', 'captions', 'recents', 'apps', 'stop', 'prev', 'next', 'info'].map((k) => `<div class="key-wrap">${rkey(k)}<div class="key-label">${KEY_INFO[k][1]}</div></div>`).join('')}</div>
+          <div class="row ch-mode"><span class="sub grow" style="margin:0">Botões de canal (CH)</span>
+            <div class="seg" role="group" aria-label="Botões de canal"><button data-ch="ch" aria-pressed="${store.get('chMode', 'ch') !== 'arrows'}">Tecla de canal</button><button data-ch="arrows" aria-pressed="${store.get('chMode', 'ch') === 'arrows'}">Setas ↑↓</button></div></div>
           <button class="btn" style="width:100%;margin-top:12px" id="peekBtn" ${S.caps && S.caps.screenshot === false ? 'aria-disabled="true"' : ''}>${icon('eye')}Ver a tela da TV no celular</button>
         </div>
         <div class="quickapps" id="quickApps"></div>
-        <div class="card kbd" id="kbd" hidden><div class="row"><h2 class="grow" style="margin:0">Teclado</h2>
-          <label class="slider-row" style="margin:0;flex:none"><input type="checkbox" id="kbdLive" ${store.get('liveTyping', false) ? 'checked' : ''} style="width:20px;height:20px"> Digitar ao vivo</label></div>
+        <div class="card kbd" id="kbd" hidden><div class="row kbd-head"><h2 class="grow" style="margin:0">Teclado</h2>
+          <label class="slider-row" style="margin:0;flex:none"><input type="checkbox" id="kbdLive" ${store.get('liveTyping', false) ? 'checked' : ''} style="width:20px;height:20px"> Digitar ao vivo</label>
+          <button class="sheet-x" id="kbdClose" aria-label="Fechar o teclado">${icon('close')}</button></div>
+          <div class="kbd-field" id="kbdField" hidden>${icon('tv')}<span id="kbdFieldText">A TV está pedindo texto</span></div>
           <p class="sub" style="margin-top:6px" id="kbdHint"></p>
-          <textarea id="kbdText" placeholder="Ex.: filmes de ação" autocapitalize="off" autocomplete="off" spellcheck="false"></textarea>
-          <div class="row" style="margin-top:10px" id="kbdSendRow"><button class="btn primary" id="kbdSend">Enviar</button><button class="btn" id="kbdSearch">${icon('search')}Enviar e buscar</button></div>
+          <div class="kbd-input"><textarea id="kbdText" placeholder="Ex.: filmes de ação" autocapitalize="off" autocomplete="off" spellcheck="false" enterkeyhint="search"></textarea>
+            <button class="kbd-mic" id="kbdMic" aria-label="Falar o texto">${icon('mic')}</button></div>
+          <div class="kbd-recent" id="kbdRecent"></div>
+          <div class="row" style="margin-top:10px" id="kbdSendRow"><button class="btn" id="kbdSend">Enviar</button><button class="btn primary grow" id="kbdSearch">${icon('search')}Buscar</button></div>
           <div class="row" style="margin-top:10px">
             <button class="btn small" data-rk="del">${icon('del')}Apagar</button><button class="btn small" id="kbdEnter">${icon('enter')}Enter</button><button class="btn small" id="kbdSpace">Espaço</button><button class="btn small" id="kbdClear">Limpar campo</button></div></div>
-        <div class="card" id="voice" hidden><h2>Voz e comandos</h2><p class="sub" id="voiceHint">Fale, por exemplo: “abrir YouTube”, “volume em 20”, “voltar”, “pesquisar filmes de ação”.</p>
+        <div class="card" id="voice" hidden><div class="row kbd-head"><h2 class="grow" style="margin:0">Voz e comandos</h2><button class="sheet-x" id="voiceClose" aria-label="Fechar">${icon('close')}</button></div><p class="sub" id="voiceHint">Fale, por exemplo: “abrir YouTube”, “volume em 20”, “voltar”, “pesquisar filmes de ação”.</p>
           <button class="mic" id="voiceGo" aria-label="Falar">${icon('mic')}</button>
-          <div class="row" style="margin-top:14px"><input class="field grow" id="cmdText" placeholder="Ou digite: abrir Netflix, volume em 20…" autocomplete="off"><button class="btn primary" id="cmdGo">${icon('bolt')}</button></div>
+          <div class="row" style="margin-top:14px"><input class="field grow" id="cmdText" placeholder="Ou digite: abrir Netflix, volume em 20…" autocomplete="off" enterkeyhint="go"><button class="btn primary" id="cmdGo" aria-label="Executar">${icon('bolt')}</button></div>
+          <div class="vchips">${['Abrir YouTube', 'Volume em 15', 'Pesquisar filmes de ação', 'Próximo canal', 'Canal 5', 'Pausar', 'Desligar a TV'].map((c) => `<button class="vchip" data-cmd="${c}">${c}</button>`).join('')}</div>
           <div class="msg" id="voiceMsg" style="text-align:center"></div><div class="row" id="voiceConfirm" hidden><button class="btn primary" data-yes>Executar</button><button class="btn" data-no>Cancelar</button></div></div>
         <div class="card" id="timerCard"></div>
         <div class="card kb-hint" id="kbHint"><h2>Atalhos do teclado</h2><p class="sub" style="margin:0">Setas · Enter = OK · Esc/Backspace = Voltar · H = Início · Espaço = Play/Pausa · + / − = Volume · M = Mudo · PgUp/PgDn = Canal · 0–9</p></div>
@@ -1942,7 +2015,14 @@ function renderRemote() {
   $('#numBtn').onclick = () => panel('numPanel');
   $('#moreBtn').onclick = () => panel('morePanel');
   $('#peekBtn').onclick = peekScreen;
-  $('#kbdBtn').onclick = () => { if (panel('kbd')) $('#kbdText').focus(); };
+  $('#kbdBtn').onclick = () => { if (panel('kbd')) { S.kbdAuto = false; updateKbdField(); $('#kbdText').focus(); } };
+  $('#kbdClose').onclick = closeKbd;
+  $('#voiceClose').onclick = () => { $('#voice').hidden = true; };
+  $$('[data-ch]', main).forEach((b) => b.onclick = () => {
+    store.set('chMode', b.dataset.ch);
+    $$('[data-ch]', main).forEach((x) => x.setAttribute('aria-pressed', x === b));
+    toast(b.dataset.ch === 'arrows' ? 'CH agora envia ↑/↓ (apps de TV ao vivo)' : 'CH agora envia a tecla de canal da TV');
+  });
   setupKeyboard();
   setupVoice();
   const voiceToggle = $('#micBtn').onclick; // from setupVoice: toggles the card and explains when there is no mic
@@ -1960,6 +2040,89 @@ function renderRemote() {
   drawQuickApps();
   drawTimer();
   wsConnect();
+  startImeWatch();
+}
+
+/* ---------------------------------------------------------------- THE TV'S KEYBOARD
+   Like the Google TV remote: when a text field opens the TV's keyboard (search, login...), the phone offers its
+   own keyboard by itself, with what the field already has. The TV tells it (GET /remote/ime, WebSocket "ime"). */
+let imeTimer = 0;
+function startImeWatch() {
+  clearInterval(imeTimer);
+  S.ime = { active: false, label: '', value: '', dismissed: false };
+  imeTimer = setInterval(pollIme, 900);
+}
+async function pollIme() {
+  if (S.view !== 'remote' || document.hidden || !S.wsOk || S.imeUnsupported) { if (S.view !== 'remote') clearInterval(imeTimer); return; }
+  const r = await wsSend({ t: 'ime' }, true, 3000);
+  if (!r || r.timeout) return;
+  if (r.t !== 'ime') { S.imeUnsupported = true; return; } // an older TV Drop: no keyboard reports
+  onIme(r);
+}
+function onIme(st) {
+  const was = S.ime.active;
+  if (st.active) {
+    const fresh = !was || (st.label || '') !== S.ime.label;
+    S.ime = { active: true, label: st.label || '', value: st.value || '', dismissed: fresh ? false : S.ime.dismissed };
+    if (fresh && !S.ime.dismissed && $('#kbd') && $('#kbd').hidden) openKbd(true);
+    else updateKbdField();
+  } else if (was) {
+    S.ime = { active: false, label: '', value: '', dismissed: false };
+    updateKbdField();
+    const ta = $('#kbdText');
+    if (S.kbdAuto && $('#kbd') && !$('#kbd').hidden && document.activeElement !== ta) closeKbd();
+  }
+}
+function openKbd(fromTv) {
+  const kbd = $('#kbd');
+  if (!kbd) return;
+  ['numPanel', 'morePanel', 'voice'].forEach((x) => { if ($('#' + x)) $('#' + x).hidden = true; });
+  kbd.hidden = false;
+  S.kbdAuto = !!fromTv;
+  if (fromTv) {
+    if (store.get('liveTyping', null) === null) { $('#kbdLive').checked = true; $('#kbdLive').onchange && $('#kbdLive').dispatchEvent(new Event('change')); }
+    if (S.kbdSync) S.kbdSync(S.ime.value || '');
+    buzz();
+  }
+  updateKbdField();
+  if (!document.body.classList.contains('rmode')) setTimeout(() => kbd.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
+}
+function closeKbd() {
+  const kbd = $('#kbd');
+  if (!kbd) return;
+  kbd.hidden = true;
+  if (S.ime && S.ime.active) S.ime.dismissed = true; // not again for this field
+  const ta = $('#kbdText');
+  if (ta && document.activeElement === ta) ta.blur();
+}
+function updateKbdField() {
+  const box = $('#kbdField');
+  if (!box) return;
+  const on = S.ime && S.ime.active;
+  box.hidden = !on;
+  if (on) $('#kbdFieldText').textContent = 'A TV está pedindo texto' + (S.ime.label ? ': ' + S.ime.label : '');
+}
+const KBD_RECENT = 'kbdRecent';
+function rememberText(t) {
+  t = (t || '').trim();
+  if (!t || t.length > 80) return;
+  const list = [t, ...store.get(KBD_RECENT, []).filter((x) => x.toLowerCase() !== t.toLowerCase())].slice(0, 8);
+  store.set(KBD_RECENT, list);
+  drawRecent();
+}
+function drawRecent() {
+  const box = $('#kbdRecent');
+  if (!box) return;
+  const list = store.get(KBD_RECENT, []);
+  box.innerHTML = list.length ? list.map((t, i) => `<button class="vchip" data-recent="${i}" aria-label="Buscar ${esc(t)} de novo">${icon('history')}${esc(t)}</button>`).join('')
+    + `<button class="vchip ghost" id="kbdRecentClear" aria-label="Apagar as buscas recentes">Limpar</button>` : '';
+  $$('[data-recent]', box).forEach((b) => b.onclick = () => {
+    const t = list[+b.dataset.recent];
+    if (S.kbdSync) S.kbdSync(t);
+    sendText(t, { replace: true, submit: true }).then((ok) => { if (ok) { toast('Buscando "' + t + '" na TV'); rememberText(t); } });
+  });
+  const clr = $('#kbdRecentClear');
+  if (clr) clr.onclick = () => { store.set(KBD_RECENT, []); drawRecent(); };
 }
 
 /** App on screen, volume (with a slider when the TV reports it) and which path the remote uses. */
@@ -2001,12 +2164,19 @@ function setupKeyboard() {
   const live = () => $('#kbdLive').checked;
   const hint = () => {
     $('#kbdHint').textContent = live() ? 'Cada letra vai direto para o campo selecionado na TV.' : 'Selecione um campo de busca na TV, digite aqui e toque em Enviar.';
-    $('#kbdSendRow').hidden = live();
+    $('#kbdSend').hidden = live(); // live: letters are already on the TV; "Buscar" stays
   };
   hint();
   let last = '', pending = '', flushTimer = 0;
   const flush = () => { if (pending) { const p = pending; pending = ''; sendText(p); } };
-  $('#kbdLive').onchange = (e) => { store.set('liveTyping', e.target.checked); last = ta.value; hint(); };
+  $('#kbdLive').onchange = (e) => { if (e.isTrusted) store.set('liveTyping', e.target.checked); last = ta.value; hint(); };
+  S.kbdSync = (v) => { flush(); ta.value = v; last = v; };
+  drawRecent();
+  $('#kbdMic').onclick = () => dictate((text) => {
+    const v = (ta.value && !/\s$/.test(ta.value) ? ta.value + ' ' : ta.value) + text;
+    if (live()) sendText(v, { replace: true }); // the whole field, so a dictated phrase lands in one go
+    ta.value = v; last = v;
+  }, $('#kbdMic'), ta);
   ta.addEventListener('input', () => {
     if (!live()) return;
     const v = ta.value;
@@ -2015,9 +2185,16 @@ function setupKeyboard() {
     else { flush(); sendText(v, { replace: true }); }
     last = v;
   });
-  ta.addEventListener('keydown', (e) => { if (live() && e.key === 'Enter') { e.preventDefault(); flush(); sendKey('enter'); } });
-  $('#kbdSend').onclick = () => { const t = ta.value; if (t) sendText(t).then((ok) => ok && toast('Texto enviado')); };
-  $('#kbdSearch').onclick = () => sendText(ta.value, { submit: true }).then((ok) => ok && toast('Buscando na TV'));
+  ta.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    e.preventDefault();
+    if (live()) { flush(); sendKey('enter'); rememberText(ta.value); } else $('#kbdSearch').click();
+  });
+  $('#kbdSend').onclick = () => { const t = ta.value; if (t) sendText(t).then((ok) => { if (ok) { toast('Texto enviado'); rememberText(t); } }); };
+  $('#kbdSearch').onclick = () => {
+    const t = ta.value;
+    (live() ? (flush(), sendKey('enter')) : sendText(t, { submit: true })).then((ok) => { if (ok) { toast('Buscando na TV'); rememberText(t); } });
+  };
   $('#kbdEnter').onclick = () => sendKey('enter');
   $('#kbdSpace').onclick = () => sendText(' ');
   $('#kbdClear').onclick = () => { ta.value = ''; last = ''; sendText('', { replace: true }).then((ok) => ok && toast('Campo limpo')); };
@@ -2158,40 +2335,61 @@ function voiceAvailable() {
   return null;
 }
 
+/**
+ * Speech to text for a field. With a microphone (Android app, or a browser that allows it) it listens; otherwise
+ * it opens the phone's own keyboard on the field, whose microphone key dictates (iPhone and Android keyboards).
+ */
+function dictate(onText, btn, field) {
+  const mode = voiceAvailable();
+  if (mode) { listen(mode, onText, btn); return; }
+  if (field) { field.focus(); toast(IS_IOS ? 'Toque no 🎤 do teclado do iPhone e fale.' : 'Toque no 🎤 do teclado e fale.'); }
+}
+
 function setupVoice() {
   const mode = voiceAvailable();
   const btn = $('#micBtn');
   btn.onclick = () => {
     $('#kbd').hidden = true;
     const card = $('#voice'); card.hidden = !card.hidden;
-    if (!mode) {
-      $('#voiceHint').textContent = 'Neste navegador o microfone não está disponível (só em páginas https; a da TV é http). Digite o comando abaixo, ou use o app TV Drop no Android para falar.';
-      $('#voiceGo').disabled = true;
-    }
+    if (!mode) $('#voiceHint').innerHTML = 'Toque no microfone e fale pelo <b>🎤 do teclado do celular</b> (o navegador não libera o microfone na página da TV). Ou toque num exemplo:';
+    if (!card.hidden && !document.body.classList.contains('rmode')) setTimeout(() => card.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
   };
-  $('#voiceGo').onclick = () => listen(mode);
+  $('#voiceGo').onclick = () => dictate(onVoiceText, $('#voiceGo'), $('#cmdText'));
+  $$('[data-cmd]', $('#voice')).forEach((b) => b.onclick = () => runCommand(b.dataset.cmd, 1, $('#voiceMsg'), $('#voiceConfirm')));
   const runTyped = () => { const v = $('#cmdText').value.trim(); if (v) { runCommand(v, 1, $('#voiceMsg'), $('#voiceConfirm')); $('#cmdText').value = ''; } };
   $('#cmdGo').onclick = runTyped;
   $('#cmdText').onkeydown = (e) => { if (e.key === 'Enter') runTyped(); };
 }
 
-function listen(mode) {
-  const msg = $('#voiceMsg');
-  $('#voiceConfirm').hidden = true;
-  if (mode === 'native') { $('#voiceGo').classList.add('on'); msg.textContent = 'Ouvindo…'; NATIVE.voice(); return; }
+function listen(mode, onText = onVoiceText, btn = $('#voiceGo')) {
+  const msg = onText === onVoiceText ? $('#voiceMsg') : null;
+  const say = (t, err) => { if (msg) { msg.textContent = t; msg.className = err ? 'msg err' : 'msg'; } else if (err) toast(t, false); };
+  if ($('#voiceConfirm')) $('#voiceConfirm').hidden = true;
+  S.voiceTarget = { onText, btn };
+  if (mode === 'native') { btn.classList.add('on'); say('Ouvindo…'); NATIVE.voice(); return; }
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognizer = new SR();
   recognizer.lang = 'pt-BR'; recognizer.interimResults = false; recognizer.maxAlternatives = 1;
-  recognizer.onstart = () => { $('#voiceGo').classList.add('on'); msg.textContent = 'Ouvindo…'; msg.className = 'msg'; };
-  recognizer.onerror = (e) => { $('#voiceGo').classList.remove('on'); msg.textContent = 'Não consegui ouvir (' + e.error + ').'; msg.className = 'msg err'; };
-  recognizer.onend = () => $('#voiceGo').classList.remove('on');
-  recognizer.onresult = (e) => { const r = e.results[0][0]; onVoiceText(r.transcript, r.confidence); };
+  recognizer.onstart = () => { btn.classList.add('on'); say('Ouvindo…'); };
+  recognizer.onerror = (e) => { btn.classList.remove('on'); say('Não consegui ouvir (' + e.error + ').', true); };
+  recognizer.onend = () => btn.classList.remove('on');
+  recognizer.onresult = (e) => { const r = e.results[0][0]; onText(r.transcript, r.confidence); };
   recognizer.start();
 }
 
 // Called by the Android app after speech recognition.
-window.tvdropVoiceResult = (text) => { $('#voiceGo') && $('#voiceGo').classList.remove('on'); onVoiceText(text, 1); };
-window.tvdropVoiceError = (m) => { if ($('#voiceGo')) { $('#voiceGo').classList.remove('on'); $('#voiceMsg').textContent = m; $('#voiceMsg').className = 'msg err'; } };
+window.tvdropVoiceResult = (text) => {
+  const t = S.voiceTarget || { onText: onVoiceText, btn: $('#voiceGo') };
+  S.voiceTarget = null;
+  if (t.btn) t.btn.classList.remove('on');
+  t.onText(text, 1);
+};
+window.tvdropVoiceError = (m) => {
+  const t = S.voiceTarget || { onText: onVoiceText, btn: $('#voiceGo') };
+  S.voiceTarget = null;
+  if (t.btn) t.btn.classList.remove('on');
+  if (t.onText === onVoiceText && $('#voiceMsg')) { $('#voiceMsg').textContent = m; $('#voiceMsg').className = 'msg err'; } else toast(m, false);
+};
 
 function onVoiceText(text, confidence) {
   runCommand(text, confidence, $('#voiceMsg'), $('#voiceConfirm'));
@@ -2212,6 +2410,7 @@ function incompatible(cmd) {
     case 'key': return k(cmd.args.key);
     case 'keys': return k(cmd.args.key);
     case 'power': return k('power');
+    case 'channel': return k('num0');
     case 'search': return k('search') || (S.caps && S.caps.remote && !S.caps.remote.text ? 'digitar na TV não está disponível' : null);
     case 'text': return S.caps && S.caps.remote && !S.caps.remote.text && !nativeAtvOk() ? 'digitar na TV não está disponível' : null;
     case 'app': return cmd.args.missing ? '"' + cmd.args.missing + '" não está instalado na TV' : null;
@@ -2249,6 +2448,7 @@ async function execute(cmd) {
       if (S.status && S.status.playing) { if ((a.want === 'pause') !== !!S.status.paused) return playerCtl('toggle'); return true; }
       return sendKey(a.want === 'pause' ? 'pause' : 'play');
     case 'power': return sendKey('power');
+    case 'channel': for (const d of String(a.number)) { await sendKey('num' + d); await sleep(160); } return true;
     case 'go': go(a.view); return true;
     default: return false;
   }
